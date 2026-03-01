@@ -50,6 +50,16 @@ aws-serverless-events-platform/
 |   `-- shared/
 |
 |-- infrastructure/
+|   |-- bootstrap/
+|   |   `-- dev/
+|   |       |-- provider.tf
+|   |       |-- remote_backend.tf
+|   |       |-- artifacts.tf
+|   |       |-- variables.tf
+|   |       |-- outputs.tf
+|   |       |-- versions.tf
+|   |       `-- terraform.tfvars.example
+|   |
 |   |-- modules/
 |   |   |-- dynamodb/
 |   |   |-- lambda/
@@ -59,7 +69,8 @@ aws-serverless-events-platform/
 |   |   |-- eventbridge/
 |   |   |-- cloudfront/
 |   |   |-- waf/
-|   |   `-- iam/
+|   |   |-- iam/
+|   |   `-- remote_backend/
 |   |
 |   `-- envs/
 |       `-- dev/
@@ -90,3 +101,16 @@ No VPC, no NAT Gateway, and no RDS.
 ## Development Status
 
 Bootstrap phase - infrastructure foundation in progress.
+
+## Terraform Backend Bootstrapping
+
+Remote state is bootstrapped first from:
+
+- `infrastructure/bootstrap/dev`
+
+This stack creates:
+
+- S3 bucket for Terraform state
+- DynamoDB table for state locking
+
+Then bootstrap generates `infrastructure/envs/dev/backend.tf` automatically to switch the main environment to remote backend.

@@ -25,9 +25,3 @@ variable "lock_table_name" {
   type        = string
   default     = null
 }
-
-variable "prevent_destroy" {
-  description = "Whether to protect state resources from accidental destroy."
-  type        = bool
-  default     = true
-}

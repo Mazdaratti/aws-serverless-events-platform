@@ -10,7 +10,7 @@ resource "aws_s3_bucket" "terraform_state" {
   })
 
   lifecycle {
-    prevent_destroy = var.prevent_destroy
+    prevent_destroy = true
   }
 }
 
@@ -60,6 +60,7 @@ resource "aws_dynamodb_table" "terraform_lock" {
   })
 
   lifecycle {
-    prevent_destroy = var.prevent_destroy
+    prevent_destroy = true
   }
 }
+

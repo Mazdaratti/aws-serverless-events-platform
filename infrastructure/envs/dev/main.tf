@@ -11,6 +11,3 @@
 #
 # Reusable AWS resources will be added later through module blocks as the
 # platform is implemented step by step.
-locals {
-  _environment_context_ready = local.name_prefix
-}

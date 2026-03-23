@@ -24,7 +24,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 **Current phase**
 
-- Local-first Terraform implementation
+- Local-first Terraform environment foundation implemented
 - Core serverless data platform under development
 - CI/CD and remote Terraform backend planned for a later phase
 
@@ -34,10 +34,11 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - Repository structure initialization
 - Architecture planning
 - API domain contract defined
+- `infrastructure/envs/dev` environment foundation
+- repository-wide `terraform-docs` configuration
 
 **In progress**
 
-- Terraform environment foundation
 - Core data and messaging components
 
 **Planned**
@@ -138,47 +139,60 @@ Remote backend and deployment automation will be introduced later.
 ```text
 aws-serverless-events-platform/
 |
-|-- frontend/
-|   |-- src/
-|   `-- public/
+|-- .github/
+|   `-- workflows/
+|       `-- ci.yml
 |
-|-- lambdas/
-|   |-- create_event/
-|   |-- list_events/
-|   |-- rsvp_enqueue/
-|   |-- rsvp_worker/
-|   `-- shared/
+|-- docs/
+|   `-- architecture.md
+|
+|-- frontend/
+|   |-- public/
+|   |   `-- .gitkeep
+|   `-- src/
+|       `-- .gitkeep
 |
 |-- infrastructure/
 |   |-- bootstrap/
 |   |   `-- dev/
 |   |
-|   |-- modules/
-|   |   |-- dynamodb/
-|   |   |-- lambda/
-|   |   |-- api_gateway/
-|   |   |-- cognito/
-|   |   |-- sqs/
-|   |   |-- eventbridge/
-|   |   |-- cloudfront/
-|   |   |-- waf/
-|   |   |-- iam/
+|   |-- envs/
+|   |   `-- dev/
+|   |       |-- README.md
+|   |       |-- locals.tf
+|   |       |-- main.tf
+|   |       |-- outputs.tf
+|   |       |-- providers.tf
+|   |       |-- terraform.tfvars.example
+|   |       |-- variables.tf
+|   |       `-- versions.tf
 |   |
-|   `-- envs/
-|       `-- dev/
-|           |-- main.tf
-|           |-- variables.tf
-|           |-- outputs.tf
-|           |-- backend.tf
-|           `-- providers.tf
+|   `-- modules/
+|       |-- api_gateway/
+|       |-- cloudfront/
+|       |-- cognito/
+|       |-- dynamodb/
+|       |-- eventbridge/
+|       |-- iam/
+|       |-- lambda/
+|       |-- sqs/
+|       `-- waf/
 |
-|-- .github/workflows/
-|   `-- ci.yml
-|   `-- cd.yml
+|-- lambdas/
+|   |-- create_event/
+|   |   `-- .gitkeep
+|   |-- list_events/
+|   |   `-- .gitkeep
+|   |-- rsvp_enqueue/
+|   |   `-- .gitkeep
+|   |-- rsvp_worker/
+|   |   `-- .gitkeep
+|   `-- shared/
+|       `-- .gitkeep
 |
-|-- docs/
-|   `-- architecture.md
-|
+|-- .gitignore
+|-- .terraform-docs.yml
+|-- LICENSE
 `-- README.md
 ```
 
@@ -206,11 +220,11 @@ Planned implementation sequence:
 
 ## Security Principles
 
-* Least-privilege IAM access
-* Edge protection using AWS WAF
-* Private S3 origin behind CloudFront
-* Managed identity via Amazon Cognito
-* Failure isolation using SQS dead-letter queues
+- Least-privilege IAM access
+- Edge protection using AWS WAF
+- Private S3 origin behind CloudFront
+- Managed identity via Amazon Cognito
+- Failure isolation using SQS dead-letter queues
 
 ---
 
@@ -218,8 +232,8 @@ Planned implementation sequence:
 
 The system is designed to operate within:
 
-* AWS promotional credits
-* Always-free service limits
+- AWS promotional credits
+- Always-free service limits
 
 No EC2 instances, NAT Gateways, or relational databases are used.
 
@@ -227,9 +241,9 @@ No EC2 instances, NAT Gateways, or relational databases are used.
 
 ## Environment Strategy
 
-* Development begins with a single `dev` environment
-* Terraform modules allow future multi-environment expansion
-* Deployment automation will be added after validating the core platform
+- Development begins with a single `dev` environment
+- Terraform modules allow future multi-environment expansion
+- Deployment automation will be added after validating the core platform
 
 ---
 
@@ -237,14 +251,15 @@ No EC2 instances, NAT Gateways, or relational databases are used.
 
 Detailed architecture description:
 
-* `docs/architecture.md`
+- `docs/architecture.md`
+- `infrastructure/envs/dev/README.md`
 
 ---
 
 ## Future Improvements
 
-* Custom domain and TLS configuration
-* Monitoring dashboards and alerting
-* Automated frontend deployment
-* Multi-environment promotion strategy
-* Advanced security hardening
+- Custom domain and TLS configuration
+- Monitoring dashboards and alerting
+- Automated frontend deployment
+- Multi-environment promotion strategy
+- Advanced security hardening

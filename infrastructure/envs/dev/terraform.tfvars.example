@@ -1,0 +1,17 @@
+############################################
+# Core environment identity
+############################################
+
+# Project name used as the shared naming and tagging baseline across this
+# environment.
+project_name = "aws-serverless-events-platform"
+
+# Deployment environment name for this root module.
+environment = "dev"
+
+############################################
+# AWS configuration
+############################################
+
+# AWS region where this environment will be deployed.
+aws_region = "eu-central-1"

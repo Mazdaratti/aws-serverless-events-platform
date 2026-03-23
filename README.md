@@ -50,6 +50,9 @@ aws-serverless-events-platform/
 |   `-- shared/
 |
 |-- infrastructure/
+|   |-- bootstrap/
+|   |   `-- dev/
+|   |
 |   |-- modules/
 |   |   |-- dynamodb/
 |   |   |-- lambda/
@@ -63,10 +66,13 @@ aws-serverless-events-platform/
 |   |
 |   `-- envs/
 |       `-- dev/
+|           |-- README.md
+|           |-- versions.tf
+|           |-- locals.tf
 |           |-- main.tf
 |           |-- variables.tf
+|           |-- terraform.tfvars.example
 |           |-- outputs.tf
-|           |-- backend.tf
 |           `-- providers.tf
 |
 |-- .github/workflows/
@@ -89,4 +95,8 @@ No VPC, no NAT Gateway, and no RDS.
 
 ## Development Status
 
-Bootstrap phase - infrastructure foundation in progress.
+Current phase:
+
+- local-first Terraform environment foundation implemented in `infrastructure/envs/dev`
+- core serverless service modules still to be wired in step by step
+- remote backend and deployment automation intentionally deferred to a later phase

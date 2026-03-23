@@ -82,6 +82,7 @@ aws-serverless-events-platform/
 |
 |-- .github/workflows/
 |   `-- ci.yml
+|   `-- cd.yml
 |
 |-- docs/
 |   `-- architecture.md
@@ -111,6 +112,6 @@ Remote state is bootstrapped first from:
 This stack creates:
 
 - S3 bucket for Terraform state
-- DynamoDB table for state locking
+
 
 Then bootstrap generates `infrastructure/envs/dev/backend.tf` automatically to switch the main environment to remote backend.

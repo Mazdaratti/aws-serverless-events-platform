@@ -2,51 +2,56 @@
 
 A production-style, fully AWS-native serverless web application for managing events and RSVP workflows.
 
-The system demonstrates modern cloud architecture patterns including event-driven processing, managed authentication, edge security, and Infrastructure as Code using Terraform.
+The system demonstrates modern cloud architecture patterns including transactional serverless writes, event-driven extensions, managed authentication, edge security, and Infrastructure as Code using Terraform.
 
-This project is designed as a **cloud engineering portfolio showcase** and follows real-world engineering practices such as least-privilege IAM, cost-aware design, and incremental infrastructure delivery.
+This project is designed as a **cloud engineering portfolio showcase** and follows real-world engineering practices such as least-privilege IAM, cost-aware design, incremental delivery, and modular infrastructure composition.
 
 ---
 
 ## Project Goals
 
-- Build a production-shaped serverless system using managed AWS services
-- Demonstrate asynchronous event-driven architecture
+- Build a production-shaped serverless platform using managed AWS services
+- Demonstrate **transactional API workflows with asynchronous extensions**
 - Apply security best practices (edge protection, managed identity, least privilege)
-- Implement observability and operational readiness
-- Use Terraform for reproducible infrastructure
-- Follow clean Git workflow and modular infrastructure design
+- Implement observability and operational readiness patterns
+- Use Terraform as the single source of infrastructure truth
+- Follow clean Git workflow and small, reviewable infrastructure changes
 - Stay within AWS Free Tier and promotional credits
 
 ---
 
 ## Current Development Status
 
-**Current phase**
+### Current phase
 
-- Local-first Terraform environment foundation implemented
-- Core serverless data platform under development
-- CI/CD and remote Terraform backend planned for a later phase
+- Local-first Terraform environment foundation completed
+- **DynamoDB business data layer implemented**
+- Next step: messaging and compute layers
 
-**Completed**
+### Completed
 
-- AWS account setup
-- Repository structure initialization
-- Architecture planning
+- AWS account setup and security baseline
+- Repository structure and modular Terraform design
 - API domain contract defined
+- Architecture decision validation
 - `infrastructure/envs/dev` environment foundation
-- repository-wide `terraform-docs` configuration
+- `dynamodb_data_layer` module (events + RSVPs tables)
+- Repository-wide `terraform-docs` configuration
 
-**In progress**
+### In progress
 
-- Core data and messaging components
+- Core platform infrastructure build-out following implementation roadmap
 
-**Planned**
+### Planned
 
+- Messaging layer for asynchronous side effects and background processing (SQS + DLQ)
 - Lambda compute layer
-- API and authentication layer
-- Edge delivery layer
-- Observability and deployment automation
+- EventBridge + SNS integration
+- API Gateway + Cognito authentication
+- Edge delivery layer (S3 + CloudFront + WAF)
+- Observability baseline
+- Remote Terraform backend + GitHub OIDC
+- CI/CD deployment workflow
 
 ---
 
@@ -57,7 +62,7 @@ The platform uses native AWS serverless services:
 - Amazon CloudFront
 - AWS WAF
 - Amazon S3
-- Amazon API Gateway (HTTP API)
+- Amazon API Gateway
 - AWS Lambda
 - Amazon DynamoDB
 - Amazon Cognito
@@ -89,23 +94,38 @@ AWS Shield Standard provides automatic edge protection.
 6. API Gateway invokes a **Lambda function** to create or retrieve event data.
 7. Event information is stored in **Amazon DynamoDB**, providing scalable serverless persistence.
 
-### Asynchronous RSVP Processing
+### RSVP Processing
 
-8. RSVP submissions are handled by an **enqueue Lambda**, which places messages into **Amazon SQS**.
-9. A separate **worker Lambda** processes queue messages independently from user requests.
-10. Processed RSVP data is written to **DynamoDB**.
+8. RSVP submissions are handled as a **synchronous business operation**.
+9. The primary RSVP write path is:
+
+`Client -> API Gateway -> Lambda -> DynamoDB transaction`
+
+10. This design preserves the current API contract so the caller immediately knows whether:
+- the RSVP was created
+- the RSVP was updated
+- the event is already at capacity
+- access is forbidden
+- the event does not exist
 
 ### Event-Driven Extensions
 
-11. Domain events such as event creation or RSVP confirmation are published to **Amazon EventBridge**.
+11. After a successful durable write, domain events such as event creation or RSVP confirmation are published to **Amazon EventBridge**.
 12. EventBridge routes these events to **Amazon SNS**, enabling notifications and future integrations.
+13. **Amazon SQS** remains part of the platform for asynchronous side effects and decoupled follow-up processing such as:
+- notification buffering
+- enrichment tasks
+- reconciliation or repair jobs
+- batch imports
+- scheduled backfills
+- retryable downstream integrations
 
 ### Observability
 
-13. Logs and metrics are collected in **Amazon CloudWatch**.
-14. Distributed tracing is enabled with **AWS X-Ray** to analyze request performance and dependencies.
+14. Logs and metrics are collected in **Amazon CloudWatch**.
+15. Distributed tracing is enabled with **AWS X-Ray** to analyze request performance and dependencies.
 
-This asynchronous design improves scalability, resilience, and failure isolation.
+This design preserves immediate correctness for core business writes while still enabling scalable asynchronous processing where it adds real value.
 
 ---
 
@@ -117,7 +137,9 @@ Avoids infrastructure management and enables automatic scaling.
 
 **Asynchronous Processing Pattern**
 
-SQS and worker Lambdas decouple API responsiveness from background processing.
+The platform uses asynchronous processing for downstream side effects and decoupled background work.
+
+Core RSVP business writes are intentionally kept synchronous so the system can preserve immediate business-result semantics required by the current API contract.
 
 **Managed Authentication**
 
@@ -131,6 +153,12 @@ Simplifies networking and keeps costs low while still supporting production-grad
 
 Infrastructure is initially developed using local state for rapid iteration.  
 Remote backend and deployment automation will be introduced later.
+
+**Modular Terraform Design**
+
+Reusable infrastructure logic is implemented in focused Terraform modules, while `infrastructure/envs/dev` stays thin and composition-oriented.
+
+This keeps changes reviewable, reduces refactoring churn, and supports future multi-environment expansion.
 
 ---
 
@@ -171,7 +199,9 @@ aws-serverless-events-platform/
 |       |-- api_gateway/
 |       |-- cloudfront/
 |       |-- cognito/
-|       |-- dynamodb/
+|       |-- dynamodb_data_layer/
+|       |   `-- examples/
+|       |       `-- basic_usage/
 |       |-- eventbridge/
 |       |-- iam/
 |       |-- lambda/
@@ -204,8 +234,8 @@ Infrastructure is implemented using modular Terraform design with environment-sp
 
 Planned implementation sequence:
 
-1. Terraform environment foundation (local state)
-2. DynamoDB data tables
+1. Terraform environment foundation (local state) ✅
+2. DynamoDB business data layer ✅
 3. SQS queues and dead-letter queues
 4. IAM roles and policies for workloads
 5. Lambda compute layer
@@ -216,6 +246,12 @@ Planned implementation sequence:
 10. Remote Terraform backend and GitHub OIDC
 11. CI/CD deployment workflow
 
+Roadmap note:
+
+Step 3 remains correct after the RSVP architecture decision.
+
+SQS is still part of the platform and will still be implemented next, but its role is now clearly scoped to asynchronous side effects and decoupled background processing rather than the primary RSVP business write path.
+
 ---
 
 ## Security Principles
@@ -224,7 +260,7 @@ Planned implementation sequence:
 - Edge protection using AWS WAF
 - Private S3 origin behind CloudFront
 - Managed identity via Amazon Cognito
-- Failure isolation using SQS dead-letter queues
+- Failure isolation using SQS dead-letter queues where asynchronous processing is used
 
 ---
 
@@ -253,6 +289,7 @@ Detailed architecture description:
 
 - `docs/architecture.md`
 - `infrastructure/envs/dev/README.md`
+- `infrastructure/modules/dynamodb_data_layer/README.md`
 
 ---
 

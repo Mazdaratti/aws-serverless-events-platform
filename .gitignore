@@ -51,6 +51,9 @@ coverage/
 ############################################
 .terraform/
 .terraform.lock.hcl
+terraform.tfvars
+*.auto.tfvars
+*.auto.tfvars.json
 *.tfstate
 *.tfstate.*
 crash.log

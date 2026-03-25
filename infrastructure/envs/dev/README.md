@@ -2,9 +2,9 @@
 
 This folder contains the Terraform root module for the local-first `dev` environment.
 
-At this stage, the environment is intentionally small. It does not create AWS application resources yet. Instead, it establishes the shared Terraform, provider, naming, tagging, and input baseline that future module wiring will build on.
-
-This environment will later deploy a fully serverless event platform on AWS using API Gateway, Lambda, DynamoDB, SQS, EventBridge, SNS, Cognito, CloudFront, and WAF.
+The root module stays intentionally thin and composition-focused.
+It defines shared Terraform, provider, naming, and tagging baselines
+and wires reusable infrastructure modules as the platform is implemented step by step.
 
 ---
 
@@ -16,6 +16,7 @@ The current `dev` root module is responsible for:
 - configuring the AWS provider for the selected region
 - establishing shared environment naming and baseline tags
 - declaring the required input values for local use
+- composing reusable infrastructure modules for the dev environment
 
 This keeps the environment root clean and composition-only while the platform is implemented step by step.
 
@@ -63,12 +64,15 @@ terraform init
 terraform plan
 ```
 
-Because this foundation step does not create AWS resources yet, the plan is still useful to:
+The plan will show the creation of real AWS resources from wired modules.
+
+The plan is useful to:
 
 - validate provider authentication
 - validate variable wiring
 - validate the dependency lock file
 - validate the evaluation graph for the environment root
+- validate real env/module composition before apply
 
 ---
 
@@ -78,14 +82,48 @@ Because this foundation step does not create AWS resources yet, the plan is stil
 - `locals.tf` defines shared naming and tagging values for future module composition
 - `variables.tf` declares the required environment inputs and validates that they are not empty
 - `providers.tf` configures the AWS provider and applies baseline default tags
-- `main.tf` is the future composition entrypoint for reusable module wiring
+- `main.tf` composes the reusable modules for the dev environment
+- `outputs.tf` re-exports outputs needed by later layers
 - `terraform.tfvars.example` shows the required local input shape for this environment
 
 ---
 
-## Next Step In This Environment
+## What This Environment Deploys
 
-As reusable modules are implemented under `infrastructure/modules`, this root module will wire them together gradually.
+The dev environment is composed of reusable modules.
+
+Each section below corresponds to **one module block in `main.tf`**.
+
+New infrastructure is added by appending additional module blocks to `main.tf`.
+
+---
+
+## DynamoDB Data Layer
+
+Creates the initial DynamoDB business data baseline for the platform.
+
+Implemented via:
+
+- `modules/dynamodb_data_layer`
+
+This environment currently wires in:
+
+- the `events` table for canonical event records
+- the `rsvps` table for canonical RSVP membership records
+- the first approved GSIs on the `events` table for future query-based listing patterns
+
+Why this module is wired first:
+
+- the platform needs a durable business data layer before API and compute layers can be composed above it
+- the DynamoDB design establishes the canonical write model for events and RSVPs
+- later IAM, Lambda, and API wiring will consume the table names and ARNs exported here
+
+Important design notes:
+
+- the primary RSVP business write remains synchronous through DynamoDB durable commit
+- asynchronous services such as SQS are reserved for downstream side effects after commit
+- the `rsvps` table is the source of truth for attendance membership
+- event-level counters are helper fields, not the source of truth
 
 The environment should stay thin:
 
@@ -104,7 +142,11 @@ The environment should stay thin:
 
 
 
+## Modules
 
+| Name | Source | Version |
+|------|--------|---------|
+| <a name="module_dynamodb_data_layer"></a> [dynamodb\_data\_layer](#module\_dynamodb\_data\_layer) | ../../modules/dynamodb_data_layer | n/a |
 
 
 
@@ -116,4 +158,12 @@ The environment should stay thin:
 | <a name="input_environment"></a> [environment](#input\_environment) | Deployment environment name. | `string` | n/a | yes |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Project name used for naming and tagging resources. | `string` | n/a | yes |
 
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| <a name="output_events_table_arn"></a> [events\_table\_arn](#output\_events\_table\_arn) | ARN of the DynamoDB events table created for the dev environment. |
+| <a name="output_events_table_name"></a> [events\_table\_name](#output\_events\_table\_name) | Name of the DynamoDB events table created for the dev environment. |
+| <a name="output_rsvps_table_arn"></a> [rsvps\_table\_arn](#output\_rsvps\_table\_arn) | ARN of the DynamoDB RSVP table created for the dev environment. |
+| <a name="output_rsvps_table_name"></a> [rsvps\_table\_name](#output\_rsvps\_table\_name) | Name of the DynamoDB RSVP table created for the dev environment. |
 <!-- END_TF_DOCS -->

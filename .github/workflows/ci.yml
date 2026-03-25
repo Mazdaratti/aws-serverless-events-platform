@@ -1,12 +1,93 @@
-name: CI
+name: Terraform Validation
 
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch:
   pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
 
 jobs:
-  validate:
+  terraform-fmt:
+    name: Terraform Fmt Check
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.14.3
+          terraform_wrapper: false
+
+      - name: Check Terraform formatting
+        # Run one repo-wide formatting check because fmt is not tied
+        # to a specific Terraform root.
+        run: terraform fmt -check -recursive
+
+  terraform-validate-and-lint:
+    name: Validate ${{ matrix.directory }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        directory:
+          # Keep CI focused on the Terraform roots that currently exist
+          # and are relevant for this stage of the repository.
+          - infrastructure/modules/dynamodb_data_layer
+          - infrastructure/modules/dynamodb_data_layer/examples/basic_usage
+          - infrastructure/envs/dev
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ matrix.directory }}
+
+    env:
+      # Authenticated plugin init helps avoid GitHub API/rate-limit issues
+      # when matrix jobs initialize TFLint in parallel.
+      GITHUB_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.14.3
+          terraform_wrapper: false
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: v0.60.0
+          tflint_wrapper: false
+
+      - name: Show Terraform version
+        run: terraform version
+
+      - name: Show TFLint version
+        run: tflint --version
+
+      - name: Terraform init (backend disabled)
+        # CI validates configuration structure only. Using -backend=false
+        # keeps validation detached from real state and AWS access.
+        run: terraform init -backend=false -input=false
+
+      - name: Terraform validate
+        run: terraform validate -no-color
+
+      - name: Initialize TFLint
+        run: tflint --init
+
+      - name: Run TFLint
+        # Compact output works well with GitHub problem matchers and
+        # produces cleaner PR annotations.
+        run: tflint -f compact

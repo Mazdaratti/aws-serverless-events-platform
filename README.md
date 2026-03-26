@@ -27,8 +27,9 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - Local-first Terraform environment foundation completed
 - **DynamoDB business data layer implemented**
 - **`infrastructure/envs/dev` now wires the DynamoDB data layer**
-- **Terraform validation workflow added for module, example, and dev root**
-- Next step: messaging and compute layers
+- **SQS messaging baseline module implemented**
+- **Terraform validation workflow now covers DynamoDB module/example, SQS module/example, and the dev root**
+- Next step: wire the SQS module into `infrastructure/envs/dev`, then continue with IAM and compute layers
 
 ### Completed
 
@@ -39,18 +40,18 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - `infrastructure/envs/dev` environment foundation
 - `dynamodb_data_layer` module (events + RSVPs tables)
 - `infrastructure/envs/dev` wiring for the DynamoDB data layer
+- `sqs` module (standard queues + optional dedicated DLQs)
 - local `terraform plan` validation for the wired dev environment
 - Repository-wide `terraform-docs` configuration
-- Terraform validation CI workflow for the module, example, and dev root
+- Terraform validation CI workflow for DynamoDB module/example, SQS module/example, and the dev root
 
 ### In progress
 
-- AWS apply verification for the wired DynamoDB dev environment
-- Core platform infrastructure build-out following implementation roadmap
+- PR-based incremental platform infrastructure build-out following the implementation roadmap
 
 ### Planned
 
-- Messaging layer for asynchronous side effects and background processing (SQS + DLQ)
+- `infrastructure/envs/dev` wiring for the SQS messaging baseline
 - Lambda compute layer
 - EventBridge + SNS integration
 - API Gateway + Cognito authentication
@@ -178,6 +179,10 @@ aws-serverless-events-platform/
 |       `-- ci.yml
 |
 |-- docs/
+|   |-- assets/
+|   |   `-- dynamodb/
+|   |-- validation/
+|   |   `-- dynamodb-milestone.md
 |   `-- architecture.md
 |
 |-- frontend/
@@ -206,8 +211,6 @@ aws-serverless-events-platform/
 |       |-- cloudfront/
 |       |-- cognito/
 |       |-- dynamodb_data_layer/
-|       |   `-- examples/
-|       |       `-- basic_usage/
 |       |-- eventbridge/
 |       |-- iam/
 |       |-- lambda/
@@ -216,15 +219,9 @@ aws-serverless-events-platform/
 |
 |-- lambdas/
 |   |-- create_event/
-|   |   `-- .gitkeep
 |   |-- list_events/
-|   |   `-- .gitkeep
-|   |-- rsvp_enqueue/
-|   |   `-- .gitkeep
-|   |-- rsvp_worker/
-|   |   `-- .gitkeep
+|   |-- rsvp/
 |   `-- shared/
-|       `-- .gitkeep
 |
 |-- .gitignore
 |-- .terraform-docs.yml
@@ -242,7 +239,7 @@ Planned implementation sequence:
 
 1. Terraform environment foundation (local state) ✅
 2. DynamoDB business data layer ✅
-3. SQS queues and dead-letter queues
+3. SQS queues and dead-letter queues ✅
 4. IAM roles and policies for workloads
 5. Lambda compute layer
 6. EventBridge and SNS integration
@@ -252,11 +249,6 @@ Planned implementation sequence:
 10. Remote Terraform backend and GitHub OIDC
 11. CI/CD deployment workflow
 
-Roadmap note:
-
-Step 3 remains correct after the RSVP architecture decision.
-
-SQS is still part of the platform and will still be implemented next, but its role is now clearly scoped to asynchronous side effects and decoupled background processing rather than the primary RSVP business write path.
 
 The repository now also includes a Terraform validation workflow for the currently implemented module, example, and `envs/dev` root. That workflow improves static validation confidence, while real AWS creation is still verified through local `plan` and `apply` in the dev environment.
 

@@ -26,6 +26,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 - Local-first Terraform environment foundation completed
 - **DynamoDB business data layer implemented**
+- **`infrastructure/envs/dev` now wires the DynamoDB data layer**
+- **Terraform validation workflow added for module, example, and dev root**
 - Next step: messaging and compute layers
 
 ### Completed
@@ -36,10 +38,14 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - Architecture decision validation
 - `infrastructure/envs/dev` environment foundation
 - `dynamodb_data_layer` module (events + RSVPs tables)
+- `infrastructure/envs/dev` wiring for the DynamoDB data layer
+- local `terraform plan` validation for the wired dev environment
 - Repository-wide `terraform-docs` configuration
+- Terraform validation CI workflow for the module, example, and dev root
 
 ### In progress
 
+- AWS apply verification for the wired DynamoDB dev environment
 - Core platform infrastructure build-out following implementation roadmap
 
 ### Planned
@@ -51,7 +57,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - Edge delivery layer (S3 + CloudFront + WAF)
 - Observability baseline
 - Remote Terraform backend + GitHub OIDC
-- CI/CD deployment workflow
+- deployment workflow automation beyond Terraform validation
 
 ---
 
@@ -252,6 +258,8 @@ Step 3 remains correct after the RSVP architecture decision.
 
 SQS is still part of the platform and will still be implemented next, but its role is now clearly scoped to asynchronous side effects and decoupled background processing rather than the primary RSVP business write path.
 
+The repository now also includes a Terraform validation workflow for the currently implemented module, example, and `envs/dev` root. That workflow improves static validation confidence, while real AWS creation is still verified through local `plan` and `apply` in the dev environment.
+
 ---
 
 ## Security Principles
@@ -288,6 +296,7 @@ No EC2 instances, NAT Gateways, or relational databases are used.
 Detailed architecture description:
 
 - `docs/architecture.md`
+- `docs/validation/dynamodb-milestone.md`
 - `infrastructure/envs/dev/README.md`
 - `infrastructure/modules/dynamodb_data_layer/README.md`
 

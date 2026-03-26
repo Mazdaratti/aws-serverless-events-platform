@@ -51,6 +51,9 @@ coverage/
 ############################################
 .terraform/
 .terraform.lock.hcl
+terraform.tfvars
+*.auto.tfvars
+*.auto.tfvars.json
 *.tfstate
 *.tfstate.*
 crash.log
@@ -73,6 +76,11 @@ override.tf.json
 .idea/
 *.swp
 *.swo
+
+############################################
+# Local notes
+############################################
+notes/
 
 ############################################
 # AWS / CLI

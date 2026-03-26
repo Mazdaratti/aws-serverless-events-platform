@@ -154,6 +154,9 @@ Replace the placeholders below with the current environment values:
 - `<YOUR_EVENTS_TABLE_NAME>`
 - `<YOUR_RSVPS_TABLE_NAME>`
 
+Run the following read and query commands one by one. Do not paste multiple
+AWS CLI commands together into a single shell input.
+
 Optional event insert:
 
 ```bash
@@ -200,7 +203,8 @@ aws dynamodb query \
   --key-condition-expression "public_upcoming_gsi_pk = :pk" \
   --expression-attribute-values '{
     ":pk": {"S": "PUBLIC"}
-  }'
+  }' \
+  --output json
 ```
 
 Optional RSVP partition query:
@@ -212,7 +216,8 @@ aws dynamodb query \
   --key-condition-expression "event_pk = :pk" \
   --expression-attribute-values '{
     ":pk": {"S": "EVENT#demo-001"}
-  }'
+  }' \
+  --output json
 ```
 
 If optional demo data is inserted, delete it after validation.

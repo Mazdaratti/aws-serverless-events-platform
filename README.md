@@ -296,6 +296,7 @@ No EC2 instances, NAT Gateways, or relational databases are used.
 Detailed architecture description:
 
 - `docs/architecture.md`
+- `docs/validation/dynamodb-milestone.md`
 - `infrastructure/envs/dev/README.md`
 - `infrastructure/modules/dynamodb_data_layer/README.md`
 

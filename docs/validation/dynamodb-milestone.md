@@ -239,3 +239,34 @@ Run it from:
 This step is recommended when validating locally. In real environments,
 infrastructure lifecycle should follow environment promotion and retention
 policies.
+
+---
+
+## Captured Evidence
+
+### Core evidence
+
+- `01-terraform-apply.png` shows the successful Terraform apply and created outputs.
+
+![01-terraform-apply.png](../assets/dynamodb/01-terraform-apply.png)
+
+- `02-dynamodb-tables.png` shows both DynamoDB business tables in the AWS console.
+
+![02-dynamodb-tables.png](../assets/dynamodb/02-dynamodb-tables.png)
+
+- `03-events-gsis.png` shows the two approved GSIs on the `events` table.
+
+![03-events-gsis.png](../assets/dynamodb/03-events-gsis.png)
+
+- `04-terraform-idempotent.png` shows the clean post-apply Terraform plan.
+
+![04-terraform-idempotent.png](../assets/dynamodb/04-terraform-idempotent.png)
+
+### Optional data-validation evidence
+
+- [05-put-demo-event.png](../assets/dynamodb/05-put-demo-event.png) shows insertion of a demo event item.
+- [06-put-demo-rsvp.png](../assets/dynamodb/06-put-demo-rsvp.png) shows insertion of a demo RSVP item.
+- [07-get-demo-event.png](../assets/dynamodb/07-get-demo-event.png) shows successful retrieval of the demo event item.
+- [08-get-demo-rsvp.png](../assets/dynamodb/08-get-demo-rsvp.png) shows successful retrieval of the demo RSVP item.
+- [09-query-events-public_gsi.png](../assets/dynamodb/09-query-events-public_gsi.png) shows a successful query through the public events GSI.
+- [10-query-rsvps-by-event-partion.png](../assets/dynamodb/10-query-rsvps-by-event-partion.png) shows a successful event-scoped RSVP query.

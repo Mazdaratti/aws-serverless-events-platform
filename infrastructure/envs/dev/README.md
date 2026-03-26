@@ -130,6 +130,10 @@ The environment should stay thin:
 - reusable AWS resource logic belongs in modules
 - `envs/dev` should focus on composition and environment-level identity and placement inputs
 
+Validation evidence for this milestone is documented in:
+
+- `docs/validation/dynamodb-milestone.md`
+
 ---
 
 <!-- BEGIN_TF_DOCS -->

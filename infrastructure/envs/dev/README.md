@@ -139,45 +139,6 @@ Validation:
 
 ---
 
-## SQS Messaging Baseline
-
-Creates the initial SQS messaging baseline for the platform.
-
-Implemented via:
-
-- `modules/sqs`
-
-This environment currently wires in:
-
-- one standard queue: `notification-dispatch`
-- one dedicated dead-letter queue for that source queue
-
-Why this module is wired now:
-
-- the platform already reserves SQS for asynchronous work after durable state changes
-- notification work is the clearest first async side effect to separate from API response time
-- the queue and DLQ establish a concrete messaging extension point without changing the synchronous RSVP write path
-
-Important design notes:
-
-- the queue is intended for durable post-commit notification work
-- notification delivery behavior and consumers are not implemented yet
-- the primary RSVP business write remains synchronous through DynamoDB durable commit
-- additional queues should be added only when a concrete workload justifies them
-
-The environment should stay thin:
-
-- reusable AWS resource logic belongs in modules
-- `envs/dev` should focus on composition and environment-level identity and placement inputs
-
-Validation for this milestone should confirm:
-
-- the source queue and DLQ are created in the target AWS region
-- redrive and redrive-allow policies are wired correctly
-- exported env outputs match the created queue and DLQ identities
-
----
-
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -193,7 +154,6 @@ Validation for this milestone should confirm:
 | Name | Source | Version |
 |------|--------|---------|
 | <a name="module_dynamodb_data_layer"></a> [dynamodb\_data\_layer](#module\_dynamodb\_data\_layer) | ../../modules/dynamodb_data_layer | n/a |
-| <a name="module_sqs"></a> [sqs](#module\_sqs) | ../../modules/sqs | n/a |
 
 
 
@@ -213,10 +173,4 @@ Validation for this milestone should confirm:
 | <a name="output_events_table_name"></a> [events\_table\_name](#output\_events\_table\_name) | Name of the DynamoDB events table created for the dev environment. |
 | <a name="output_rsvps_table_arn"></a> [rsvps\_table\_arn](#output\_rsvps\_table\_arn) | ARN of the DynamoDB RSVP table created for the dev environment. |
 | <a name="output_rsvps_table_name"></a> [rsvps\_table\_name](#output\_rsvps\_table\_name) | Name of the DynamoDB RSVP table created for the dev environment. |
-| <a name="output_sqs_dlq_arns"></a> [sqs\_dlq\_arns](#output\_sqs\_dlq\_arns) | Map of logical queue key to rendered SQS DLQ ARN for queues that create a dedicated DLQ in the dev environment. |
-| <a name="output_sqs_dlq_names"></a> [sqs\_dlq\_names](#output\_sqs\_dlq\_names) | Map of logical queue key to rendered SQS DLQ name for queues that create a dedicated DLQ in the dev environment. |
-| <a name="output_sqs_dlq_urls"></a> [sqs\_dlq\_urls](#output\_sqs\_dlq\_urls) | Map of logical queue key to rendered SQS DLQ URL for queues that create a dedicated DLQ in the dev environment. |
-| <a name="output_sqs_queue_arns"></a> [sqs\_queue\_arns](#output\_sqs\_queue\_arns) | Map of logical queue key to rendered SQS queue ARN for the dev environment. |
-| <a name="output_sqs_queue_names"></a> [sqs\_queue\_names](#output\_sqs\_queue\_names) | Map of logical queue key to rendered SQS queue name for the dev environment. |
-| <a name="output_sqs_queue_urls"></a> [sqs\_queue\_urls](#output\_sqs\_queue\_urls) | Map of logical queue key to rendered SQS queue URL for the dev environment. |
 <!-- END_TF_DOCS -->

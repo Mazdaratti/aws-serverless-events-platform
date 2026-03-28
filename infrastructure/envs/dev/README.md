@@ -130,9 +130,12 @@ The environment should stay thin:
 - reusable AWS resource logic belongs in modules
 - `envs/dev` should focus on composition and environment-level identity and placement inputs
 
-Validation evidence for this milestone is documented in:
+Validation:
 
-- `docs/validation/dynamodb-milestone.md`
+- validated via `terraform apply`, AWS inspection, and a clean post-apply `terraform plan`
+- confirmed table creation, approved GSIs, `PAY_PER_REQUEST`, table class `STANDARD`, and point-in-time recovery
+- optional CLI data validation was also completed
+- see evidence screenshots under `docs/assets/dynamodb/`
 
 ---
 

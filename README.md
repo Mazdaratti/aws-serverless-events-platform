@@ -142,11 +142,11 @@ This design preserves immediate correctness for core business writes while still
 
 Avoids infrastructure management and enables automatic scaling.
 
-**Asynchronous Processing Pattern**
-
-The platform uses asynchronous processing for downstream side effects and decoupled background work.
+**Synchronous Core, Async Extensions**
 
 Core RSVP business writes are intentionally kept synchronous so the system can preserve immediate business-result semantics required by the current API contract.
+
+Asynchronous processing is reserved for durable post-commit work, starting with notification dispatch through SQS and expanding later only when additional background workloads are concretely justified.
 
 **Managed Authentication**
 
@@ -180,9 +180,6 @@ aws-serverless-events-platform/
 |
 |-- docs/
 |   |-- assets/
-|   |   `-- dynamodb/
-|   |-- validation/
-|   |   `-- dynamodb-milestone.md
 |   `-- architecture.md
 |
 |-- frontend/
@@ -288,9 +285,8 @@ No EC2 instances, NAT Gateways, or relational databases are used.
 Detailed architecture description:
 
 - `docs/architecture.md`
-- `docs/validation/dynamodb-milestone.md`
 - `infrastructure/envs/dev/README.md`
-- `infrastructure/modules/dynamodb_data_layer/README.md`
+- each module also contains its own `README.md` in the module root directory
 
 ---
 

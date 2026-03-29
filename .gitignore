@@ -76,6 +76,7 @@ override.tf.json
 .idea/
 *.swp
 *.swo
+.codex
 
 ############################################
 # Local notes

@@ -27,9 +27,9 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - Local-first Terraform environment foundation completed
 - **DynamoDB business data layer implemented**
 - **`infrastructure/envs/dev` now wires the DynamoDB data layer**
-- **SQS messaging baseline module implemented**
+- **`infrastructure/envs/dev` now wires the SQS messaging baseline**
 - **Terraform validation workflow now covers DynamoDB module/example, SQS module/example, and the dev root**
-- Next step: wire the SQS module into `infrastructure/envs/dev`, then continue with IAM and compute layers
+- Next step: IAM roles and policies for workloads, then Lambda compute wiring
 
 ### Completed
 
@@ -41,6 +41,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - `dynamodb_data_layer` module (events + RSVPs tables)
 - `infrastructure/envs/dev` wiring for the DynamoDB data layer
 - `sqs` module (standard queues + optional dedicated DLQs)
+- `infrastructure/envs/dev` wiring for the SQS messaging baseline
 - local `terraform plan` validation for the wired dev environment
 - Repository-wide `terraform-docs` configuration
 - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, and the dev root
@@ -51,7 +52,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Planned
 
-- `infrastructure/envs/dev` wiring for the SQS messaging baseline
+- IAM roles and policies for workloads
 - Lambda compute layer
 - EventBridge + SNS integration
 - API Gateway + Cognito authentication

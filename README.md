@@ -28,8 +28,9 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - **DynamoDB business data layer implemented**
 - **`infrastructure/envs/dev` now wires the DynamoDB data layer**
 - **`infrastructure/envs/dev` now wires the SQS messaging baseline**
-- **Terraform validation workflow now covers DynamoDB module/example, SQS module/example, and the dev root**
-- Next step: IAM roles and policies for workloads, then Lambda compute wiring
+- **`infrastructure/envs/dev` now wires the Lambda execution IAM baseline**
+- **Terraform validation workflow now covers DynamoDB module/example, SQS module/example, IAM module/example, and the dev root**
+- Next step: Lambda compute wiring
 
 ### Completed
 
@@ -42,9 +43,11 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - `infrastructure/envs/dev` wiring for the DynamoDB data layer
 - `sqs` module (standard queues + optional dedicated DLQs)
 - `infrastructure/envs/dev` wiring for the SQS messaging baseline
+- `iam` module (Lambda execution roles + workload-specific policies)
+- `infrastructure/envs/dev` wiring for the Lambda execution IAM baseline
 - local `terraform plan` validation for the wired dev environment
 - Repository-wide `terraform-docs` configuration
-- Terraform validation CI workflow for DynamoDB module/example, SQS module/example, and the dev root
+- Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, and the dev root
 
 ### In progress
 
@@ -52,7 +55,6 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Planned
 
-- IAM roles and policies for workloads
 - Lambda compute layer
 - EventBridge + SNS integration
 - API Gateway + Cognito authentication
@@ -218,6 +220,7 @@ aws-serverless-events-platform/
 |-- lambdas/
 |   |-- create_event/
 |   |-- list_events/
+|   |-- notification_worker/
 |   |-- rsvp/
 |   `-- shared/
 |
@@ -238,7 +241,7 @@ Planned implementation sequence:
 1. Terraform environment foundation (local state) ✅
 2. DynamoDB business data layer ✅
 3. SQS queues and dead-letter queues ✅
-4. IAM roles and policies for workloads
+4. IAM roles and policies for workloads ✅
 5. Lambda compute layer
 6. EventBridge and SNS integration
 7. API Gateway and Cognito authentication

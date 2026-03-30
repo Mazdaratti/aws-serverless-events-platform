@@ -56,3 +56,41 @@ module "sqs" {
     }
   }
 }
+
+############################################
+# Lambda execution IAM baseline
+############################################
+
+# This environment wires in the reusable Lambda execution IAM module so the
+# next Lambda compute step can bind functions to real least-privilege roles.
+#
+# The module owns trust relationships and workload-specific policy design so
+# envs/dev can stay focused on composition and environment-level context only.
+module "iam" {
+  source = "../../modules/iam"
+
+  name_prefix = local.name_prefix
+  tags        = local.tags
+
+  events_table_arn                = module.dynamodb_data_layer.events_table_arn
+  rsvps_table_arn                 = module.dynamodb_data_layer.rsvps_table_arn
+  notification_dispatch_queue_arn = module.sqs.queue_arns["notification-dispatch"]
+
+  workloads = {
+    create-event = {
+      access_profile = "create_event"
+    }
+
+    list-events = {
+      access_profile = "list_events"
+    }
+
+    rsvp = {
+      access_profile = "rsvp_transaction"
+    }
+
+    notification-worker = {
+      access_profile = "notification_consume"
+    }
+  }
+}

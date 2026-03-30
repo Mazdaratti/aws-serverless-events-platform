@@ -179,6 +179,51 @@ Validation:
 
 ---
 
+## IAM Roles (Lambda Execution Baseline)
+
+Creates the initial Lambda execution IAM baseline for the platform.
+
+Implemented via:
+
+- `modules/iam`
+
+This environment currently wires in:
+
+- one execution role for `create-event`
+- one execution role for `list-events`
+- one execution role for `rsvp`
+- one execution role for `notification-worker`
+
+Why this module is wired now:
+
+- the Lambda compute layer comes next in the rollout order
+- workload execution roles should exist before functions are introduced
+- the platform now has enough real DynamoDB and SQS resources to bind least-privilege IAM to concrete ARNs
+
+Important design notes:
+
+- each workload gets its own least-privilege execution role and customer-managed policy
+- `rsvp` is the special transactional role spanning both DynamoDB business tables
+- `rsvp` intentionally has no SQS permissions
+- only `notification-worker` gets SQS consumer permissions
+- `list-events` currently includes temporary `Scan` access only as a short-term contract accommodation
+
+The environment should stay thin:
+
+- reusable AWS resource logic belongs in modules
+- `envs/dev` should focus on composition and environment-level identity and placement inputs
+
+Validation:
+
+- validated via `terraform apply`, AWS inspection, and a clean post-apply `terraform plan`
+- confirmed all four workload roles were created with Lambda-only trust relationships
+- confirmed the RSVP policy includes transactional DynamoDB access across both business tables
+- confirmed only `notification-worker` has SQS consumer permissions
+- confirmed Terraform outputs match the created IAM role identities
+- see evidence screenshots under `docs/assets/iam/`
+
+---
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -187,16 +232,21 @@ Validation:
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.14.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.37 |
 
+## Providers
 
+No providers.
 
 ## Modules
 
 | Name | Source | Version |
 |------|--------|---------|
 | <a name="module_dynamodb_data_layer"></a> [dynamodb\_data\_layer](#module\_dynamodb\_data\_layer) | ../../modules/dynamodb_data_layer | n/a |
+| <a name="module_iam"></a> [iam](#module\_iam) | ../../modules/iam | n/a |
 | <a name="module_sqs"></a> [sqs](#module\_sqs) | ../../modules/sqs | n/a |
 
+## Resources
 
+No resources.
 
 ## Inputs
 
@@ -212,6 +262,8 @@ Validation:
 |------|-------------|
 | <a name="output_events_table_arn"></a> [events\_table\_arn](#output\_events\_table\_arn) | ARN of the DynamoDB events table created for the dev environment. |
 | <a name="output_events_table_name"></a> [events\_table\_name](#output\_events\_table\_name) | Name of the DynamoDB events table created for the dev environment. |
+| <a name="output_iam_role_arns"></a> [iam\_role\_arns](#output\_iam\_role\_arns) | Map of workload IAM role ARNs for the dev environment. |
+| <a name="output_iam_role_names"></a> [iam\_role\_names](#output\_iam\_role\_names) | Map of workload IAM role names for the dev environment. |
 | <a name="output_rsvps_table_arn"></a> [rsvps\_table\_arn](#output\_rsvps\_table\_arn) | ARN of the DynamoDB RSVP table created for the dev environment. |
 | <a name="output_rsvps_table_name"></a> [rsvps\_table\_name](#output\_rsvps\_table\_name) | Name of the DynamoDB RSVP table created for the dev environment. |
 | <a name="output_sqs_dlq_arns"></a> [sqs\_dlq\_arns](#output\_sqs\_dlq\_arns) | Map of logical queue key to rendered SQS DLQ ARN for queues that create a dedicated DLQ in the dev environment. |

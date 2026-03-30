@@ -66,3 +66,20 @@ output "sqs_dlq_urls" {
   description = "Map of logical queue key to rendered SQS DLQ URL for queues that create a dedicated DLQ in the dev environment."
   value       = module.sqs.dlq_urls
 }
+
+############################################
+# Lambda execution IAM baseline outputs
+############################################
+
+# These outputs re-export the workload-keyed IAM role maps from the IAM module
+# so later environment-level consumers can bind Lambda functions to the correct
+# execution roles without re-describing IAM policy internals here.
+output "iam_role_names" {
+  description = "Map of workload IAM role names for the dev environment."
+  value       = module.iam.role_names
+}
+
+output "iam_role_arns" {
+  description = "Map of workload IAM role ARNs for the dev environment."
+  value       = module.iam.role_arns
+}

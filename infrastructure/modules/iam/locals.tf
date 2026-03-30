@@ -14,7 +14,11 @@ locals {
   # fully-populated workload map.
   normalized_workloads = {
     for workload_key, workload in var.workloads :
-    workload_key => merge(local.workload_defaults, workload)
+    workload_key => {
+      access_profile = workload.access_profile
+      enable_logs    = coalesce(workload.enable_logs, local.workload_defaults.enable_logs)
+      enable_xray    = coalesce(workload.enable_xray, local.workload_defaults.enable_xray)
+    }
   }
 
   # Render stable IAM names from the shared prefix and logical workload key.

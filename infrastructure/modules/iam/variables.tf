@@ -56,20 +56,6 @@ variable "notification_dispatch_queue_arn" {
   }
 }
 
-variable "notification_dispatch_dlq_arn" {
-  description = "Optional ARN of the notification-dispatch DLQ if a workload policy needs it."
-  type        = string
-  default     = null
-
-  validation {
-    condition = (
-      var.notification_dispatch_dlq_arn == null ||
-      length(trimspace(var.notification_dispatch_dlq_arn)) > 0
-    )
-    error_message = "notification_dispatch_dlq_arn must be null or a non-empty ARN string."
-  }
-}
-
 ############################################
 # Workload role definitions
 ############################################

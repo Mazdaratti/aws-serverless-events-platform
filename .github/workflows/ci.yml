@@ -42,6 +42,8 @@ jobs:
           # and are relevant for this stage of the repository.
           - infrastructure/modules/dynamodb_data_layer
           - infrastructure/modules/dynamodb_data_layer/examples/basic_usage
+          - infrastructure/modules/iam
+          - infrastructure/modules/iam/examples/basic_usage
           - infrastructure/modules/sqs
           - infrastructure/modules/sqs/examples/basic_usage
           - infrastructure/envs/dev

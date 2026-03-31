@@ -29,8 +29,10 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - **`infrastructure/envs/dev` now wires the DynamoDB data layer**
 - **`infrastructure/envs/dev` now wires the SQS messaging baseline**
 - **`infrastructure/envs/dev` now wires the Lambda execution IAM baseline**
-- **Terraform validation workflow now covers DynamoDB module/example, SQS module/example, IAM module/example, and the dev root**
-- Next step: Lambda compute wiring
+- **`lambda` module implemented for ZIP-packaged Lambda deployment and explicit CloudWatch log group ownership**
+- **first real Lambda workload implemented: `create-event`**
+- **validation workflow now covers DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, the dev root, and the first real Lambda handler tests**
+- Next step: wire the Lambda compute layer into `infrastructure/envs/dev`
 
 ### Completed
 
@@ -45,9 +47,12 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - `infrastructure/envs/dev` wiring for the SQS messaging baseline
 - `iam` module (Lambda execution roles + workload-specific policies)
 - `infrastructure/envs/dev` wiring for the Lambda execution IAM baseline
+- `lambda` module (ZIP-packaged Lambda deployment baseline)
+- first real Lambda workload: `create-event`
+- Python handler validation for `create-event`
 - local `terraform plan` validation for the wired dev environment
 - Repository-wide `terraform-docs` configuration
-- Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, and the dev root
+- Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, and the dev root
 
 ### In progress
 
@@ -55,7 +60,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Planned
 
-- Lambda compute layer
+- Lambda compute layer wiring in `infrastructure/envs/dev`
 - EventBridge + SNS integration
 - API Gateway + Cognito authentication
 - Edge delivery layer (S3 + CloudFront + WAF)
@@ -218,11 +223,10 @@ aws-serverless-events-platform/
 |       `-- waf/
 |
 |-- lambdas/
-|   |-- create_event/
-|   |-- list_events/
-|   |-- notification_worker/
-|   |-- rsvp/
-|   `-- shared/
+|   `-- Python Lambda workload source folders and shared placeholder structure
+|
+|-- tests/
+|   `-- Focused automated tests for implemented Lambda handlers and future application code
 |
 |-- .gitignore
 |-- .terraform-docs.yml
@@ -242,7 +246,7 @@ Planned implementation sequence:
 2. DynamoDB business data layer ✅
 3. SQS queues and dead-letter queues ✅
 4. IAM roles and policies for workloads ✅
-5. Lambda compute layer
+5. Lambda compute layer (module + first workload in progress)
 6. EventBridge and SNS integration
 7. API Gateway and Cognito authentication
 8. Frontend S3 hosting, CloudFront distribution, WAF protection
@@ -251,7 +255,7 @@ Planned implementation sequence:
 11. CI/CD deployment workflow
 
 
-The repository now also includes a Terraform validation workflow for the currently implemented module, example, and `envs/dev` root. That workflow improves static validation confidence, while real AWS creation is still verified through local `plan` and `apply` in the dev environment.
+The repository now also includes a Terraform validation workflow for the currently implemented module, example, and `envs/dev` root, plus focused Python validation for the first real Lambda handler. That workflow improves static validation confidence, while real AWS creation is still verified through local `plan` and `apply` in the dev environment.
 
 ---
 

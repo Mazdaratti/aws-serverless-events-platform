@@ -83,3 +83,35 @@ output "iam_role_arns" {
   description = "Map of workload IAM role ARNs for the dev environment."
   value       = module.iam.role_arns
 }
+
+############################################
+# Lambda compute baseline outputs
+############################################
+
+# These outputs re-export the workload-keyed Lambda maps from the Lambda module
+# so later environment-level consumers can integrate the deployed functions
+# without re-describing Lambda infrastructure internals here.
+output "lambda_function_names" {
+  description = "Map of workload Lambda function names for the dev environment."
+  value       = module.lambda.function_names
+}
+
+output "lambda_function_arns" {
+  description = "Map of workload Lambda function ARNs for the dev environment."
+  value       = module.lambda.function_arns
+}
+
+output "lambda_invoke_arns" {
+  description = "Map of workload Lambda invoke ARNs for the dev environment."
+  value       = module.lambda.invoke_arns
+}
+
+output "lambda_log_group_names" {
+  description = "Map of workload CloudWatch Logs log group names for the dev environment."
+  value       = module.lambda.log_group_names
+}
+
+output "lambda_log_group_arns" {
+  description = "Map of workload CloudWatch Logs log group ARNs for the dev environment."
+  value       = module.lambda.log_group_arns
+}

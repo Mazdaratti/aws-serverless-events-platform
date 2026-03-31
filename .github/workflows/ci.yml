@@ -30,6 +30,28 @@ jobs:
         # to a specific Terraform root.
         run: terraform fmt -check -recursive
 
+  lambda-python-validate:
+    name: Validate Create-Event Lambda
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install Lambda test dependencies
+        run: python -m pip install --upgrade pip pytest boto3
+
+      - name: Compile create-event handler
+        run: python -m py_compile lambdas/create_event/handler.py
+
+      - name: Run create-event handler tests
+        run: python -m pytest tests/lambdas/create_event/test_handler.py
+
   terraform-validate-and-lint:
     name: Validate ${{ matrix.directory }}
     runs-on: ubuntu-latest

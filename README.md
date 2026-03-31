@@ -32,7 +32,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - **`lambda` module implemented for ZIP-packaged Lambda deployment and explicit CloudWatch log group ownership**
 - **first real Lambda workload implemented: `create-event`**
 - **validation workflow now covers DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, the dev root, and the first real Lambda handler tests**
-- Next step: wire the Lambda compute layer into `infrastructure/envs/dev`
+- **`infrastructure/envs/dev` now wires the first real Lambda workload**
+- Next step: implement the next Lambda workloads, then wire API Gateway and Cognito
 
 ### Completed
 
@@ -49,6 +50,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - `infrastructure/envs/dev` wiring for the Lambda execution IAM baseline
 - `lambda` module (ZIP-packaged Lambda deployment baseline)
 - first real Lambda workload: `create-event`
+- external Lambda artifact packaging workflow via `scripts/package_lambda.py`
+- `infrastructure/envs/dev` wiring for the first real Lambda workload
 - Python handler validation for `create-event`
 - local `terraform plan` validation for the wired dev environment
 - Repository-wide `terraform-docs` configuration
@@ -60,7 +63,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Planned
 
-- Lambda compute layer wiring in `infrastructure/envs/dev`
+- Remaining Lambda workloads (`list-events`, `rsvp`, later `notification-worker`)
 - EventBridge + SNS integration
 - API Gateway + Cognito authentication
 - Edge delivery layer (S3 + CloudFront + WAF)
@@ -246,7 +249,7 @@ Planned implementation sequence:
 2. DynamoDB business data layer ✅
 3. SQS queues and dead-letter queues ✅
 4. IAM roles and policies for workloads ✅
-5. Lambda compute layer (module + first workload in progress)
+5. Lambda compute layer ✅
 6. EventBridge and SNS integration
 7. API Gateway and Cognito authentication
 8. Frontend S3 hosting, CloudFront distribution, WAF protection

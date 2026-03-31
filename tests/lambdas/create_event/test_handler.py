@@ -11,11 +11,9 @@ def mock_table(monkeypatch):
     # Replace the real DynamoDB resource with a mock so the tests validate
     # handler behavior without making any AWS calls.
     table = Mock()
-    dynamodb_resource = Mock()
-    dynamodb_resource.Table.return_value = table
 
     monkeypatch.setenv("EVENTS_TABLE_NAME", "example-events")
-    monkeypatch.setattr(handler, "dynamodb", dynamodb_resource)
+    monkeypatch.setattr(handler, "_get_dynamodb_table", lambda _table_name: table)
 
     return table
 

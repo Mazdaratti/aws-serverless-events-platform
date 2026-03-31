@@ -11,8 +11,6 @@ import boto3
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-dynamodb = boto3.resource("dynamodb")
-
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     logger.info("create-event invocation started")
@@ -22,7 +20,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         validated_payload = _validate_payload(payload)
 
         events_table_name = _get_required_env("EVENTS_TABLE_NAME")
-        table = dynamodb.Table(events_table_name)
+        table = _get_dynamodb_table(events_table_name)
 
         event_uuid = str(uuid.uuid4())
         event_pk = f"EVENT#{event_uuid}"
@@ -192,6 +190,10 @@ def _get_required_env(name: str) -> str:
     if not value:
         raise RuntimeError(f"{name} environment variable is required.")
     return value
+
+
+def _get_dynamodb_table(table_name: str):
+    return boto3.resource("dynamodb").Table(table_name)
 
 
 def _coerce_bool(value: Any, field_name: str) -> bool:

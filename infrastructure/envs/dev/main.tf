@@ -94,3 +94,33 @@ module "iam" {
     }
   }
 }
+
+############################################
+# Lambda compute baseline
+############################################
+
+# This environment wires in the reusable Lambda deployment module for the
+# first real compute workload. Packaging stays outside Terraform and IAM stays
+# in the dedicated IAM module, so envs/dev remains composition-focused.
+module "lambda" {
+  source = "../../modules/lambda"
+
+  name_prefix = local.name_prefix
+  tags        = local.tags
+
+  functions = {
+    create-event = {
+      description  = "Creates a new event record in the canonical events table."
+      role_arn     = module.iam.role_arns["create-event"]
+      runtime      = "python3.13"
+      handler      = "handler.lambda_handler"
+      package_path = abspath("${path.module}/../../../artifacts/lambda/create-event.zip")
+      memory_size  = 256
+      timeout      = 10
+      environment_variables = {
+        EVENTS_TABLE_NAME = module.dynamodb_data_layer.events_table_name
+      }
+      log_retention_in_days = 14
+    }
+  }
+}

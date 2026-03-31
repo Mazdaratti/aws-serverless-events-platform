@@ -224,6 +224,63 @@ Validation:
 
 ---
 
+## Lambda Compute Baseline
+
+Creates the first real Lambda compute baseline for the platform.
+
+Implemented via:
+
+- `modules/lambda`
+
+This environment currently wires in:
+
+- one deployed Lambda workload: `create-event`
+
+Why this module is wired now:
+
+- the platform now has the minimum supporting layers needed for real compute:
+  - DynamoDB business tables
+  - workload IAM roles
+- the first real business write path can now be validated end to end in AWS
+- packaging stays outside Terraform, while deployment stays inside the reusable Lambda module
+
+Important design notes:
+
+- the Lambda module remains infrastructure-focused and consumes a prepared ZIP artifact
+- `envs/dev` stays thin and composition-only
+- the deployed `create-event` function uses the existing least-privilege IAM `create-event` role
+- the function currently receives only the environment input it actually needs:
+  - `EVENTS_TABLE_NAME`
+- the function returns an API Gateway-style wrapped response even before API Gateway is wired
+
+Current business behavior validated in this step:
+
+- direct successful creation of a public event
+- direct successful creation of a private event
+- canonical event item write into the `events` table
+- sparse public GSI behavior:
+  - public events are written to the public upcoming index
+  - private events omit the public index attributes
+
+The environment should stay thin:
+
+- reusable AWS resource logic belongs in modules
+- packaging is prepared before Terraform
+- `envs/dev` should focus on composition and environment-level identity and placement inputs
+
+Validation:
+
+- validated via external artifact packaging, `terraform apply`, Lambda invocation, DynamoDB inspection, CloudWatch logs inspection, and a clean post-apply `terraform plan`
+- confirmed the deployed function name is `aws-serverless-events-platform-dev-create-event`
+- confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-create-event`
+- confirmed successful invocation returns `201` with the wrapped response body
+- confirmed the Lambda writes the expected canonical event item shape into DynamoDB
+- confirmed private events omit the public GSI attributes
+- confirmed Terraform outputs match the created Lambda and log group identities
+- see evidence screenshots under `docs/assets/lambda/`
+
+---
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -242,6 +299,7 @@ No providers.
 |------|--------|---------|
 | <a name="module_dynamodb_data_layer"></a> [dynamodb\_data\_layer](#module\_dynamodb\_data\_layer) | ../../modules/dynamodb_data_layer | n/a |
 | <a name="module_iam"></a> [iam](#module\_iam) | ../../modules/iam | n/a |
+| <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
 | <a name="module_sqs"></a> [sqs](#module\_sqs) | ../../modules/sqs | n/a |
 
 ## Resources
@@ -264,6 +322,11 @@ No resources.
 | <a name="output_events_table_name"></a> [events\_table\_name](#output\_events\_table\_name) | Name of the DynamoDB events table created for the dev environment. |
 | <a name="output_iam_role_arns"></a> [iam\_role\_arns](#output\_iam\_role\_arns) | Map of workload IAM role ARNs for the dev environment. |
 | <a name="output_iam_role_names"></a> [iam\_role\_names](#output\_iam\_role\_names) | Map of workload IAM role names for the dev environment. |
+| <a name="output_lambda_function_arns"></a> [lambda\_function\_arns](#output\_lambda\_function\_arns) | Map of workload Lambda function ARNs for the dev environment. |
+| <a name="output_lambda_function_names"></a> [lambda\_function\_names](#output\_lambda\_function\_names) | Map of workload Lambda function names for the dev environment. |
+| <a name="output_lambda_invoke_arns"></a> [lambda\_invoke\_arns](#output\_lambda\_invoke\_arns) | Map of workload Lambda invoke ARNs for the dev environment. |
+| <a name="output_lambda_log_group_arns"></a> [lambda\_log\_group\_arns](#output\_lambda\_log\_group\_arns) | Map of workload CloudWatch Logs log group ARNs for the dev environment. |
+| <a name="output_lambda_log_group_names"></a> [lambda\_log\_group\_names](#output\_lambda\_log\_group\_names) | Map of workload CloudWatch Logs log group names for the dev environment. |
 | <a name="output_rsvps_table_arn"></a> [rsvps\_table\_arn](#output\_rsvps\_table\_arn) | ARN of the DynamoDB RSVP table created for the dev environment. |
 | <a name="output_rsvps_table_name"></a> [rsvps\_table\_name](#output\_rsvps\_table\_name) | Name of the DynamoDB RSVP table created for the dev environment. |
 | <a name="output_sqs_dlq_arns"></a> [sqs\_dlq\_arns](#output\_sqs\_dlq\_arns) | Map of logical queue key to rendered SQS DLQ ARN for queues that create a dedicated DLQ in the dev environment. |

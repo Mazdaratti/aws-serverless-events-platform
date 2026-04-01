@@ -50,6 +50,15 @@ This ensures:
 - Reduced operational complexity
 - Production-grade security posture
 
+Generic authentication is intentionally separated from business authorization:
+
+- API Gateway and Cognito handle JWT validation and route protection
+- Lambda functions do not implement login or JWT verification
+- Lambda functions still enforce business rules that depend on:
+  - event type
+  - resource ownership
+  - admin versus non-admin caller context
+
 ---
 
 ## API Layer
@@ -64,6 +73,14 @@ Each endpoint is implemented as an independent Lambda to provide:
 - Independent scaling
 - Clear ownership boundaries
 - Fine-grained IAM permissions
+
+This keeps the compute layer aligned with the platform's business workflow
+boundaries, such as:
+
+- event creation
+- event listing and lookup
+- creator-owned event management
+- synchronous RSVP business handling
 
 ---
 
@@ -84,6 +101,14 @@ This guarantees the caller immediately receives the final business outcome:
 - event not found
 
 This pattern aligns with the existing API contract and improves user experience by avoiding eventual-consistency uncertainty in critical workflows.
+
+The RSVP decision itself remains business-driven inside Lambda:
+
+- public events may allow anonymous RSVP
+- protected events require authenticated callers
+- admin events require admin callers
+
+Generic JWT validation still stays outside Lambda in API Gateway/Cognito.
 
 ---
 
@@ -149,6 +174,12 @@ Global secondary indexes are introduced only for **validated access patterns**, 
 - public upcoming event discovery
 - creator event listing
 
+Those access patterns intentionally support the current Lambda rollout order:
+
+- broad event discovery
+- creator-owned event listing
+- later transactional RSVP handling
+
 ---
 
 ## Event-Driven Extensions
@@ -201,3 +232,7 @@ Infrastructure layers are introduced in a controlled sequence to:
 
 Early decisions (such as synchronous RSVP writes and minimal DynamoDB indexing)
 may evolve as real workload characteristics become known.
+
+Business behavior contracts are tracked separately from this architecture
+overview so the system design can stay high-level while endpoint behavior and
+authorization rules continue to evolve in a controlled way.

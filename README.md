@@ -191,7 +191,8 @@ aws-serverless-events-platform/
 |
 |-- docs/
 |   |-- assets/
-|   `-- architecture.md
+|   |-- architecture.md
+|   `-- platform-behavior.md
 |
 |-- frontend/
 |   |-- public/
@@ -296,6 +297,7 @@ No EC2 instances, NAT Gateways, or relational databases are used.
 Detailed architecture description:
 
 - `docs/architecture.md`
+- `docs/platform-behavior.md`
 - `infrastructure/envs/dev/README.md`
 - each module also contains its own `README.md` in the module root directory
 

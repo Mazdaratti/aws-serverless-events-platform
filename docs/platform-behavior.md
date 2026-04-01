@@ -1,0 +1,313 @@
+# Platform Behavior Contracts
+
+This document records the currently locked platform behavior contracts for the
+serverless events platform.
+
+It is intentionally more specific than `docs/architecture.md`.
+
+The architecture document stays focused on high-level system design and service
+boundaries. This document captures the current behavioral and authorization
+rules that implementation work should follow across Lambda handlers, API
+planning, and future environment wiring.
+
+---
+
+## Contract Scope
+
+This document is the working source of truth for:
+
+- event visibility and ownership behavior
+- RSVP access rules
+- account-management direction
+- auth versus business-authorization boundaries
+- Lambda implementation sequencing
+
+It should be updated when the platform's intended behavior changes in a
+meaningful way.
+
+---
+
+## Auth Boundary
+
+Generic authentication is handled outside Lambda.
+
+### Cognito and API Gateway are responsible for
+
+- user registration
+- user login
+- token issuance
+- password reset and change-password flows
+- user verification
+- generic route protection
+- JWT validation
+- admin group and claim delivery
+
+### Lambda functions are not responsible for
+
+- login
+- session management
+- JWT verification
+- generic auth implementation
+
+### Lambda functions are still responsible for
+
+- ownership checks
+- admin-versus-non-admin business decisions
+- event-type-dependent authorization
+- platform-specific deletion and cleanup decisions
+
+This split is intentional:
+
+- Cognito and API Gateway handle identity
+- Lambda handles business authorization where the decision depends on resource
+  ownership or event type
+
+---
+
+## Account Lifecycle Direction
+
+### Cognito-native account behavior
+
+The platform expects Cognito to handle:
+
+- account creation
+- account login
+- password reset
+- password change
+- user verification
+- user-group membership such as admin
+- disabling or deleting the identity itself
+
+### Platform-managed account behavior
+
+The platform still needs application-level decisions for:
+
+- account deletion side effects
+- ownership reassignment or retention policy
+- event and RSVP data cleanup strategy
+- future app-specific profile logic if introduced
+
+So account deletion is not just an identity-provider action.
+
+It should later be implemented as a platform-controlled workflow plus the
+relevant Cognito action.
+
+---
+
+## Event Behavior Contracts
+
+### `create-event`
+
+#### Access rule
+
+- authenticated users may create public events
+- authenticated users may create protected events
+- admin users may also create admin-only events
+
+#### Ownership rule
+
+- event ownership must be derived from caller identity
+- `creator_id` should come from `requestContext.authorizer.user_id`
+- request-body `creator_id` must not be trusted as the source of ownership
+
+#### Current implementation note
+
+The current first Lambda milestone implemented the canonical item-write path
+first. A follow-up alignment fix is still needed so the deployed
+`create-event` Lambda fully enforces authenticated-only creation and derives
+ownership from auth context.
+
+### `list-events`
+
+#### Access rule
+
+- all users may use broad event listing
+- authenticated users may additionally use `mine`
+
+#### Query modes currently locked
+
+- `all`
+- `mine`
+
+#### Request contract
+
+Support both:
+
+- direct invocation payload
+- API Gateway-style `queryStringParameters`
+
+Supported request parameters:
+
+- `mode`
+- `limit`
+- `next_cursor`
+
+#### Default
+
+- `mode=all`
+
+#### Response contract
+
+The Lambda returns an API Gateway-style wrapped response.
+
+The response body shape is:
+
+- `items`
+- `next_cursor`
+- `mode`
+
+#### Pagination contract
+
+- `next_cursor` is an opaque string cursor
+- internally it is derived from DynamoDB `LastEvaluatedKey`
+- the public contract must not expose raw DynamoDB key structure directly
+
+#### Caller context for direct invocation and tests
+
+Before API Gateway wiring, caller identity is represented as:
+
+- `requestContext.authorizer.user_id`
+
+This keeps test and direct-invocation event shapes aligned with the future
+API Gateway/Cognito handoff.
+
+#### Current implementation direction
+
+- `mode=all` uses a temporary table `Scan`
+- `mode=mine` uses the `creator-events` GSI
+- pagination is required in both modes
+
+This is an intentional tradeoff:
+
+- broad listing preserves the current product direction
+- creator-scoped listing already aligns with the validated DynamoDB access
+  pattern
+- long-term scan reduction remains desirable, but broad listing is currently an
+  intentional platform behavior
+
+### `get-event`
+
+#### Current status
+
+Single-event read behavior is planned, but the final visibility rule for
+private and admin-only events is still open.
+
+For now, the platform does not lock the final restricted-read behavior for
+single-event retrieval.
+
+### `update-event`
+
+#### Access rule
+
+- event creator may update their own event
+- admin may update any event
+
+### `cancel-event`
+
+#### Access rule
+
+- event creator may cancel their own event
+- admin may cancel any event
+
+#### Naming direction
+
+`cancel-event` is preferred over hard delete as the default operation because it
+is safer, more realistic, and leaves room for history, notifications, and
+later auditability.
+
+---
+
+## RSVP Behavior Contracts
+
+### `rsvp`
+
+RSVP authorization depends on event type.
+
+- public event:
+  - anonymous RSVP allowed
+- protected event:
+  - authenticated user required
+- admin event:
+  - admin user required
+
+This decision remains business-driven inside Lambda even after API Gateway and
+Cognito handle generic auth.
+
+### `get-event-rsvps`
+
+The old monolith/OpenAPI contract exposed this broadly, but the final platform
+visibility policy for event RSVP reads is still open.
+
+That final read-policy decision should be locked later when the RSVP read side
+is implemented.
+
+---
+
+## OpenAPI Reference Alignment
+
+The older reference OpenAPI currently establishes these broad directions:
+
+- `GET /api/events` is public
+- `GET /api/events/{event_id}` is public
+- `POST /api/events` requires authentication
+- RSVP access varies by event type
+- `GET /api/rsvps/event/{event_id}` is public in the old contract
+
+This repository uses that contract as a reference point, not as a requirement
+to preserve every old behavior unchanged.
+
+Where the platform intentionally evolves beyond the older behavior, this
+document should be treated as the newer source of truth.
+
+---
+
+## Lambda Set
+
+The currently locked Lambda set is:
+
+- `create-event` ✅
+- `list-events`
+- `get-event`
+- `update-event`
+- `cancel-event`
+- `rsvp`
+- `get-event-rsvps`
+- `notification-worker`
+
+---
+
+## Locked Implementation Order
+
+The currently locked Lambda implementation order is:
+
+1. `create-event` ✅
+2. `list-events`
+3. `get-event`
+4. `update-event`
+5. `cancel-event`
+6. `rsvp`
+7. `get-event-rsvps`
+8. `notification-worker`
+
+This sequence is intentional:
+
+- first create and read basics
+- then ownership-based event management
+- then transactional RSVP complexity
+- then RSVP read/reporting
+- then asynchronous side effects
+
+---
+
+## Current Open Questions
+
+The following behaviors are intentionally not fully locked yet:
+
+- final private/admin visibility behavior for `get-event`
+- final visibility policy for `get-event-rsvps`
+- exact account-deletion cleanup semantics
+- implementation details for admin-only event creation beyond the already
+  locked business rule that only admins may create admin-only events
+
+These should be decided in the implementation steps where they become
+immediately relevant.

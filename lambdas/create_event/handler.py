@@ -13,11 +13,18 @@ logger.setLevel(logging.INFO)
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    # Keep the handler small and linear:
+    # 1. resolve authenticated caller context
+    # 2. parse and validate the request payload
+    # 3. build the canonical DynamoDB item
+    # 4. write it
+    # 5. return an API Gateway-style response
     logger.info("create-event invocation started")
 
     try:
+        caller_context = _get_caller_context(event)
         payload = _extract_payload(event)
-        validated_payload = _validate_payload(payload)
+        validated_payload = _validate_payload(payload=payload, caller_context=caller_context)
 
         events_table_name = _get_required_env("EVENTS_TABLE_NAME")
         table = _get_dynamodb_table(events_table_name)
@@ -58,6 +65,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
 
 def _extract_payload(event: dict[str, Any]) -> dict[str, Any]:
+    # Support both direct Lambda invocation and the future API Gateway event
+    # shape where the request body is delivered separately.
     if "body" not in event:
         if isinstance(event, dict):
             return event
@@ -82,7 +91,9 @@ def _extract_payload(event: dict[str, Any]) -> dict[str, Any]:
     raise ValueError("Request body must be a JSON object or JSON string.")
 
 
-def _validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def _validate_payload(*, payload: dict[str, Any], caller_context: dict[str, Any]) -> dict[str, Any]:
+    # Validate the minimum event contract first, then apply business rules such
+    # as ownership and admin-only creation.
     title = str(payload.get("title", "")).strip()
     if not title:
         raise ValueError("title is required and must not be empty.")
@@ -92,7 +103,6 @@ def _validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     description = str(payload.get("description", "")).strip()
     location = str(payload.get("location", "")).strip()
-    creator_id = str(payload.get("creator_id", "anonymous")).strip() or "anonymous"
 
     capacity = payload.get("capacity")
     if capacity is not None:
@@ -104,6 +114,11 @@ def _validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
     is_public = _coerce_bool(payload.get("is_public", True), "is_public")
     requires_admin = _coerce_bool(payload.get("requires_admin", False), "requires_admin")
 
+    # Admin-only events require an admin caller. This stays business logic in
+    # Lambda even though generic auth is handled elsewhere.
+    if requires_admin and not caller_context["is_admin"]:
+        raise ValueError("admin privileges are required to create admin-only events.")
+
     return {
         "title": title,
         "date": payload["date"],
@@ -112,7 +127,9 @@ def _validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "capacity": capacity,
         "is_public": is_public,
         "requires_admin": requires_admin,
-        "creator_id": creator_id,
+        # Ownership comes from authenticated caller context, never from a
+        # request-body field that a client could spoof.
+        "creator_id": caller_context["user_id"],
     }
 
 
@@ -124,6 +141,8 @@ def _build_event_item(
     created_at: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
+    # This is the canonical event record shape currently expected by the
+    # platform's DynamoDB design.
     item = {
         "event_pk": event_pk,
         "title": payload["title"],
@@ -152,6 +171,8 @@ def _build_event_item(
 
 
 def _normalize_event_date(raw_value: Any) -> str:
+    # Normalize all accepted date inputs into one stored format so DynamoDB
+    # items and index sort keys stay consistent.
     if not isinstance(raw_value, str):
         raise ValueError("date must be a string.")
 
@@ -192,7 +213,33 @@ def _get_required_env(name: str) -> str:
     return value
 
 
+def _get_caller_context(event: dict[str, Any]) -> dict[str, Any]:
+    # Keep the temporary direct-invoke/test event shape aligned with the future
+    # API Gateway handoff: requestContext.authorizer carries caller identity.
+    request_context = event.get("requestContext", {})
+    if not isinstance(request_context, dict):
+        raise ValueError("Authenticated caller context is required.")
+
+    authorizer = request_context.get("authorizer", {})
+    if not isinstance(authorizer, dict):
+        raise ValueError("Authenticated caller context is required.")
+
+    user_id = str(authorizer.get("user_id", "")).strip()
+    if not user_id:
+        raise ValueError("Authenticated caller context is required.")
+
+    return {
+        "user_id": user_id,
+        "is_admin": _coerce_optional_bool(
+            authorizer.get("is_admin", False),
+            "requestContext.authorizer.is_admin",
+        ),
+    }
+
+
 def _get_dynamodb_table(table_name: str):
+    # Create the DynamoDB table resource lazily so importing this module does
+    # not require ambient AWS region configuration during tests.
     return boto3.resource("dynamodb").Table(table_name)
 
 
@@ -203,7 +250,18 @@ def _coerce_bool(value: Any, field_name: str) -> bool:
     raise ValueError(f"{field_name} must be a boolean when provided.")
 
 
+def _coerce_optional_bool(value: Any, field_name: str) -> bool:
+    # Some authorizer fields may be omitted in early direct invocation/testing
+    # flows, so treat missing optional booleans as False.
+    if value is None:
+        return False
+
+    return _coerce_bool(value, field_name)
+
+
 def _success_response(*, status_code: int, body: dict[str, Any]) -> dict[str, Any]:
+    # Keep the response shape aligned with the future API Gateway integration
+    # even though the function can already be invoked directly today.
     return {
         "statusCode": status_code,
         "headers": {"Content-Type": "application/json"},

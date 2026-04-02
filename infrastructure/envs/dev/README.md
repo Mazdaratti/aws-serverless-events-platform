@@ -255,15 +255,21 @@ Important design notes:
 - the function currently receives only the environment input it actually needs:
   - `EVENTS_TABLE_NAME`
 - the function returns an API Gateway-style wrapped response even before API Gateway is wired
+- event creation is authenticated-only in the current platform contract
+- event ownership is derived from caller context rather than a request-body `creator_id`
+- admin-only events require admin caller context
 
 Current business behavior validated in this step:
 
-- direct successful creation of a public event
-- direct successful creation of a private event
+- direct successful creation of a public event by an authenticated caller
+- direct successful creation of a protected event by an authenticated caller
+- direct successful creation of an admin-only event by an admin caller
 - canonical event item write into the `events` table
+- request-body `creator_id` spoofing is ignored in favor of caller-context ownership
+- non-admin callers are rejected when attempting to create admin-only events
 - sparse public GSI behavior:
   - public events are written to the public upcoming index
-  - private events omit the public index attributes
+  - non-public events omit the public index attributes
 
 The environment should stay thin:
 
@@ -276,9 +282,12 @@ Validation:
 - validated via external artifact packaging, `terraform apply`, Lambda invocation, DynamoDB inspection, CloudWatch logs inspection, and a clean post-apply `terraform plan`
 - confirmed the deployed function name is `aws-serverless-events-platform-dev-create-event`
 - confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-create-event`
-- confirmed successful invocation returns `201` with the wrapped response body
+- confirmed successful authenticated invocation returns `201` with the wrapped response body
+- confirmed missing caller context returns `400`
+- confirmed non-admin admin-only creation returns `400`
 - confirmed the Lambda writes the expected canonical event item shape into DynamoDB
-- confirmed private events omit the public GSI attributes
+- confirmed `creator_id` is derived from caller context
+- confirmed non-public events omit the public GSI attributes
 - confirmed Terraform outputs match the created Lambda and log group identities
 - see evidence screenshots under `docs/assets/lambda/`
 

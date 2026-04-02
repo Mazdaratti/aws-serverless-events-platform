@@ -156,6 +156,58 @@ The response body shape is:
 - `next_cursor`
 - `mode`
 
+#### Event DTO contract
+
+`list-events` should return a stable public event DTO instead of raw or
+half-cleaned DynamoDB storage items.
+
+The public event DTO is:
+
+- `event_id`
+- `title`
+- `date`
+- `description`
+- `location`
+- `capacity`
+- `is_public`
+- `requires_admin`
+- `created_by`
+- `created_at`
+- `rsvp_count`
+- `attending_count`
+
+These mappings are locked:
+
+- `event_pk` -> `event_id` without the `EVENT#` prefix
+- `creator_id` -> `created_by`
+- `rsvp_total` -> `rsvp_count`
+
+These fields must stay hidden from the public event DTO:
+
+- all GSI helper fields
+- `not_attending_count`
+
+All DTO fields must always be present in the response.
+
+Optional storage fields should be normalized to:
+
+- empty string for text fields
+- `null` for optional numeric fields where appropriate
+
+For events, `capacity = null` means unlimited attendance.
+
+This keeps the API-facing event model cleaner than the storage model while
+still exposing the most useful UI-oriented event information.
+
+#### Mapping ownership
+
+Event DTO mapping belongs in Lambda code, not in API Gateway.
+
+The storage model and API model are intentionally separate:
+
+- DynamoDB keeps the current canonical storage item shape
+- Lambda handlers map storage items into the public event DTO
+
 #### Pagination contract
 
 - `next_cursor` is an opaque string cursor

@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 import os
+from decimal import Decimal
 from typing import Any
 
 import boto3
@@ -295,10 +296,19 @@ def _normalize_capacity(value: Any) -> int | None:
     if value is None:
         return None
 
-    if isinstance(value, bool) or not isinstance(value, int):
+    if isinstance(value, bool):
         raise ValueError("capacity must be an integer or null in the event DTO mapper.")
 
-    return value
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, Decimal):
+        if value % 1 != 0:
+            raise ValueError("capacity must be an integer or null in the event DTO mapper.")
+
+        return int(value)
+
+    raise ValueError("capacity must be an integer or null in the event DTO mapper.")
 
 
 def _normalize_bool(value: Any) -> bool:
@@ -313,10 +323,19 @@ def _normalize_bool(value: Any) -> bool:
 def _normalize_counter(value: Any) -> int:
     # Counters are always present in the platform's canonical event item
     # design, so the public DTO keeps them as integers.
-    if isinstance(value, bool) or not isinstance(value, int):
+    if isinstance(value, bool):
         raise ValueError("Counter fields must contain integer values.")
 
-    return value
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, Decimal):
+        if value % 1 != 0:
+            raise ValueError("Counter fields must contain integer values.")
+
+        return int(value)
+
+    raise ValueError("Counter fields must contain integer values.")
 
 
 def _get_required_env(name: str) -> str:

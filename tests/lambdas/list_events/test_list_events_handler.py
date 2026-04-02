@@ -1,5 +1,6 @@
 import base64
 import json
+from decimal import Decimal
 from unittest.mock import Mock
 
 import pytest
@@ -40,14 +41,16 @@ def test_lambda_handler_returns_public_event_dtos_for_default_all_mode(mock_tabl
                 "date": "2026-06-15T00:00:00Z",
                 "description": "Kickoff for the new platform.",
                 "location": "Berlin",
-                "capacity": 50,
+                # Real DynamoDB number attributes come back through boto3 as
+                # Decimal values, so the mapper must normalize them to ints.
+                "capacity": Decimal("50"),
                 "is_public": True,
                 "requires_admin": False,
                 "creator_id": "alice",
                 "created_at": "2026-03-31T12:00:00Z",
-                "rsvp_total": 3,
-                "attending_count": 2,
-                "not_attending_count": 1,
+                "rsvp_total": Decimal("3"),
+                "attending_count": Decimal("2"),
+                "not_attending_count": Decimal("1"),
                 "creator_events_gsi_pk": "CREATOR#alice",
                 "creator_events_gsi_sk": "2026-06-15T00:00:00Z#11111111-1111-1111-1111-111111111111",
                 "public_upcoming_gsi_pk": "PUBLIC",
@@ -128,9 +131,9 @@ def test_lambda_handler_uses_creator_events_gsi_for_mine_mode(mock_table):
                 "requires_admin": False,
                 "creator_id": "alice",
                 "created_at": "2026-04-02T09:06:30Z",
-                "rsvp_total": 0,
-                "attending_count": 0,
-                "not_attending_count": 0,
+                "rsvp_total": Decimal("0"),
+                "attending_count": Decimal("0"),
+                "not_attending_count": Decimal("0"),
                 "creator_events_gsi_pk": "CREATOR#alice",
                 "creator_events_gsi_sk": "2026-07-01T00:00:00Z#22222222-2222-2222-2222-222222222222",
             }

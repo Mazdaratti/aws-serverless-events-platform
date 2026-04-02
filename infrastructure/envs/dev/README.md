@@ -124,6 +124,8 @@ Important design notes:
 - asynchronous services such as SQS are reserved for downstream side effects after commit
 - the `rsvps` table is the source of truth for attendance membership
 - event-level counters are helper fields, not the source of truth
+- point-in-time recovery is disabled by default in `dev` to reduce always-on non-production cost
+- the reusable module still supports PITR, but this environment now treats it as an explicit environment-level behavior choice
 
 The environment should stay thin:
 
@@ -133,7 +135,8 @@ The environment should stay thin:
 Validation:
 
 - validated via `terraform apply`, AWS inspection, and a clean post-apply `terraform plan`
-- confirmed table creation, approved GSIs, `PAY_PER_REQUEST`, table class `STANDARD`, and point-in-time recovery
+- confirmed table creation, approved GSIs, `PAY_PER_REQUEST`, and table class `STANDARD`
+- `dev` now defaults point-in-time recovery to disabled as a cost-saving environment override
 - optional CLI data validation was also completed
 - see evidence screenshots under `docs/assets/dynamodb/`
 
@@ -289,9 +292,7 @@ Validation:
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.14.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.37 |
 
-## Providers
 
-No providers.
 
 ## Modules
 
@@ -302,9 +303,7 @@ No providers.
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
 | <a name="module_sqs"></a> [sqs](#module\_sqs) | ../../modules/sqs | n/a |
 
-## Resources
 
-No resources.
 
 ## Inputs
 
@@ -313,6 +312,7 @@ No resources.
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region where resources will be deployed. | `string` | n/a | yes |
 | <a name="input_environment"></a> [environment](#input\_environment) | Deployment environment name. | `string` | n/a | yes |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Project name used for naming and tagging resources. | `string` | n/a | yes |
+| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 
 ## Outputs
 

@@ -35,3 +35,13 @@ variable "aws_region" {
     error_message = "aws_region must not be empty."
   }
 }
+
+############################################
+# Environment behavior overrides
+############################################
+
+variable "dynamodb_point_in_time_recovery_enabled" {
+  description = "Enable point-in-time recovery for DynamoDB tables in this environment."
+  type        = bool
+  default     = false
+}

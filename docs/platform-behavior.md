@@ -112,10 +112,12 @@ relevant Cognito action.
 
 #### Current implementation note
 
-The current first Lambda milestone implemented the canonical item-write path
-first. A follow-up alignment fix is still needed so the deployed
-`create-event` Lambda fully enforces authenticated-only creation and derives
-ownership from auth context.
+The deployed `create-event` Lambda now enforces the locked creation contract:
+
+- authenticated-only event creation
+- ownership derived from `requestContext.authorizer.user_id`
+- request-body `creator_id` ignored as an ownership source
+- admin-only events restricted to admin callers
 
 ### `list-events`
 
@@ -196,6 +198,12 @@ Optional storage fields should be normalized to:
 
 For events, `capacity = null` means unlimited attendance.
 
+Timestamp presentation is intentionally split across backend and frontend:
+
+- Lambda/API responses return `created_at` as an ISO 8601 UTC timestamp
+- the frontend is responsible for rendering user-friendly date/time text for
+  people
+
 This keeps the API-facing event model cleaner than the storage model while
 still exposing the most useful UI-oriented event information.
 
@@ -236,6 +244,16 @@ This is an intentional tradeoff:
   pattern
 - long-term scan reduction remains desirable, but broad listing is currently an
   intentional platform behavior
+
+#### Current implementation note
+
+The deployed `list-events` Lambda now validates the currently locked read
+contract in `dev`:
+
+- broad `all` mode returns the current event collection
+- authenticated `mine` mode returns creator-scoped events
+- `mine` without caller context returns `400`
+- returned items use the locked public event DTO
 
 ### `get-event`
 
@@ -318,7 +336,7 @@ document should be treated as the newer source of truth.
 The currently locked Lambda set is:
 
 - `create-event` ✅
-- `list-events`
+- `list-events` ✅
 - `get-event`
 - `update-event`
 - `cancel-event`
@@ -333,7 +351,7 @@ The currently locked Lambda set is:
 The currently locked Lambda implementation order is:
 
 1. `create-event` ✅
-2. `list-events`
+2. `list-events` ✅
 3. `get-event`
 4. `update-event`
 5. `cancel-event`

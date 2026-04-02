@@ -124,6 +124,8 @@ Important design notes:
 - asynchronous services such as SQS are reserved for downstream side effects after commit
 - the `rsvps` table is the source of truth for attendance membership
 - event-level counters are helper fields, not the source of truth
+- point-in-time recovery is disabled by default in `dev` to reduce always-on non-production cost
+- the reusable module still supports PITR, but this environment now treats it as an explicit environment-level behavior choice
 
 The environment should stay thin:
 
@@ -133,7 +135,8 @@ The environment should stay thin:
 Validation:
 
 - validated via `terraform apply`, AWS inspection, and a clean post-apply `terraform plan`
-- confirmed table creation, approved GSIs, `PAY_PER_REQUEST`, table class `STANDARD`, and point-in-time recovery
+- confirmed table creation, approved GSIs, `PAY_PER_REQUEST`, and table class `STANDARD`
+- `dev` now defaults point-in-time recovery to disabled as a cost-saving environment override
 - optional CLI data validation was also completed
 - see evidence screenshots under `docs/assets/dynamodb/`
 
@@ -252,15 +255,21 @@ Important design notes:
 - the function currently receives only the environment input it actually needs:
   - `EVENTS_TABLE_NAME`
 - the function returns an API Gateway-style wrapped response even before API Gateway is wired
+- event creation is authenticated-only in the current platform contract
+- event ownership is derived from caller context rather than a request-body `creator_id`
+- admin-only events require admin caller context
 
 Current business behavior validated in this step:
 
-- direct successful creation of a public event
-- direct successful creation of a private event
+- direct successful creation of a public event by an authenticated caller
+- direct successful creation of a protected event by an authenticated caller
+- direct successful creation of an admin-only event by an admin caller
 - canonical event item write into the `events` table
+- request-body `creator_id` spoofing is ignored in favor of caller-context ownership
+- non-admin callers are rejected when attempting to create admin-only events
 - sparse public GSI behavior:
   - public events are written to the public upcoming index
-  - private events omit the public index attributes
+  - non-public events omit the public index attributes
 
 The environment should stay thin:
 
@@ -273,9 +282,12 @@ Validation:
 - validated via external artifact packaging, `terraform apply`, Lambda invocation, DynamoDB inspection, CloudWatch logs inspection, and a clean post-apply `terraform plan`
 - confirmed the deployed function name is `aws-serverless-events-platform-dev-create-event`
 - confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-create-event`
-- confirmed successful invocation returns `201` with the wrapped response body
+- confirmed successful authenticated invocation returns `201` with the wrapped response body
+- confirmed missing caller context returns `400`
+- confirmed non-admin admin-only creation returns `400`
 - confirmed the Lambda writes the expected canonical event item shape into DynamoDB
-- confirmed private events omit the public GSI attributes
+- confirmed `creator_id` is derived from caller context
+- confirmed non-public events omit the public GSI attributes
 - confirmed Terraform outputs match the created Lambda and log group identities
 - see evidence screenshots under `docs/assets/lambda/`
 
@@ -289,9 +301,7 @@ Validation:
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.14.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.37 |
 
-## Providers
 
-No providers.
 
 ## Modules
 
@@ -302,9 +312,7 @@ No providers.
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
 | <a name="module_sqs"></a> [sqs](#module\_sqs) | ../../modules/sqs | n/a |
 
-## Resources
 
-No resources.
 
 ## Inputs
 
@@ -313,6 +321,7 @@ No resources.
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region where resources will be deployed. | `string` | n/a | yes |
 | <a name="input_environment"></a> [environment](#input\_environment) | Deployment environment name. | `string` | n/a | yes |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Project name used for naming and tagging resources. | `string` | n/a | yes |
+| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 
 ## Outputs
 

@@ -15,3 +15,10 @@ environment = "dev"
 
 # AWS region where this environment will be deployed.
 aws_region = "eu-central-1"
+
+############################################
+# Environment behavior overrides
+############################################
+
+# Keep PITR disabled in dev to reduce always-on test-environment cost.
+dynamodb_point_in_time_recovery_enabled = false

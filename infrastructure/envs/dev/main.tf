@@ -28,6 +28,8 @@ module "dynamodb_data_layer" {
 
   name_prefix = local.name_prefix
   tags        = local.tags
+
+  point_in_time_recovery_enabled = var.dynamodb_point_in_time_recovery_enabled
 }
 
 ############################################

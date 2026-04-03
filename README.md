@@ -22,20 +22,14 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ## Current Development Status
 
-### Current phase
+### Current focus
 
-- Local-first Terraform environment foundation completed
-- **DynamoDB business data layer implemented**
-- **`infrastructure/envs/dev` now wires the DynamoDB data layer**
-- **`infrastructure/envs/dev` now wires the SQS messaging baseline**
-- **`infrastructure/envs/dev` now wires the Lambda execution IAM baseline**
-- **`lambda` module implemented for ZIP-packaged Lambda deployment and explicit CloudWatch log group ownership**
-- **first real Lambda workload implemented: `create-event`**
-- **validation workflow now covers DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, the dev root, and the first real Lambda handler tests**
-- **`infrastructure/envs/dev` now wires the first real Lambda workload**
-- Next step: implement the next Lambda workloads, then wire API Gateway and Cognito
+- Core synchronous Lambda rollout is in progress (business-critical write/read paths)
+- `create-event` and `list-events` are implemented, wired in `envs/dev`, and validated in AWS
+- Current next target: `get-event`
+- After the remaining core synchronous handlers, the next platform milestone is API Gateway + Cognito
 
-### Completed
+### Completed milestones
 
 - AWS account setup and security baseline
 - Repository structure and modular Terraform design
@@ -50,23 +44,24 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - `infrastructure/envs/dev` wiring for the Lambda execution IAM baseline
 - `lambda` module (ZIP-packaged Lambda deployment baseline)
 - first real Lambda workload: `create-event`
+- `infrastructure/envs/dev` wiring for `create-event`
+- validation and AWS deployment evidence for `create-event`
+- second real Lambda workload: `list-events`
+- `infrastructure/envs/dev` wiring for `list-events`
+- validation and AWS deployment evidence for `list-events`
 - external Lambda artifact packaging workflow via `scripts/package_lambda.py`
-- `infrastructure/envs/dev` wiring for the first real Lambda workload
-- Python handler validation for `create-event`
+- Python handler validation for implemented Lambda handlers
 - local `terraform plan` validation for the wired dev environment
 - Repository-wide `terraform-docs` configuration
 - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, and the dev root
 
-### In progress
+### Next milestones
 
-- PR-based incremental platform infrastructure build-out following the implementation roadmap
-
-### Planned
-
-- Remaining Lambda workloads (`list-events`, `rsvp`, later `notification-worker`)
-- EventBridge + SNS integration
+- Remaining core synchronous Lambda workloads (`get-event`, `update-event`, `cancel-event`, `rsvp`, `get-event-rsvps`)
 - API Gateway + Cognito authentication
 - Edge delivery layer (S3 + CloudFront + WAF)
+- EventBridge + SNS integration
+- `notification-worker`
 - Observability baseline
 - Remote Terraform backend + GitHub OIDC
 - deployment workflow automation beyond Terraform validation
@@ -251,12 +246,21 @@ Planned implementation sequence:
 3. SQS queues and dead-letter queues ✅
 4. IAM roles and policies for workloads ✅
 5. Lambda compute layer ✅
-6. EventBridge and SNS integration
+6. Core synchronous Lambda workload rollout
+   - `create-event` ✅
+   - `list-events` ✅
+   - `get-event`
+   - `update-event`
+   - `cancel-event`
+   - `rsvp`
+   - `get-event-rsvps`
 7. API Gateway and Cognito authentication
 8. Frontend S3 hosting, CloudFront distribution, WAF protection
-9. CloudWatch observability and X-Ray tracing
-10. Remote Terraform backend and GitHub OIDC
-11. CI/CD deployment workflow
+9. EventBridge and SNS integration
+10. `notification-worker`
+11. CloudWatch observability and X-Ray tracing
+12. Remote Terraform backend and GitHub OIDC
+13. CI/CD deployment workflow
 
 
 The repository now also includes a Terraform validation workflow for the currently implemented module, example, and `envs/dev` root, plus focused Python validation for the first real Lambda handler. That workflow improves static validation confidence, while real AWS creation is still verified through local `plan` and `apply` in the dev environment.

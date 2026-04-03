@@ -111,12 +111,13 @@ module "lambda" {
   tags        = local.tags
 
   functions = {
-    create-event = {
-      description  = "Creates a new event record in the canonical events table."
-      role_arn     = module.iam.role_arns["create-event"]
+    for function_key, function in local.lambda_workloads :
+    function_key => {
+      description  = function.description
+      role_arn     = module.iam.role_arns[function_key]
       runtime      = "python3.13"
       handler      = "handler.lambda_handler"
-      package_path = abspath("${path.module}/../../../artifacts/lambda/create-event.zip")
+      package_path = abspath("${path.module}/../../../artifacts/lambda/${function_key}.zip")
       memory_size  = 256
       timeout      = 10
       environment_variables = {

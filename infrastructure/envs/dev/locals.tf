@@ -16,4 +16,17 @@ locals {
     Environment = var.environment
     ManagedBy   = "Terraform"
   }
+
+  # Keep Lambda deployment inputs thinner in main.tf by defining only the
+  # workload-specific values here. Shared deployment defaults can then be
+  # derived centrally when the Lambda module is called.
+  lambda_workloads = {
+    create-event = {
+      description = "Creates a new event record in the canonical events table."
+    }
+
+    list-events = {
+      description = "Lists events from the canonical events table using the current platform query modes."
+    }
+  }
 }

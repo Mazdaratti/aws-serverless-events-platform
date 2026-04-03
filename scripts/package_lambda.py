@@ -31,6 +31,10 @@ EXCLUDED_DIRECTORY_NAMES = {
 }
 EXCLUDED_FILE_SUFFIXES = {".pyc", ".pyo", ".zip"}
 EXCLUDED_FILE_PREFIXES = ("test_",)
+EXCLUDED_FILE_NAMES = {
+    ".gitkeep",
+    ".DS_Store",
+}
 
 
 def main() -> int:
@@ -102,6 +106,9 @@ def is_excluded(*, path: Path, source_dir: Path) -> bool:
         return True
 
     if path.suffix in EXCLUDED_FILE_SUFFIXES:
+        return True
+
+    if path.name in EXCLUDED_FILE_NAMES:
         return True
 
     if path.name.startswith(EXCLUDED_FILE_PREFIXES):

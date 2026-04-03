@@ -237,14 +237,17 @@ Implemented via:
 
 This environment currently wires in:
 
-- one deployed Lambda workload: `create-event`
+- two deployed Lambda workloads:
+  - `create-event`
+  - `list-events`
 
 Why this module is wired now:
 
 - the platform now has the minimum supporting layers needed for real compute:
   - DynamoDB business tables
   - workload IAM roles
-- the first real business write path can now be validated end to end in AWS
+- the platform can now validate both the first real business write path and the
+  first real business read path end to end in AWS
 - packaging stays outside Terraform, while deployment stays inside the reusable Lambda module
 
 Important design notes:
@@ -252,12 +255,15 @@ Important design notes:
 - the Lambda module remains infrastructure-focused and consumes a prepared ZIP artifact
 - `envs/dev` stays thin and composition-only
 - the deployed `create-event` function uses the existing least-privilege IAM `create-event` role
-- the function currently receives only the environment input it actually needs:
+- the deployed `list-events` function uses the existing least-privilege IAM `list-events` role
+- both functions currently receive only the environment input they actually need:
   - `EVENTS_TABLE_NAME`
-- the function returns an API Gateway-style wrapped response even before API Gateway is wired
+- both functions return an API Gateway-style wrapped response even before API Gateway is wired
 - event creation is authenticated-only in the current platform contract
 - event ownership is derived from caller context rather than a request-body `creator_id`
 - admin-only events require admin caller context
+- broad event listing remains intentionally available through `mode=all`
+- creator-scoped event listing uses `mode=mine` with caller identity from `requestContext.authorizer.user_id`
 
 Current business behavior validated in this step:
 
@@ -270,6 +276,25 @@ Current business behavior validated in this step:
 - sparse public GSI behavior:
   - public events are written to the public upcoming index
   - non-public events omit the public index attributes
+- direct successful broad event listing through `mode=all`
+- direct successful creator-scoped event listing through `mode=mine`
+- `mine` mode without caller context returns `400`
+- returned event items use the locked public DTO contract:
+  - `event_id`
+  - `title`
+  - `date`
+  - `description`
+  - `location`
+  - `capacity`
+  - `is_public`
+  - `requires_admin`
+  - `created_by`
+  - `created_at`
+  - `rsvp_count`
+  - `attending_count`
+- internal GSI helper fields and `not_attending_count` stay hidden from the response shape
+- `capacity = null` is preserved for unlimited-capacity events
+- frontend is expected to render user-friendly timestamp formatting from backend-provided ISO UTC timestamps
 
 The environment should stay thin:
 
@@ -288,6 +313,12 @@ Validation:
 - confirmed the Lambda writes the expected canonical event item shape into DynamoDB
 - confirmed `creator_id` is derived from caller context
 - confirmed non-public events omit the public GSI attributes
+- confirmed the deployed function name is `aws-serverless-events-platform-dev-list-events`
+- confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-list-events`
+- confirmed successful `mode=all` invocation returns `200`
+- confirmed successful `mode=mine` invocation returns `200`
+- confirmed `mode=mine` without caller context returns `400`
+- confirmed returned items use the locked public event DTO and hide internal storage helper fields
 - confirmed Terraform outputs match the created Lambda and log group identities
 - see evidence screenshots under `docs/assets/lambda/`
 

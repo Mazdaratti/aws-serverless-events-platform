@@ -257,13 +257,88 @@ contract in `dev`:
 
 ### `get-event`
 
-#### Current status
+#### Access rule
 
-Single-event read behavior is planned, but the final visibility rule for
-private and admin-only events is still open.
+- all users may read a single event by public identifier
+- no caller context is required in this step
 
-For now, the platform does not lock the final restricted-read behavior for
-single-event retrieval.
+#### Request contract
+
+Support both:
+
+- direct invocation payload
+- API Gateway-style `pathParameters`
+
+Supported request input:
+
+- `event_id`
+
+Resolution order:
+
+1. `pathParameters.event_id`
+2. top-level `event_id`
+
+#### Input validation contract
+
+- `event_id` is required
+- `event_id` must be a non-empty string after trimming
+- clients must pass the public identifier only
+- clients must not pass the internal storage key form `EVENT#...`
+
+#### Response contract
+
+The Lambda returns an API Gateway-style wrapped response.
+
+The response body shape is:
+
+- `item`
+
+The returned `item` uses the same locked public event DTO as `list-events`.
+
+#### Visibility direction
+
+The current single-item read behavior is intentionally public:
+
+- public events are readable by anyone
+- protected non-public events are readable by anyone
+- admin-only events are readable by anyone
+
+At this stage:
+
+- `is_public` and `requires_admin` affect business workflows such as RSVP and
+  later mutation rules
+- they do not restrict single-item event-detail reads
+
+If this product direction changes later, both read handlers should be updated
+together:
+
+- `list-events`
+- `get-event`
+
+#### DynamoDB lookup contract
+
+- `get-event` uses DynamoDB `GetItem`
+- the public identifier is translated into the canonical key:
+  - `event_pk = EVENT#<event_id>`
+- no `Scan`
+- no `Query`
+- no GSI access pattern
+
+#### Not-found behavior
+
+- `404` is returned only when the event item does not exist
+- the response body is:
+  - `{"message": "Event not found."}`
+
+#### Current implementation note
+
+The deployed `get-event` Lambda now validates the currently locked single-item
+read contract in `dev`:
+
+- direct single-item reads succeed without caller context
+- API Gateway-style `pathParameters.event_id` is supported
+- missing items return `404`
+- returned items use the locked public event DTO under `item`
 
 ### `update-event`
 
@@ -337,7 +412,7 @@ The currently locked Lambda set is:
 
 - `create-event` ✅
 - `list-events` ✅
-- `get-event`
+- `get-event` ✅
 - `update-event`
 - `cancel-event`
 - `rsvp`
@@ -352,7 +427,7 @@ The currently locked Lambda implementation order is:
 
 1. `create-event` ✅
 2. `list-events` ✅
-3. `get-event`
+3. `get-event` ✅
 4. `update-event`
 5. `cancel-event`
 6. `rsvp`

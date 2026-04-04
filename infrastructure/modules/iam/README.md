@@ -198,7 +198,7 @@ The example shows how to:
 - build the shared `name_prefix`
 - define the baseline tag map
 - create minimal DynamoDB and SQS supporting resources
-- call the module with all four supported workload roles
+- call the module with all supported workload roles
 - inspect the resulting role names and ARNs
 
 ---

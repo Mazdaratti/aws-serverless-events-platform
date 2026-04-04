@@ -25,6 +25,10 @@ locals {
       description = "Creates a new event record in the canonical events table."
     }
 
+    get-event = {
+      description = "Reads a single canonical event record by public identifier."
+    }
+
     list-events = {
       description = "Lists events from the canonical events table using the current platform query modes."
     }

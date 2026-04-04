@@ -66,6 +66,7 @@ variable "workloads" {
 
     Supported workload keys in v1:
     - create-event
+    - get-event
     - list-events
     - rsvp
     - notification-worker
@@ -87,12 +88,13 @@ variable "workloads" {
       for workload_key in keys(var.workloads) :
       contains([
         "create-event",
+        "get-event",
         "list-events",
         "rsvp",
         "notification-worker"
       ], workload_key)
     ])
-    error_message = "workloads may only contain the supported keys: create-event, list-events, rsvp, notification-worker."
+    error_message = "workloads may only contain the supported keys: create-event, get-event, list-events, rsvp, notification-worker."
   }
 
   validation {
@@ -100,12 +102,13 @@ variable "workloads" {
       for workload in values(var.workloads) :
       contains([
         "create_event",
+        "get_event",
         "list_events",
         "rsvp_transaction",
         "notification_consume"
       ], workload.access_profile)
     ])
-    error_message = "Each workload must use one of the supported access profiles: create_event, list_events, rsvp_transaction, notification_consume."
+    error_message = "Each workload must use one of the supported access profiles: create_event, get_event, list_events, rsvp_transaction, notification_consume."
   }
 
   validation {
@@ -114,6 +117,9 @@ variable "workloads" {
       (
         workload_key == "create-event" &&
         workload.access_profile == "create_event"
+        ) || (
+        workload_key == "get-event" &&
+        workload.access_profile == "get_event"
         ) || (
         workload_key == "list-events" &&
         workload.access_profile == "list_events"
@@ -125,6 +131,6 @@ variable "workloads" {
         workload.access_profile == "notification_consume"
       )
     ])
-    error_message = "Each workload key must use its matching access profile: create-event/create_event, list-events/list_events, rsvp/rsvp_transaction, notification-worker/notification_consume."
+    error_message = "Each workload key must use its matching access profile: create-event/create_event, get-event/get_event, list-events/list_events, rsvp/rsvp_transaction, notification-worker/notification_consume."
   }
 }

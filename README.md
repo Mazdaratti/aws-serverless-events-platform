@@ -25,8 +25,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 ### Current focus
 
 - Core synchronous Lambda rollout is in progress (business-critical write/read paths)
-- `create-event` and `list-events` are implemented, wired in `envs/dev`, and validated in AWS
-- Current next target: `get-event`
+- `create-event`, `list-events`, and `get-event` are implemented, wired in `envs/dev`, and validated in AWS
+- Current next target: `update-event`
 - After the remaining core synchronous handlers, the next platform milestone is API Gateway + Cognito
 
 ### Completed milestones
@@ -49,6 +49,9 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - second real Lambda workload: `list-events`
 - `infrastructure/envs/dev` wiring for `list-events`
 - validation and AWS deployment evidence for `list-events`
+- third real Lambda workload: `get-event`
+- `infrastructure/envs/dev` wiring for `get-event`
+- validation and AWS deployment evidence for `get-event`
 - external Lambda artifact packaging workflow via `scripts/package_lambda.py`
 - Python handler validation for implemented Lambda handlers
 - local `terraform plan` validation for the wired dev environment
@@ -57,7 +60,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Next milestones
 
-- Remaining core synchronous Lambda workloads (`get-event`, `update-event`, `cancel-event`, `rsvp`, `get-event-rsvps`)
+- Remaining core synchronous Lambda workloads (`update-event`, `cancel-event`, `rsvp`, `get-event-rsvps`)
 - API Gateway + Cognito authentication
 - Edge delivery layer (S3 + CloudFront + WAF)
 - EventBridge + SNS integration
@@ -249,7 +252,7 @@ Planned implementation sequence:
 6. Core synchronous Lambda workload rollout
    - `create-event` ✅
    - `list-events` ✅
-   - `get-event`
+   - `get-event` ✅
    - `update-event`
    - `cancel-event`
    - `rsvp`

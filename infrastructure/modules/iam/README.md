@@ -13,6 +13,7 @@ This module is Lambda-execution-only in v1.
 This module currently creates one IAM role and one customer-managed IAM policy per supported workload:
 
 - `create-event`
+- `get-event`
 - `list-events`
 - `rsvp`
 - `notification-worker`
@@ -54,6 +55,7 @@ That is intentional:
 The current workload set is aligned to the repository's architecture and placeholder direction:
 
 - `create-event`
+- `get-event`
 - `list-events`
 - `rsvp`
 - `notification-worker`
@@ -71,6 +73,23 @@ It currently receives:
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
 - DynamoDB write access for the `events` table
+
+### `get-event`
+
+This role is intended for the Lambda that reads a single canonical event
+record by public identifier.
+
+It currently receives:
+
+- CloudWatch Logs write permissions
+- optional X-Ray write permissions
+- narrow DynamoDB `GetItem` access for the `events` table
+
+This role intentionally stays narrower than `list-events` because single-item
+lookup does not need `Scan`, `Query`, or GSI access. The handler reads one
+known record directly through:
+
+- `event_pk = EVENT#<event_id>`
 
 ### `list-events`
 
@@ -179,7 +198,7 @@ The example shows how to:
 - build the shared `name_prefix`
 - define the baseline tag map
 - create minimal DynamoDB and SQS supporting resources
-- call the module with all four supported workload roles
+- call the module with all supported workload roles
 - inspect the resulting role names and ARNs
 
 ---
@@ -196,11 +215,9 @@ The example shows how to:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.38.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.39.0 |
 
-## Modules
 
-No modules.
 
 ## Resources
 
@@ -224,7 +241,7 @@ No modules.
 | <a name="input_notification_dispatch_queue_arn"></a> [notification\_dispatch\_queue\_arn](#input\_notification\_dispatch\_queue\_arn) | ARN of the notification-dispatch SQS queue used by the notification worker IAM policy. | `string` | n/a | yes |
 | <a name="input_rsvps_table_arn"></a> [rsvps\_table\_arn](#input\_rsvps\_table\_arn) | ARN of the DynamoDB RSVP table used by workload-specific IAM policies. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
-| <a name="input_workloads"></a> [workloads](#input\_workloads) | Map of Lambda workload role definitions keyed by logical workload name.<br/><br/>Supported workload keys in v1:<br/>- create-event<br/>- list-events<br/>- rsvp<br/>- notification-worker | <pre>map(object({<br/>    access_profile = string<br/>    enable_logs    = optional(bool)<br/>    enable_xray    = optional(bool)<br/>  }))</pre> | n/a | yes |
+| <a name="input_workloads"></a> [workloads](#input\_workloads) | Map of Lambda workload role definitions keyed by logical workload name.<br/><br/>Supported workload keys in v1:<br/>- create-event<br/>- get-event<br/>- list-events<br/>- rsvp<br/>- notification-worker | <pre>map(object({<br/>    access_profile = string<br/>    enable_logs    = optional(bool)<br/>    enable_xray    = optional(bool)<br/>  }))</pre> | n/a | yes |
 
 ## Outputs
 

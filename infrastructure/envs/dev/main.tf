@@ -106,8 +106,8 @@ module "iam" {
 ############################################
 
 # This environment wires in the reusable Lambda deployment module for the
-# first real compute workload. Packaging stays outside Terraform and IAM stays
-# in the dedicated IAM module, so envs/dev remains composition-focused.
+# current real compute workloads. Packaging stays outside Terraform and IAM
+# stays in the dedicated IAM module, so envs/dev remains composition-focused.
 module "lambda" {
   source = "../../modules/lambda"
 

@@ -83,6 +83,10 @@ module "iam" {
       access_profile = "create_event"
     }
 
+    get-event = {
+      access_profile = "get_event"
+    }
+
     list-events = {
       access_profile = "list_events"
     }

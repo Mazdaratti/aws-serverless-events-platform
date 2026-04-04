@@ -96,6 +96,12 @@ module "iam" {
       enable_xray    = false
     }
 
+    get-event = {
+      access_profile = "get_event"
+      enable_logs    = true
+      enable_xray    = false
+    }
+
     list-events = {
       access_profile = "list_events"
       enable_logs    = true

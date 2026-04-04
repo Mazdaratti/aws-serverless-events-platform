@@ -193,6 +193,7 @@ Implemented via:
 This environment currently wires in:
 
 - one execution role for `create-event`
+- one execution role for `get-event`
 - one execution role for `list-events`
 - one execution role for `rsvp`
 - one execution role for `notification-worker`
@@ -206,6 +207,7 @@ Why this module is wired now:
 Important design notes:
 
 - each workload gets its own least-privilege execution role and customer-managed policy
+- `get-event` intentionally stays narrower than `list-events` and receives only direct `GetItem` access for the events table
 - `rsvp` is the special transactional role spanning both DynamoDB business tables
 - `rsvp` intentionally has no SQS permissions
 - only `notification-worker` gets SQS consumer permissions
@@ -219,7 +221,8 @@ The environment should stay thin:
 Validation:
 
 - validated via `terraform apply`, AWS inspection, and a clean post-apply `terraform plan`
-- confirmed all four workload roles were created with Lambda-only trust relationships
+- confirmed all wired workload roles were created with Lambda-only trust relationships
+- confirmed `get-event` has narrow direct-read access for the events table
 - confirmed the RSVP policy includes transactional DynamoDB access across both business tables
 - confirmed only `notification-worker` has SQS consumer permissions
 - confirmed Terraform outputs match the created IAM role identities
@@ -237,8 +240,9 @@ Implemented via:
 
 This environment currently wires in:
 
-- two deployed Lambda workloads:
+- deployed Lambda workloads:
   - `create-event`
+  - `get-event`
   - `list-events`
 
 Why this module is wired now:
@@ -246,8 +250,8 @@ Why this module is wired now:
 - the platform now has the minimum supporting layers needed for real compute:
   - DynamoDB business tables
   - workload IAM roles
-- the platform can now validate both the first real business write path and the
-  first real business read path end to end in AWS
+- the platform can now validate the first real business write path and multiple
+  real business read paths end to end in AWS
 - packaging stays outside Terraform, while deployment stays inside the reusable Lambda module
 
 Important design notes:
@@ -255,13 +259,15 @@ Important design notes:
 - the Lambda module remains infrastructure-focused and consumes a prepared ZIP artifact
 - `envs/dev` stays thin and composition-only
 - the deployed `create-event` function uses the existing least-privilege IAM `create-event` role
+- the deployed `get-event` function uses the existing least-privilege IAM `get-event` role
 - the deployed `list-events` function uses the existing least-privilege IAM `list-events` role
-- both functions currently receive only the environment input they actually need:
+- each deployed function receives only the environment variables it actually needs:
   - `EVENTS_TABLE_NAME`
-- both functions return an API Gateway-style wrapped response even before API Gateway is wired
+- all deployed functions return an API Gateway-style wrapped response even before API Gateway is wired
 - event creation is authenticated-only in the current platform contract
 - event ownership is derived from caller context rather than a request-body `creator_id`
 - admin-only events require admin caller context
+- single-item event reads are intentionally public in the current platform contract
 - broad event listing remains intentionally available through `mode=all`
 - creator-scoped event listing uses `mode=mine` with caller identity from `requestContext.authorizer.user_id`
 
@@ -279,6 +285,9 @@ Current business behavior validated in this step:
 - direct successful broad event listing through `mode=all`
 - direct successful creator-scoped event listing through `mode=mine`
 - `mine` mode without caller context returns `400`
+- direct successful single-item event read through `event_id`
+- missing single-item event read returns `404`
+- single-item event read does not require caller context
 - returned event items use the locked public DTO contract:
   - `event_id`
   - `title`
@@ -295,6 +304,7 @@ Current business behavior validated in this step:
 - internal GSI helper fields and `not_attending_count` stay hidden from the response shape
 - `capacity = null` is preserved for unlimited-capacity events
 - frontend is expected to render user-friendly timestamp formatting from backend-provided ISO UTC timestamps
+- `get-event` uses direct DynamoDB `GetItem` lookup by canonical `event_pk`
 
 The environment should stay thin:
 
@@ -313,6 +323,12 @@ Validation:
 - confirmed the Lambda writes the expected canonical event item shape into DynamoDB
 - confirmed `creator_id` is derived from caller context
 - confirmed non-public events omit the public GSI attributes
+- confirmed the deployed function name is `aws-serverless-events-platform-dev-get-event`
+- confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-get-event`
+- confirmed successful single-item invocation returns `200`
+- confirmed missing item invocation returns `404`
+- confirmed single-item reads do not require caller context
+- confirmed returned items use the locked public event DTO under `item`
 - confirmed the deployed function name is `aws-serverless-events-platform-dev-list-events`
 - confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-list-events`
 - confirmed successful `mode=all` invocation returns `200`

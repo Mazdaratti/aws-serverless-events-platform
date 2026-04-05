@@ -20,6 +20,10 @@ DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
 
 
+class EventDtoMappingError(Exception):
+    """Raised when a stored DynamoDB event item does not match the locked DTO contract."""
+
+
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # Keep the handler flow easy to follow:
     # 1. extract request parameters from the supported event shapes
@@ -45,8 +49,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         return _success_response(status_code=200, body=response_body)
     except ValueError as exc:
+        # Only caller/request validation problems should end up as 400s.
         logger.info("list-events validation failed: %s", exc)
         return _error_response(status_code=400, message=str(exc))
+    except EventDtoMappingError:
+        # If a stored DynamoDB item no longer matches the canonical event
+        # shape, that is an internal runtime/data problem, not a bad request.
+        logger.exception("list-events encountered an invalid stored event shape")
+        return _error_response(status_code=500, message="Internal server error.")
     except Exception:
         logger.exception("list-events failed unexpectedly")
         return _error_response(status_code=500, message="Internal server error.")
@@ -210,13 +220,31 @@ def _list_events(*, table: Any, request: dict[str, Any]) -> dict[str, Any]:
             next_cursor=request["next_cursor"],
         )
 
-    items = [_to_event_dto(item) for item in dynamodb_response.get("Items", [])]
+    items = [_to_event_dto(item) for item in _validate_items(dynamodb_response.get("Items", []))]
 
     return {
         "items": items,
         "next_cursor": _encode_cursor(dynamodb_response.get("LastEvaluatedKey")),
         "mode": request["mode"],
     }
+
+
+def _validate_items(raw_items: Any) -> list[dict[str, Any]]:
+    # boto3 normally returns Items as a list of dictionaries, but validating
+    # that boundary keeps malformed runtime data from leaking into the mapper.
+    if raw_items is None:
+        return []
+
+    if not isinstance(raw_items, list):
+        raise EventDtoMappingError("Stored DynamoDB Items payload must be a list.")
+
+    validated_items: list[dict[str, Any]] = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            raise EventDtoMappingError("Each stored DynamoDB event item must be an object.")
+        validated_items.append(item)
+
+    return validated_items
 
 
 def _scan_all_events(*, table: Any, limit: int, next_cursor: dict[str, Any] | None) -> dict[str, Any]:
@@ -253,41 +281,64 @@ def _query_creator_events(
 
 def _to_event_dto(item: dict[str, Any]) -> dict[str, Any]:
     # Map the internal DynamoDB event record into the stable public event DTO.
-    # This keeps the API-facing contract separate from the storage model.
+    #
+    # This is intentionally strict. If the stored item no longer matches the
+    # canonical platform event shape, that should fail as an internal error
+    # instead of silently returning a misleading best-effort response.
     return {
         "event_id": _to_event_id(item.get("event_pk")),
-        "title": _normalize_text(item.get("title")),
-        "date": _normalize_text(item.get("date")),
-        "description": _normalize_text(item.get("description")),
-        "location": _normalize_text(item.get("location")),
+        "title": _normalize_text(item.get("title"), field_name="title"),
+        "date": _normalize_text(item.get("date"), field_name="date"),
+        "description": _normalize_text(item.get("description"), field_name="description"),
+        "location": _normalize_text(item.get("location"), field_name="location"),
         # Capacity stays numeric-or-null in the DTO. A null capacity means the
         # event has no explicit attendance limit configured.
         "capacity": _normalize_capacity(item.get("capacity")),
-        "is_public": _normalize_bool(item.get("is_public")),
-        "requires_admin": _normalize_bool(item.get("requires_admin")),
-        "created_by": _normalize_text(item.get("creator_id")),
-        "created_at": _normalize_text(item.get("created_at")),
-        "rsvp_count": _normalize_counter(item.get("rsvp_total")),
-        "attending_count": _normalize_counter(item.get("attending_count")),
+        "is_public": _normalize_bool(item.get("is_public"), field_name="is_public"),
+        "requires_admin": _normalize_bool(item.get("requires_admin"), field_name="requires_admin"),
+        "created_by": _normalize_text(item.get("creator_id"), field_name="creator_id"),
+        "created_at": _normalize_text(item.get("created_at"), field_name="created_at"),
+        "rsvp_count": _normalize_counter(item.get("rsvp_total"), field_name="rsvp_total"),
+        "attending_count": _normalize_counter(item.get("attending_count"), field_name="attending_count"),
     }
 
 
 def _to_event_id(raw_event_pk: Any) -> str:
     # Storage uses EVENT#<uuid> while the public DTO should expose only the
     # event identifier itself.
-    event_pk = _normalize_text(raw_event_pk)
-    if event_pk.startswith("EVENT#"):
-        return event_pk.removeprefix("EVENT#")
+    #
+    # This mapping is part of the locked DTO contract, so malformed storage
+    # keys should fail fast instead of leaking a best-effort value.
+    if not isinstance(raw_event_pk, str):
+        raise EventDtoMappingError("Stored event_pk must be a string.")
 
-    return event_pk
+    event_pk = raw_event_pk.strip()
+    if not event_pk:
+        raise EventDtoMappingError("Stored event_pk must not be empty.")
+
+    if not event_pk.startswith("EVENT#"):
+        raise EventDtoMappingError("Stored event_pk must use the EVENT# prefix.")
+
+    event_id = event_pk.removeprefix("EVENT#")
+    if not event_id:
+        raise EventDtoMappingError("Stored event_pk must contain a public identifier.")
+
+    return event_id
 
 
-def _normalize_text(value: Any) -> str:
-    # Keep text fields stable in the DTO by always returning a string.
+def _normalize_text(value: Any, *, field_name: str) -> str:
+    # The DTO contract says all text fields should always be present.
+    # Missing text values therefore become empty strings instead of missing keys.
+    #
+    # We stay strict about unexpected non-string values because stringifying
+    # arbitrary lists or dicts would hide bad stored data instead of surfacing it.
     if value is None:
         return ""
 
-    return str(value)
+    if isinstance(value, str):
+        return value
+
+    raise EventDtoMappingError(f"Stored {field_name} must be a string or null.")
 
 
 def _normalize_capacity(value: Any) -> int | None:
@@ -297,45 +348,45 @@ def _normalize_capacity(value: Any) -> int | None:
         return None
 
     if isinstance(value, bool):
-        raise ValueError("capacity must be an integer or null in the event DTO mapper.")
+        raise EventDtoMappingError("Stored capacity must be an integer or null.")
 
     if isinstance(value, int):
         return value
 
     if isinstance(value, Decimal):
         if value % 1 != 0:
-            raise ValueError("capacity must be an integer or null in the event DTO mapper.")
+            raise EventDtoMappingError("Stored capacity must be an integer or null.")
 
         return int(value)
 
-    raise ValueError("capacity must be an integer or null in the event DTO mapper.")
+    raise EventDtoMappingError("Stored capacity must be an integer or null.")
 
 
-def _normalize_bool(value: Any) -> bool:
+def _normalize_bool(value: Any, *, field_name: str) -> bool:
     # DynamoDB-backed event flags should always be booleans by the time they
     # reach this mapper.
     if isinstance(value, bool):
         return value
 
-    raise ValueError("Boolean event DTO fields must contain boolean values.")
+    raise EventDtoMappingError(f"Stored {field_name} must be a boolean.")
 
 
-def _normalize_counter(value: Any) -> int:
+def _normalize_counter(value: Any, *, field_name: str) -> int:
     # Counters are always present in the platform's canonical event item
     # design, so the public DTO keeps them as integers.
     if isinstance(value, bool):
-        raise ValueError("Counter fields must contain integer values.")
+        raise EventDtoMappingError(f"Stored {field_name} must be an integer.")
 
     if isinstance(value, int):
         return value
 
     if isinstance(value, Decimal):
         if value % 1 != 0:
-            raise ValueError("Counter fields must contain integer values.")
+            raise EventDtoMappingError(f"Stored {field_name} must be an integer.")
 
         return int(value)
 
-    raise ValueError("Counter fields must contain integer values.")
+    raise EventDtoMappingError(f"Stored {field_name} must be an integer.")
 
 
 def _get_required_env(name: str) -> str:

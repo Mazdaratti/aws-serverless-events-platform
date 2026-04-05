@@ -8,6 +8,34 @@ import pytest
 from lambdas.list_events import handler
 
 
+def _valid_item(**overrides) -> dict[str, object]:
+    # Keep one canonical stored DynamoDB event shape in the test file so each
+    # test can override only the field it actually cares about.
+    item: dict[str, object] = {
+        "event_pk": "EVENT#11111111-1111-1111-1111-111111111111",
+        "title": "Platform Launch Event",
+        "date": "2026-06-15T00:00:00Z",
+        "description": "Kickoff for the new platform.",
+        "location": "Berlin",
+        # Real DynamoDB number attributes come back through boto3 as Decimal
+        # values, so the handler tests should mirror that behavior.
+        "capacity": Decimal("50"),
+        "is_public": True,
+        "requires_admin": False,
+        "creator_id": "alice",
+        "created_at": "2026-03-31T12:00:00Z",
+        "rsvp_total": Decimal("3"),
+        "attending_count": Decimal("2"),
+        "not_attending_count": Decimal("1"),
+        "creator_events_gsi_pk": "CREATOR#alice",
+        "creator_events_gsi_sk": "2026-06-15T00:00:00Z#11111111-1111-1111-1111-111111111111",
+        "public_upcoming_gsi_pk": "PUBLIC",
+        "public_upcoming_gsi_sk": "2026-06-15T00:00:00Z#11111111-1111-1111-1111-111111111111",
+    }
+    item.update(overrides)
+    return item
+
+
 def _authenticated_event(*, user_id: str = "alice") -> dict[str, object]:
     # Keep test events close to the future API Gateway authorizer handoff.
     return {
@@ -35,27 +63,7 @@ def test_lambda_handler_returns_public_event_dtos_for_default_all_mode(mock_tabl
     # The default behavior should be the broad "all events" listing mode.
     mock_table.scan.return_value = {
         "Items": [
-            {
-                "event_pk": "EVENT#11111111-1111-1111-1111-111111111111",
-                "title": "Platform Launch Event",
-                "date": "2026-06-15T00:00:00Z",
-                "description": "Kickoff for the new platform.",
-                "location": "Berlin",
-                # Real DynamoDB number attributes come back through boto3 as
-                # Decimal values, so the mapper must normalize them to ints.
-                "capacity": Decimal("50"),
-                "is_public": True,
-                "requires_admin": False,
-                "creator_id": "alice",
-                "created_at": "2026-03-31T12:00:00Z",
-                "rsvp_total": Decimal("3"),
-                "attending_count": Decimal("2"),
-                "not_attending_count": Decimal("1"),
-                "creator_events_gsi_pk": "CREATOR#alice",
-                "creator_events_gsi_sk": "2026-06-15T00:00:00Z#11111111-1111-1111-1111-111111111111",
-                "public_upcoming_gsi_pk": "PUBLIC",
-                "public_upcoming_gsi_sk": "2026-06-15T00:00:00Z#11111111-1111-1111-1111-111111111111",
-            }
+            _valid_item()
         ]
     }
 
@@ -120,23 +128,20 @@ def test_lambda_handler_uses_creator_events_gsi_for_mine_mode(mock_table):
     # falling back to a table scan.
     mock_table.query.return_value = {
         "Items": [
-            {
-                "event_pk": "EVENT#22222222-2222-2222-2222-222222222222",
-                "title": "My Planning Session",
-                "date": "2026-07-01T00:00:00Z",
-                "description": "",
-                "location": "",
-                "capacity": None,
-                "is_public": False,
-                "requires_admin": False,
-                "creator_id": "alice",
-                "created_at": "2026-04-02T09:06:30Z",
-                "rsvp_total": Decimal("0"),
-                "attending_count": Decimal("0"),
-                "not_attending_count": Decimal("0"),
-                "creator_events_gsi_pk": "CREATOR#alice",
-                "creator_events_gsi_sk": "2026-07-01T00:00:00Z#22222222-2222-2222-2222-222222222222",
-            }
+            _valid_item(
+                event_pk="EVENT#22222222-2222-2222-2222-222222222222",
+                title="My Planning Session",
+                date="2026-07-01T00:00:00Z",
+                description="",
+                location="",
+                capacity=None,
+                is_public=False,
+                created_at="2026-04-02T09:06:30Z",
+                rsvp_total=Decimal("0"),
+                attending_count=Decimal("0"),
+                not_attending_count=Decimal("0"),
+                creator_events_gsi_sk="2026-07-01T00:00:00Z#22222222-2222-2222-2222-222222222222",
+            )
         ]
     }
 
@@ -264,3 +269,81 @@ def test_lambda_handler_uses_and_returns_opaque_cursor_for_pagination(mock_table
         Limit=20,
         ExclusiveStartKey=incoming_cursor_payload,
     )
+
+
+def test_lambda_handler_returns_500_when_items_payload_is_not_a_list(mock_table):
+    mock_table.scan.return_value = {
+        "Items": "not-a-list",
+    }
+
+    response = handler.lambda_handler({}, None)
+
+    assert response["statusCode"] == 500
+    assert json.loads(response["body"]) == {
+        "message": "Internal server error."
+    }
+
+
+def test_lambda_handler_returns_500_when_a_returned_item_is_not_an_object(mock_table):
+    mock_table.scan.return_value = {
+        "Items": ["not-a-dict"],
+    }
+
+    response = handler.lambda_handler({}, None)
+
+    assert response["statusCode"] == 500
+    assert json.loads(response["body"]) == {
+        "message": "Internal server error."
+    }
+
+
+def test_lambda_handler_returns_500_for_invalid_stored_event_key_shape(mock_table):
+    mock_table.scan.return_value = {
+        "Items": [_valid_item(event_pk="bad-storage-key")],
+    }
+
+    response = handler.lambda_handler({}, None)
+
+    assert response["statusCode"] == 500
+    assert json.loads(response["body"]) == {
+        "message": "Internal server error."
+    }
+
+
+def test_lambda_handler_returns_500_for_invalid_stored_text_field_type(mock_table):
+    mock_table.scan.return_value = {
+        "Items": [_valid_item(title=["unexpected-list-value"])],
+    }
+
+    response = handler.lambda_handler({}, None)
+
+    assert response["statusCode"] == 500
+    assert json.loads(response["body"]) == {
+        "message": "Internal server error."
+    }
+
+
+def test_lambda_handler_returns_500_for_invalid_stored_boolean_field(mock_table):
+    mock_table.scan.return_value = {
+        "Items": [_valid_item(is_public="true")],
+    }
+
+    response = handler.lambda_handler({}, None)
+
+    assert response["statusCode"] == 500
+    assert json.loads(response["body"]) == {
+        "message": "Internal server error."
+    }
+
+
+def test_lambda_handler_returns_500_for_non_integral_decimal_capacity(mock_table):
+    mock_table.scan.return_value = {
+        "Items": [_valid_item(capacity=Decimal("10.5"))],
+    }
+
+    response = handler.lambda_handler({}, None)
+
+    assert response["statusCode"] == 500
+    assert json.loads(response["body"]) == {
+        "message": "Internal server error."
+    }

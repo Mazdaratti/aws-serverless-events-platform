@@ -574,6 +574,8 @@ Rules:
 
 - new events must be written with explicit `status = ACTIVE`
 - `cancel-event` sets `status = CANCELLED`
+- all canonical event records must include `status`
+- missing `status` is invalid state and should not be relied on by handlers
 
 #### Response contract
 

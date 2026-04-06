@@ -112,6 +112,22 @@ data "aws_iam_policy_document" "workload" {
     }
   }
 
+  dynamic "statement" {
+    for_each = each.value.access_profile == "update_event" ? [1] : []
+
+    content {
+      sid    = "UpdateEventReadWriteEventsTable"
+      effect = "Allow"
+
+      actions = [
+        "dynamodb:GetItem",
+        "dynamodb:UpdateItem"
+      ]
+
+      resources = [var.events_table_arn]
+    }
+  }
+
   # `Scan` is included only as a temporary contract accommodation for the
   # current broad list-events behavior. The long-term direction remains
   # validated query access patterns and GSIs.

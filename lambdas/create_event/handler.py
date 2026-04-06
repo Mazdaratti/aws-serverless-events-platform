@@ -49,12 +49,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         return _success_response(
             status_code=201,
-            body={
-                "message": "Event created successfully.",
-                "event_pk": event_pk,
-                "date": normalized_event_date,
-                "created_at": created_at,
-            },
+            body={"item": _to_public_event_dto(item)},
         )
     except ValueError as exc:
         logger.info("create-event validation failed: %s", exc)
@@ -145,6 +140,9 @@ def _build_event_item(
     # platform's DynamoDB design.
     item = {
         "event_pk": event_pk,
+        # Canonical event records must always carry explicit lifecycle state so
+        # later handlers never need to infer whether an event is active.
+        "status": "ACTIVE",
         "title": payload["title"],
         "date": normalized_event_date,
         "description": payload["description"],
@@ -168,6 +166,28 @@ def _build_event_item(
         item["public_upcoming_gsi_sk"] = f"{normalized_event_date}#{event_uuid}"
 
     return item
+
+
+def _to_public_event_dto(item: dict[str, Any]) -> dict[str, Any]:
+    # Map the canonical newly created event record into the locked public
+    # event DTO used across event handlers.
+    event_id = item["event_pk"].removeprefix("EVENT#")
+
+    return {
+        "event_id": event_id,
+        "status": item["status"],
+        "title": item["title"],
+        "date": item["date"],
+        "description": item["description"],
+        "location": item["location"],
+        "capacity": item["capacity"],
+        "is_public": item["is_public"],
+        "requires_admin": item["requires_admin"],
+        "created_by": item["creator_id"],
+        "created_at": item["created_at"],
+        "rsvp_count": item["rsvp_total"],
+        "attending_count": item["attending_count"],
+    }
 
 
 def _normalize_event_date(raw_value: Any) -> str:

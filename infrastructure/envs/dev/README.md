@@ -284,6 +284,7 @@ Current business behavior validated in this step:
 - direct successful creation of a protected event by an authenticated caller
 - direct successful creation of an admin-only event by an admin caller
 - canonical event item write into the `events` table
+- new canonical event records include `status = ACTIVE`
 - request-body `creator_id` spoofing is ignored in favor of caller-context ownership
 - non-admin callers are rejected when attempting to create admin-only events
 - sparse public GSI behavior:
@@ -306,6 +307,7 @@ Current business behavior validated in this step:
 - `pathParameters.event_id` takes precedence over top-level `event_id` for `update-event`
 - returned event items use the locked public DTO contract:
   - `event_id`
+  - `status`
   - `title`
   - `date`
   - `description`
@@ -334,9 +336,12 @@ Validation:
 - confirmed the deployed function name is `aws-serverless-events-platform-dev-create-event`
 - confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-create-event`
 - confirmed successful authenticated invocation returns `201` with the wrapped response body
+- confirmed the returned create-event `item` uses the locked public event DTO
+- confirmed returned created items include `status = ACTIVE`
 - confirmed missing caller context returns `400`
 - confirmed non-admin admin-only creation returns `400`
 - confirmed the Lambda writes the expected canonical event item shape into DynamoDB
+- confirmed stored created event items include `status = ACTIVE`
 - confirmed `creator_id` is derived from caller context
 - confirmed non-public events omit the public GSI attributes
 - confirmed the deployed function name is `aws-serverless-events-platform-dev-get-event`

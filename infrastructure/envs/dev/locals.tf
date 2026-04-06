@@ -32,5 +32,9 @@ locals {
     list-events = {
       description = "Lists events from the canonical events table using the current platform query modes."
     }
+
+    update-event = {
+      description = "Performs partial updates on a canonical event record while preserving ownership and index rules."
+    }
   }
 }

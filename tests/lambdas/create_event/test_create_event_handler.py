@@ -55,11 +55,23 @@ def test_lambda_handler_returns_created_response_for_direct_payload(monkeypatch,
     # lives inside the JSON string stored in "body".
     body = json.loads(response["body"])
     assert body == {
-        "message": "Event created successfully.",
-        "event_pk": "EVENT#12345678-1234-1234-1234-123456789abc",
-        "date": "2026-06-15T00:00:00Z",
-        "created_at": "2026-03-31T12:00:00Z",
+        "item": {
+            "event_id": "12345678-1234-1234-1234-123456789abc",
+            "status": "ACTIVE",
+            "title": "Platform Launch Event",
+            "date": "2026-06-15T00:00:00Z",
+            "description": "Kickoff for the new platform.",
+            "location": "Berlin",
+            "capacity": 50,
+            "is_public": True,
+            "requires_admin": False,
+            "created_by": "alice",
+            "created_at": "2026-03-31T12:00:00Z",
+            "rsvp_count": 0,
+            "attending_count": 0,
+        }
     }
+    assert "event_pk" not in body["item"]
 
     mock_table.put_item.assert_called_once()
     item = mock_table.put_item.call_args.kwargs["Item"]
@@ -68,6 +80,7 @@ def test_lambda_handler_returns_created_response_for_direct_payload(monkeypatch,
     # a normal public event creation path.
     assert item == {
         "event_pk": "EVENT#12345678-1234-1234-1234-123456789abc",
+        "status": "ACTIVE",
         "title": "Platform Launch Event",
         "date": "2026-06-15T00:00:00Z",
         "description": "Kickoff for the new platform.",
@@ -113,7 +126,10 @@ def test_lambda_handler_accepts_body_wrapped_json(monkeypatch, mock_table):
     item = mock_table.put_item.call_args.kwargs["Item"]
     # Private events should still be created successfully, but they must stay
     # out of the public upcoming-events index.
+    body = json.loads(response["body"])
+    assert body["item"]["status"] == "ACTIVE"
     assert item["date"] == "2026-06-15T16:30:00Z"
+    assert item["status"] == "ACTIVE"
     assert item["is_public"] is False
     assert item["requires_admin"] is True
     assert item["description"] == ""
@@ -195,7 +211,11 @@ def test_lambda_handler_ignores_request_body_creator_id(monkeypatch, mock_table)
     assert response["statusCode"] == 201
 
     item = mock_table.put_item.call_args.kwargs["Item"]
+    body = json.loads(response["body"])
+    assert body["item"]["status"] == "ACTIVE"
+    assert body["item"]["created_by"] == "alice"
     assert item["creator_id"] == "alice"
+    assert item["status"] == "ACTIVE"
     assert item["creator_events_gsi_pk"] == "CREATOR#alice"
 
 
@@ -240,6 +260,10 @@ def test_lambda_handler_allows_admin_only_event_for_admin(monkeypatch, mock_tabl
     assert response["statusCode"] == 201
 
     item = mock_table.put_item.call_args.kwargs["Item"]
+    body = json.loads(response["body"])
+    assert body["item"]["status"] == "ACTIVE"
+    assert body["item"]["created_by"] == "admin-user"
     assert item["creator_id"] == "admin-user"
+    assert item["status"] == "ACTIVE"
     assert item["requires_admin"] is True
     assert item["is_public"] is False

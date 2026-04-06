@@ -502,6 +502,23 @@ Not currently locked for this step:
 
 - `409`
 
+#### Current implementation note
+
+The deployed `update-event` Lambda now validates the currently locked partial
+update contract in `dev`:
+
+- creator may update their own event
+- admin may update any event
+- authenticated non-owner non-admin receives `403`
+- direct invocation and API Gateway-style `body` JSON are both supported
+- immutable and unknown fields are rejected with `400`
+- `requires_admin = true` is restricted to admin callers
+- `capacity` cannot be reduced below current `attending_count`
+- conditional write protection (DynamoDB `ConditionExpression`) guards the capacity rule against concurrent changes
+- conditional write failures are re-evaluated to return correct business errors instead of generic failures
+- returned items use the locked public event DTO under `item`
+- internal GSI helper fields remain hidden from the response
+
 ### `cancel-event`
 
 #### Access rule
@@ -568,7 +585,7 @@ The currently locked Lambda set is:
 - `create-event` ✅
 - `list-events` ✅
 - `get-event` ✅
-- `update-event`
+- `update-event` ✅
 - `cancel-event`
 - `rsvp`
 - `get-event-rsvps`
@@ -583,7 +600,7 @@ The currently locked Lambda implementation order is:
 1. `create-event` ✅
 2. `list-events` ✅
 3. `get-event` ✅
-4. `update-event`
+4. `update-event` ✅
 5. `cancel-event`
 6. `rsvp`
 7. `get-event-rsvps`

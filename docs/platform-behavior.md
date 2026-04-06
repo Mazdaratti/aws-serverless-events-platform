@@ -347,6 +347,178 @@ read contract in `dev`:
 - event creator may update their own event
 - admin may update any event
 
+#### Operation model
+
+`update-event` is a partial update operation, not a full replace.
+
+Mutable fields:
+
+- `title`
+- `date`
+- `description`
+- `location`
+- `capacity`
+- `is_public`
+- `requires_admin`
+
+Immutable/system-managed fields:
+
+- `event_id`
+- `created_by`
+- `created_at`
+- `rsvp_count`
+- `attending_count`
+
+#### Request contract
+
+Support both:
+
+- direct invocation payload
+- API Gateway-style invocation with `body` JSON
+
+Event identity resolution order:
+
+1. `pathParameters.event_id`
+2. top-level `event_id`
+
+Update payload resolution:
+
+- if `body` is present, it must be a JSON string that decodes to an object
+- that decoded object becomes the update payload
+- otherwise, top-level fields are treated as the update payload for direct invocation
+
+#### Payload rules
+
+- the payload must contain at least one mutable field
+- only supported mutable fields may be sent
+- unknown fields are rejected
+- immutable fields are rejected, not silently ignored
+
+#### Input validation contract
+
+- `event_id` is required
+- `event_id` must be a non-empty string after trimming
+- clients must pass the public identifier only
+- clients must not pass the internal storage key form `EVENT#...`
+- if `body` is present but is not valid JSON, return `400`
+- if `body` decodes to anything other than an object, return `400`
+- if no mutable fields are provided, return `400`
+- if unknown fields are present, return `400`
+- if immutable fields are present, return `400`
+
+#### Authorization direction
+
+Caller identity comes from:
+
+- `requestContext.authorizer.user_id`
+- admin flag in authorizer context
+
+Current mutation rule:
+
+- creator may update their own event
+- admin may update any event
+- all other authenticated callers receive `403`
+
+#### Existence and authorization behavior
+
+`update-event` should evaluate the current item in this order:
+
+1. read the event
+2. if it does not exist, return `404`
+3. if it exists but the caller is not allowed, return `403`
+4. if allowed, continue to validation and update
+
+This operation does not mask unauthorized update attempts as `404`.
+
+#### Field validation direction
+
+Field-level validation should reuse the same business rules already locked in
+`create-event` where applicable.
+
+Additional locked rule:
+
+- only admin may set `requires_admin = true`
+
+Capacity safety rule:
+
+- if `capacity` is provided and is less than the current `attending_count`, reject with `400`
+- the response should explain that capacity cannot be reduced below the current number of attending RSVPs
+
+#### DynamoDB update strategy
+
+The update path should use:
+
+- `GetItem` first
+- authorization and business validation against the current item
+- `UpdateItem` second
+
+The write should use a condition that the item still exists.
+
+#### GSI maintenance rules
+
+Index helper attributes must stay correct after updates.
+
+If `date` changes:
+
+- update `creator_events_gsi_sk`
+- update `public_upcoming_gsi_sk` if the event remains public
+
+If `is_public` changes:
+
+- add or remove `public_upcoming_gsi_pk`
+- add or remove `public_upcoming_gsi_sk`
+
+Also:
+
+- `creator_events_gsi_pk` remains tied to the original creator
+- `creator_id` must never change
+
+#### Response contract
+
+`update-event` should return the same API Gateway-style wrapper used by the
+other implemented Lambdas.
+
+Success body shape:
+
+- `item`
+
+The returned `item` should use the same locked public event DTO already used by:
+
+- `list-events`
+- `get-event`
+
+#### Error contract
+
+- `400` invalid input or business validation failure
+- `403` authenticated caller is not allowed to update the event
+- `404` event not found
+- `500` internal/runtime/data issue
+
+Not used in this direct invocation stage:
+
+- `401`
+
+Not currently locked for this step:
+
+- `409`
+
+#### Current implementation note
+
+The deployed `update-event` Lambda now validates the currently locked partial
+update contract in `dev`:
+
+- creator may update their own event
+- admin may update any event
+- authenticated non-owner non-admin receives `403`
+- direct invocation and API Gateway-style `body` JSON are both supported
+- immutable and unknown fields are rejected with `400`
+- `requires_admin = true` is restricted to admin callers
+- `capacity` cannot be reduced below current `attending_count`
+- conditional write protection (DynamoDB `ConditionExpression`) guards the capacity rule against concurrent changes
+- conditional write failures are re-evaluated to return correct business errors instead of generic failures
+- returned items use the locked public event DTO under `item`
+- internal GSI helper fields remain hidden from the response
+
 ### `cancel-event`
 
 #### Access rule
@@ -413,7 +585,7 @@ The currently locked Lambda set is:
 - `create-event` ✅
 - `list-events` ✅
 - `get-event` ✅
-- `update-event`
+- `update-event` ✅
 - `cancel-event`
 - `rsvp`
 - `get-event-rsvps`
@@ -428,7 +600,7 @@ The currently locked Lambda implementation order is:
 1. `create-event` ✅
 2. `list-events` ✅
 3. `get-event` ✅
-4. `update-event`
+4. `update-event` ✅
 5. `cancel-event`
 6. `rsvp`
 7. `get-event-rsvps`

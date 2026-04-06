@@ -195,6 +195,7 @@ This environment currently wires in:
 - one execution role for `create-event`
 - one execution role for `get-event`
 - one execution role for `list-events`
+- one execution role for `update-event`
 - one execution role for `rsvp`
 - one execution role for `notification-worker`
 
@@ -208,6 +209,7 @@ Important design notes:
 
 - each workload gets its own least-privilege execution role and customer-managed policy
 - `get-event` intentionally stays narrower than `list-events` and receives only direct `GetItem` access for the events table
+- `update-event` receives narrow `GetItem` + `UpdateItem` access for the events table
 - `rsvp` is the special transactional role spanning both DynamoDB business tables
 - `rsvp` intentionally has no SQS permissions
 - only `notification-worker` gets SQS consumer permissions
@@ -223,6 +225,7 @@ Validation:
 - validated via `terraform apply`, AWS inspection, and a clean post-apply `terraform plan`
 - confirmed all wired workload roles were created with Lambda-only trust relationships
 - confirmed `get-event` has narrow direct-read access for the events table
+- confirmed `update-event` has narrow read/write access for the events table
 - confirmed the RSVP policy includes transactional DynamoDB access across both business tables
 - confirmed only `notification-worker` has SQS consumer permissions
 - confirmed Terraform outputs match the created IAM role identities
@@ -238,12 +241,15 @@ Implemented via:
 
 - `modules/lambda`
 
+### Lambda workloads
+
 This environment currently wires in:
 
 - deployed Lambda workloads:
   - `create-event`
   - `get-event`
   - `list-events`
+  - `update-event`
 
 Why this module is wired now:
 
@@ -261,6 +267,7 @@ Important design notes:
 - the deployed `create-event` function uses the existing least-privilege IAM `create-event` role
 - the deployed `get-event` function uses the existing least-privilege IAM `get-event` role
 - the deployed `list-events` function uses the existing least-privilege IAM `list-events` role
+- the deployed `update-event` function uses the existing least-privilege IAM `update-event` role
 - each deployed function receives only the environment variables it actually needs:
   - `EVENTS_TABLE_NAME`
 - all deployed functions return an API Gateway-style wrapped response even before API Gateway is wired
@@ -288,6 +295,15 @@ Current business behavior validated in this step:
 - direct successful single-item event read through `event_id`
 - missing single-item event read returns `404`
 - single-item event read does not require caller context
+- direct successful partial event update by the event creator
+- direct successful partial event update by an admin caller
+- unauthorized partial event update returns `403`
+- invalid partial update input returns `400`
+- capacity reductions below current `attending_count` return `400`
+- partial updates preserve omitted mutable fields (no implicit overwrites)
+- API Gateway-style body input is supported for `update-event`
+- `body` takes precedence over top-level mutable fields for `update-event`
+- `pathParameters.event_id` takes precedence over top-level `event_id` for `update-event`
 - returned event items use the locked public DTO contract:
   - `event_id`
   - `title`
@@ -335,6 +351,15 @@ Validation:
 - confirmed successful `mode=mine` invocation returns `200`
 - confirmed `mode=mine` without caller context returns `400`
 - confirmed returned items use the locked public event DTO and hide internal storage helper fields
+- confirmed the deployed function name is `aws-serverless-events-platform-dev-update-event`
+- confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-update-event`
+- confirmed successful creator-owned partial update returns `200`
+- confirmed unauthorized partial update returns `403`
+- confirmed invalid capacity reduction returns `400`
+- confirmed conditional write protection (DynamoDB `ConditionExpression`) prevents capacity race conditions
+- confirmed direct invocation and API Gateway-style body input both work for `update-event`
+- confirmed returned updated items use the locked public event DTO under `item`
+- confirmed internal storage helper fields remain hidden from updated responses
 - confirmed Terraform outputs match the created Lambda and log group identities
 - see evidence screenshots under `docs/assets/lambda/`
 

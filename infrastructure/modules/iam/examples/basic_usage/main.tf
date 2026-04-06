@@ -108,6 +108,12 @@ module "iam" {
       enable_xray    = false
     }
 
+    update-event = {
+      access_profile = "update_event"
+      enable_logs    = true
+      enable_xray    = false
+    }
+
     rsvp = {
       access_profile = "rsvp_transaction"
       enable_logs    = true

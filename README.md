@@ -25,8 +25,9 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 ### Current focus
 
 - Core synchronous Lambda rollout is in progress (business-critical write/read paths)
-- `create-event`, `list-events`, and `get-event` are implemented, wired in `envs/dev`, and validated in AWS
-- Current next target: `update-event`
+- `create-event`, `list-events`, `get-event`, and `update-event` are implemented, wired in `envs/dev`, and validated in AWS
+- `update-event` introduces conditional writes, partial updates, and GSI consistency handling
+- Current next target: `cancel-event`
 - After the remaining core synchronous handlers, the next platform milestone is API Gateway + Cognito
 
 ### Completed milestones
@@ -52,6 +53,9 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - third real Lambda workload: `get-event`
 - `infrastructure/envs/dev` wiring for `get-event`
 - validation and AWS deployment evidence for `get-event`
+- fourth real Lambda workload: `update-event` (conditional writes, partial updates, GSI consistency)
+- `infrastructure/envs/dev` wiring for `update-event`
+- validation and AWS deployment evidence for `update-event`
 - external Lambda artifact packaging workflow via `scripts/package_lambda.py`
 - Python handler validation for implemented Lambda handlers
 - local `terraform plan` validation for the wired dev environment
@@ -60,7 +64,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Next milestones
 
-- Remaining core synchronous Lambda workloads (`update-event`, `cancel-event`, `rsvp`, `get-event-rsvps`)
+- Remaining core synchronous Lambda workloads (`cancel-event`, `rsvp`, `get-event-rsvps`)
 - API Gateway + Cognito authentication
 - Edge delivery layer (S3 + CloudFront + WAF)
 - EventBridge + SNS integration
@@ -253,7 +257,7 @@ Planned implementation sequence:
    - `create-event` ✅
    - `list-events` ✅
    - `get-event` ✅
-   - `update-event`
+   - `update-event` ✅
    - `cancel-event`
    - `rsvp`
    - `get-event-rsvps`

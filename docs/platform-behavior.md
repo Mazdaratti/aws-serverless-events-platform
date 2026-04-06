@@ -118,6 +118,8 @@ The deployed `create-event` Lambda now enforces the locked creation contract:
 - ownership derived from `requestContext.authorizer.user_id`
 - request-body `creator_id` ignored as an ownership source
 - admin-only events restricted to admin callers
+- new canonical event records must include `status = ACTIVE`
+- returned event DTO must include `status`
 
 ### `list-events`
 
@@ -166,6 +168,7 @@ half-cleaned DynamoDB storage items.
 The public event DTO is:
 
 - `event_id`
+- `status`
 - `title`
 - `date`
 - `description`
@@ -255,6 +258,13 @@ contract in `dev`:
 - `mine` without caller context returns `400`
 - returned items use the locked public event DTO
 
+Lifecycle note:
+
+- during the current temporary scan-based phase, `mode=all` must filter out cancelled events in Lambda
+- long-term behavior will rely on index-based access patterns instead of scan filtering
+- `mode=mine` includes cancelled events
+- both modes must expose `status` in the public DTO
+
 ### `get-event`
 
 #### Access rule
@@ -340,6 +350,11 @@ read contract in `dev`:
 - missing items return `404`
 - returned items use the locked public event DTO under `item`
 
+Lifecycle note:
+
+- `get-event` still returns cancelled events by ID
+- returned items must expose `status` in the public DTO
+
 ### `update-event`
 
 #### Access rule
@@ -364,10 +379,13 @@ Mutable fields:
 Immutable/system-managed fields:
 
 - `event_id`
+- `status`
 - `created_by`
 - `created_at`
 - `rsvp_count`
 - `attending_count`
+
+`status` is a system-managed lifecycle field and must never be set directly by clients.
 
 #### Request contract
 
@@ -512,12 +530,19 @@ update contract in `dev`:
 - authenticated non-owner non-admin receives `403`
 - direct invocation and API Gateway-style `body` JSON are both supported
 - immutable and unknown fields are rejected with `400`
+- `status` is rejected as immutable input
 - `requires_admin = true` is restricted to admin callers
 - `capacity` cannot be reduced below current `attending_count`
 - conditional write protection (DynamoDB `ConditionExpression`) guards the capacity rule against concurrent changes
 - conditional write failures are re-evaluated to return correct business errors instead of generic failures
 - returned items use the locked public event DTO under `item`
 - internal GSI helper fields remain hidden from the response
+
+Lifecycle note:
+
+- once effective status is `CANCELLED`, `update-event` must return `400`
+- there is no reactivation path in this phase
+- there are no metadata edits after cancellation in this phase
 
 ### `cancel-event`
 
@@ -531,6 +556,98 @@ update contract in `dev`:
 `cancel-event` is preferred over hard delete as the default operation because it
 is safer, more realistic, and leaves room for history, notifications, and
 later auditability.
+
+#### Deletion model
+
+`cancel-event` is a soft delete, not a hard delete.
+
+- the event item remains in DynamoDB
+- cancellation is represented as lifecycle state, not item removal
+
+#### Lifecycle field
+
+Canonical event records use:
+
+- `status = ACTIVE | CANCELLED`
+
+Rules:
+
+- new events must be written with explicit `status = ACTIVE`
+- `cancel-event` sets `status = CANCELLED`
+
+#### Response contract
+
+Successful cancel returns the standard API Gateway-style wrapper:
+
+- `item`
+
+The returned `item` uses the locked public event DTO, including:
+
+- `status`
+
+#### Idempotency
+
+`cancel-event` is idempotent.
+
+- if the event is already cancelled, return `200`
+- repeated cancel attempts return the normal wrapped `item` response instead of an error
+
+#### GSI behavior
+
+On cancel:
+
+- remove `public_upcoming_gsi_pk`
+- remove `public_upcoming_gsi_sk`
+- keep `creator_events_gsi_pk`
+- keep `creator_events_gsi_sk`
+
+This removes cancelled events from public discovery while preserving creator/admin visibility.
+
+#### Write model
+
+The cancel flow should use:
+
+1. `GetItem`
+2. if missing, return `404`
+3. authorize caller
+4. if already cancelled, return `200`
+5. otherwise `UpdateItem`
+
+Recommended condition:
+
+- `attribute_exists(event_pk) AND (attribute_not_exists(#status) OR #status = :active)`
+
+If the conditional write fails:
+
+- re-read item
+- if missing, return `404`
+- if now cancelled, return `200`
+- otherwise return `500`
+
+This keeps the mutation retry-safe and translates conditional-write outcomes back into the correct business result.
+
+#### Interaction with other handlers
+
+- `get-event` still returns cancelled events by ID
+- `list-events mode=mine` includes cancelled events
+- `list-events mode=all` must filter cancelled events during the current scan-based phase
+- long-term `mode=all` behavior should rely on index-based access patterns instead of scan filtering
+- `update-event` is blocked once an event is cancelled
+- there is no reactivation path in this phase
+
+#### Past events versus cancelled events
+
+Past events are not the same as cancelled events.
+
+- past/outdated is derived from `date`
+- cancelled is an explicit stored lifecycle state
+- past events should not be auto-cancelled
+- no extra lifecycle state such as `COMPLETED` is introduced in this step
+
+Future RSVP behavior should reject:
+
+- cancelled events
+- past events
 
 ---
 

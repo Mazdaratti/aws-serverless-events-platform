@@ -356,6 +356,8 @@ Validation:
 - confirmed successful `mode=mine` invocation returns `200`
 - confirmed `mode=mine` without caller context returns `400`
 - confirmed returned items use the locked public event DTO and hide internal storage helper fields
+- confirmed `mode=all` excludes cancelled events during the current scan-based phase
+- confirmed `mode=mine` still includes cancelled owner events
 - confirmed the deployed function name is `aws-serverless-events-platform-dev-update-event`
 - confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-update-event`
 - confirmed successful creator-owned partial update returns `200`

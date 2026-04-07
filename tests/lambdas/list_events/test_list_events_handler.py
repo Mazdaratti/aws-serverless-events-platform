@@ -13,6 +13,7 @@ def _valid_item(**overrides) -> dict[str, object]:
     # test can override only the field it actually cares about.
     item: dict[str, object] = {
         "event_pk": "EVENT#11111111-1111-1111-1111-111111111111",
+        "status": "ACTIVE",
         "title": "Platform Launch Event",
         "date": "2026-06-15T00:00:00Z",
         "description": "Kickoff for the new platform.",
@@ -79,6 +80,7 @@ def test_lambda_handler_returns_public_event_dtos_for_default_all_mode(mock_tabl
         "items": [
             {
                 "event_id": "11111111-1111-1111-1111-111111111111",
+                "status": "ACTIVE",
                 "title": "Platform Launch Event",
                 "date": "2026-06-15T00:00:00Z",
                 "description": "Kickoff for the new platform.",
@@ -95,6 +97,7 @@ def test_lambda_handler_returns_public_event_dtos_for_default_all_mode(mock_tabl
         "next_cursor": None,
         "mode": "all",
     }
+    assert "event_pk" not in body["items"][0]
 
     mock_table.scan.assert_called_once_with(Limit=20)
 
@@ -160,6 +163,7 @@ def test_lambda_handler_uses_creator_events_gsi_for_mine_mode(mock_table):
         "items": [
             {
                 "event_id": "22222222-2222-2222-2222-222222222222",
+                "status": "ACTIVE",
                 "title": "My Planning Session",
                 "date": "2026-07-01T00:00:00Z",
                 "description": "",
@@ -181,6 +185,59 @@ def test_lambda_handler_uses_creator_events_gsi_for_mine_mode(mock_table):
     query_kwargs = mock_table.query.call_args.kwargs
     assert query_kwargs["IndexName"] == "creator-events"
     assert query_kwargs["Limit"] == 20
+
+
+def test_lambda_handler_filters_cancelled_events_from_all_mode(mock_table):
+    mock_table.scan.return_value = {
+        "Items": [
+            _valid_item(
+                event_pk="EVENT#11111111-1111-1111-1111-111111111111",
+                status="ACTIVE",
+            ),
+            _valid_item(
+                event_pk="EVENT#22222222-2222-2222-2222-222222222222",
+                status="CANCELLED",
+                title="Cancelled Event",
+            ),
+        ]
+    }
+
+    response = handler.lambda_handler({"mode": "all"}, None)
+
+    assert response["statusCode"] == 200
+    body = json.loads(response["body"])
+    assert body["mode"] == "all"
+    assert body["next_cursor"] is None
+    assert len(body["items"]) == 1
+    assert body["items"][0]["event_id"] == "11111111-1111-1111-1111-111111111111"
+    assert body["items"][0]["status"] == "ACTIVE"
+
+
+def test_lambda_handler_includes_cancelled_events_in_mine_mode(mock_table):
+    mock_table.query.return_value = {
+        "Items": [
+            _valid_item(
+                event_pk="EVENT#33333333-3333-3333-3333-333333333333",
+                status="CANCELLED",
+                title="Cancelled Planning Session",
+            )
+        ]
+    }
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "mode": "mine",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    body = json.loads(response["body"])
+    assert body["mode"] == "mine"
+    assert body["next_cursor"] is None
+    assert body["items"][0]["event_id"] == "33333333-3333-3333-3333-333333333333"
+    assert body["items"][0]["status"] == "CANCELLED"
 
 
 def test_lambda_handler_returns_400_for_mine_mode_without_caller_context(mock_table):
@@ -326,6 +383,38 @@ def test_lambda_handler_returns_500_for_invalid_stored_text_field_type(mock_tabl
 def test_lambda_handler_returns_500_for_invalid_stored_boolean_field(mock_table):
     mock_table.scan.return_value = {
         "Items": [_valid_item(is_public="true")],
+    }
+
+    response = handler.lambda_handler({}, None)
+
+    assert response["statusCode"] == 500
+    assert json.loads(response["body"]) == {
+        "message": "Internal server error."
+    }
+
+
+def test_lambda_handler_returns_500_for_missing_stored_status_in_mine_mode(mock_table):
+    mock_table.query.return_value = {
+        "Items": [_valid_item(status=None)],
+    }
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "mode": "mine",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 500
+    assert json.loads(response["body"]) == {
+        "message": "Internal server error."
+    }
+
+
+def test_lambda_handler_returns_500_for_invalid_stored_status_in_all_mode(mock_table):
+    mock_table.scan.return_value = {
+        "Items": [_valid_item(status="ARCHIVED")],
     }
 
     response = handler.lambda_handler({}, None)

@@ -363,6 +363,8 @@ Validation:
 - confirmed successful creator-owned partial update returns `200`
 - confirmed unauthorized partial update returns `403`
 - confirmed invalid capacity reduction returns `400`
+- confirmed `status` is rejected as immutable update input with `400`
+- confirmed cancelled events cannot be updated and return `400`
 - confirmed conditional write protection (DynamoDB `ConditionExpression`) prevents capacity race conditions
 - confirmed direct invocation and API Gateway-style body input both work for `update-event`
 - confirmed returned updated items use the locked public event DTO under `item`

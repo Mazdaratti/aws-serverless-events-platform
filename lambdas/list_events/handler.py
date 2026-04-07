@@ -220,7 +220,13 @@ def _list_events(*, table: Any, request: dict[str, Any]) -> dict[str, Any]:
             next_cursor=request["next_cursor"],
         )
 
-    items = [_to_event_dto(item) for item in _validate_items(dynamodb_response.get("Items", []))]
+    raw_items = _validate_items(dynamodb_response.get("Items", []))
+    if request["mode"] == "all":
+        # Broad listing is still temporarily scan-backed, so cancelled events
+        # must be filtered in Lambda until this path becomes fully index-driven.
+        raw_items = [item for item in raw_items if _is_broad_listable_event(item)]
+
+    items = [_to_event_dto(item) for item in raw_items]
 
     return {
         "items": items,
@@ -287,6 +293,7 @@ def _to_event_dto(item: dict[str, Any]) -> dict[str, Any]:
     # instead of silently returning a misleading best-effort response.
     return {
         "event_id": _to_event_id(item.get("event_pk")),
+        "status": _normalize_status(item.get("status")),
         "title": _normalize_text(item.get("title"), field_name="title"),
         "date": _normalize_text(item.get("date"), field_name="date"),
         "description": _normalize_text(item.get("description"), field_name="description"),
@@ -301,6 +308,11 @@ def _to_event_dto(item: dict[str, Any]) -> dict[str, Any]:
         "rsvp_count": _normalize_counter(item.get("rsvp_total"), field_name="rsvp_total"),
         "attending_count": _normalize_counter(item.get("attending_count"), field_name="attending_count"),
     }
+
+
+def _is_broad_listable_event(item: dict[str, Any]) -> bool:
+    """Return whether a scanned event item should appear in broad listing."""
+    return _normalize_status(item.get("status")) != "CANCELLED"
 
 
 def _to_event_id(raw_event_pk: Any) -> str:
@@ -369,6 +381,18 @@ def _normalize_bool(value: Any, *, field_name: str) -> bool:
         return value
 
     raise EventDtoMappingError(f"Stored {field_name} must be a boolean.")
+
+
+def _normalize_status(value: Any) -> str:
+    """Validate and normalize the stored lifecycle status for the public DTO."""
+    # Canonical event records must store one explicit valid lifecycle status.
+    if value == "ACTIVE":
+        return "ACTIVE"
+
+    if value == "CANCELLED":
+        return "CANCELLED"
+
+    raise EventDtoMappingError("Stored status must be ACTIVE or CANCELLED.")
 
 
 def _normalize_counter(value: Any, *, field_name: str) -> int:

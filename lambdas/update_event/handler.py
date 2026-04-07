@@ -25,6 +25,7 @@ MUTABLE_FIELDS = {
 }
 IMMUTABLE_FIELDS = {
     "event_id",
+    "status",
     "created_by",
     "created_at",
     "rsvp_count",
@@ -360,6 +361,7 @@ def _to_internal_event_state(item: dict[str, Any]) -> dict[str, Any]:
     # because update logic needs the storage-facing view of the record.
     return {
         "event_id": _to_event_id(item.get("event_pk")),
+        "status": _normalize_status(item.get("status")),
         "creator_id": _normalize_required_text(item.get("creator_id"), field_name="creator_id"),
         "date": _normalize_required_text(item.get("date"), field_name="date"),
         "is_public": _normalize_bool(item.get("is_public"), field_name="is_public"),
@@ -379,6 +381,9 @@ def _authorize_update(*, caller_context: dict[str, Any], current_state: dict[str
 
 
 def _validate_business_rules(*, updates: dict[str, Any], current_state: dict[str, Any]) -> None:
+    if current_state["status"] == "CANCELLED":
+        raise ValueError("Cancelled events cannot be updated.")
+
     if "capacity" not in updates:
         return
 
@@ -525,6 +530,7 @@ def _normalize_event_date(raw_value: Any) -> str:
 def _to_event_dto(item: dict[str, Any]) -> dict[str, Any]:
     return {
         "event_id": _to_event_id(item.get("event_pk")),
+        "status": _normalize_status(item.get("status")),
         "title": _normalize_text(item.get("title"), field_name="title"),
         "date": _normalize_text(item.get("date"), field_name="date"),
         "description": _normalize_text(item.get("description"), field_name="description"),
@@ -602,6 +608,18 @@ def _normalize_bool(value: Any, *, field_name: str) -> bool:
         return value
 
     raise EventDtoMappingError(f"Stored {field_name} must be a boolean.")
+
+
+def _normalize_status(value: Any) -> str:
+    """Validate and normalize the stored lifecycle status for update-event."""
+    # Canonical event records must store one explicit valid lifecycle status.
+    if value == "ACTIVE":
+        return "ACTIVE"
+
+    if value == "CANCELLED":
+        return "CANCELLED"
+
+    raise EventDtoMappingError("Stored status must be ACTIVE or CANCELLED.")
 
 
 def _normalize_counter(value: Any, *, field_name: str) -> int:

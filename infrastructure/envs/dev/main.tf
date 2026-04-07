@@ -95,6 +95,10 @@ module "iam" {
       access_profile = "update_event"
     }
 
+    cancel-event = {
+      access_profile = "cancel_event"
+    }
+
     rsvp = {
       access_profile = "rsvp_transaction"
     }

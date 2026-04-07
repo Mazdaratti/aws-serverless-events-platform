@@ -12,6 +12,7 @@ def _valid_item(**overrides) -> dict[str, object]:
     # test can override only the field it actually cares about.
     item: dict[str, object] = {
         "event_pk": "EVENT#11111111-1111-1111-1111-111111111111",
+        "status": "ACTIVE",
         "title": "Platform Launch Event",
         "date": "2026-06-15T00:00:00Z",
         "description": "Kickoff for the new platform.",
@@ -68,6 +69,7 @@ def test_lambda_handler_returns_public_event_dto_for_direct_invocation(mock_tabl
     assert body == {
         "item": {
             "event_id": "11111111-1111-1111-1111-111111111111",
+            "status": "ACTIVE",
             "title": "Platform Launch Event",
             "date": "2026-06-15T00:00:00Z",
             "description": "Kickoff for the new platform.",
@@ -81,6 +83,7 @@ def test_lambda_handler_returns_public_event_dto_for_direct_invocation(mock_tabl
             "attending_count": 2,
         }
     }
+    assert "event_pk" not in body["item"]
 
     mock_table.get_item.assert_called_once_with(
         Key={"event_pk": "EVENT#11111111-1111-1111-1111-111111111111"}
@@ -118,6 +121,7 @@ def test_lambda_handler_accepts_api_gateway_path_parameters(mock_table):
     assert json.loads(response["body"]) == {
         "item": {
             "event_id": "22222222-2222-2222-2222-222222222222",
+            "status": "ACTIVE",
             "title": "Private Planning Session",
             "date": "2026-07-01T00:00:00Z",
             "description": "",
@@ -288,6 +292,36 @@ def test_lambda_handler_returns_500_for_invalid_stored_text_field_type(mock_tabl
     assert json.loads(response["body"]) == {
         "message": "Internal server error."
     }
+
+
+def test_lambda_handler_returns_500_for_missing_stored_status(mock_table):
+    mock_table.get_item.return_value = {
+        "Item": _valid_item(status=None)
+    }
+
+    response = handler.lambda_handler(
+        {"event_id": "67676767-6767-6767-6767-676767676767"},
+        None,
+    )
+
+    assert response["statusCode"] == 500
+    assert json.loads(response["body"]) == {
+        "message": "Internal server error."
+    }
+
+
+def test_lambda_handler_returns_cancelled_status_in_public_dto(mock_table):
+    mock_table.get_item.return_value = {
+        "Item": _valid_item(status="CANCELLED")
+    }
+
+    response = handler.lambda_handler(
+        {"event_id": "78787878-7878-7878-7878-787878787878"},
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"])["item"]["status"] == "CANCELLED"
 
 
 def test_lambda_handler_returns_500_for_invalid_stored_boolean_field(mock_table):

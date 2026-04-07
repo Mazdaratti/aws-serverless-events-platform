@@ -36,5 +36,9 @@ locals {
     update-event = {
       description = "Performs partial updates on a canonical event record while preserving ownership and index rules."
     }
+
+    cancel-event = {
+      description = "Soft-deletes a canonical event record by setting status to CANCELLED and removing public discovery helpers."
+    }
   }
 }

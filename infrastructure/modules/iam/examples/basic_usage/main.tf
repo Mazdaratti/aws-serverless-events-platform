@@ -114,6 +114,12 @@ module "iam" {
       enable_xray    = false
     }
 
+    cancel-event = {
+      access_profile = "cancel_event"
+      enable_logs    = true
+      enable_xray    = false
+    }
+
     rsvp = {
       access_profile = "rsvp_transaction"
       enable_logs    = true

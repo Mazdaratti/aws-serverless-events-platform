@@ -67,6 +67,14 @@ locals {
       temporary_scan      = false
     }
 
+    cancel_event = {
+      dynamodb_table_arns = [var.events_table_arn]
+      sqs_queue_arns      = []
+      include_logs        = true
+      include_xray        = false
+      temporary_scan      = false
+    }
+
     rsvp_transaction = {
       dynamodb_table_arns = [
         var.events_table_arn,

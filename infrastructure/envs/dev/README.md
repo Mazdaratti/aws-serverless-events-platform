@@ -196,6 +196,7 @@ This environment currently wires in:
 - one execution role for `get-event`
 - one execution role for `list-events`
 - one execution role for `update-event`
+- one execution role for `cancel-event`
 - one execution role for `rsvp`
 - one execution role for `notification-worker`
 
@@ -210,6 +211,7 @@ Important design notes:
 - each workload gets its own least-privilege execution role and customer-managed policy
 - `get-event` intentionally stays narrower than `list-events` and receives only direct `GetItem` access for the events table
 - `update-event` receives narrow `GetItem` + `UpdateItem` access for the events table
+- `cancel-event` receives narrow `GetItem` + `UpdateItem` access for the events table
 - `rsvp` is the special transactional role spanning both DynamoDB business tables
 - `rsvp` intentionally has no SQS permissions
 - only `notification-worker` gets SQS consumer permissions
@@ -226,6 +228,7 @@ Validation:
 - confirmed all wired workload roles were created with Lambda-only trust relationships
 - confirmed `get-event` has narrow direct-read access for the events table
 - confirmed `update-event` has narrow read/write access for the events table
+- confirmed `cancel-event` has narrow read/write access for the events table
 - confirmed the RSVP policy includes transactional DynamoDB access across both business tables
 - confirmed only `notification-worker` has SQS consumer permissions
 - confirmed Terraform outputs match the created IAM role identities
@@ -250,6 +253,7 @@ This environment currently wires in:
   - `get-event`
   - `list-events`
   - `update-event`
+  - `cancel-event`
 
 Why this module is wired now:
 
@@ -268,6 +272,7 @@ Important design notes:
 - the deployed `get-event` function uses the existing least-privilege IAM `get-event` role
 - the deployed `list-events` function uses the existing least-privilege IAM `list-events` role
 - the deployed `update-event` function uses the existing least-privilege IAM `update-event` role
+- the deployed `cancel-event` function uses the existing least-privilege IAM `cancel-event` role
 - each deployed function receives only the environment variables it actually needs:
   - `EVENTS_TABLE_NAME`
 - all deployed functions return an API Gateway-style wrapped response even before API Gateway is wired
@@ -284,6 +289,7 @@ Current business behavior validated in this step:
 - direct successful creation of a protected event by an authenticated caller
 - direct successful creation of an admin-only event by an admin caller
 - canonical event item write into the `events` table
+- new canonical event records include `status = ACTIVE`
 - request-body `creator_id` spoofing is ignored in favor of caller-context ownership
 - non-admin callers are rejected when attempting to create admin-only events
 - sparse public GSI behavior:
@@ -300,12 +306,18 @@ Current business behavior validated in this step:
 - unauthorized partial event update returns `403`
 - invalid partial update input returns `400`
 - capacity reductions below current `attending_count` return `400`
+- direct successful event cancellation by the event creator
+- unauthorized cancel attempt returns `403`
+- repeated cancel returns `200` idempotently
+- cancelling an event sets `status = CANCELLED`
+- cancelling an event removes public discovery helper attributes while preserving creator visibility helpers
 - partial updates preserve omitted mutable fields (no implicit overwrites)
 - API Gateway-style body input is supported for `update-event`
 - `body` takes precedence over top-level mutable fields for `update-event`
 - `pathParameters.event_id` takes precedence over top-level `event_id` for `update-event`
 - returned event items use the locked public DTO contract:
   - `event_id`
+  - `status`
   - `title`
   - `date`
   - `description`
@@ -334,9 +346,12 @@ Validation:
 - confirmed the deployed function name is `aws-serverless-events-platform-dev-create-event`
 - confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-create-event`
 - confirmed successful authenticated invocation returns `201` with the wrapped response body
+- confirmed the returned create-event `item` uses the locked public event DTO
+- confirmed returned created items include `status = ACTIVE`
 - confirmed missing caller context returns `400`
 - confirmed non-admin admin-only creation returns `400`
 - confirmed the Lambda writes the expected canonical event item shape into DynamoDB
+- confirmed stored created event items include `status = ACTIVE`
 - confirmed `creator_id` is derived from caller context
 - confirmed non-public events omit the public GSI attributes
 - confirmed the deployed function name is `aws-serverless-events-platform-dev-get-event`
@@ -351,15 +366,27 @@ Validation:
 - confirmed successful `mode=mine` invocation returns `200`
 - confirmed `mode=mine` without caller context returns `400`
 - confirmed returned items use the locked public event DTO and hide internal storage helper fields
+- confirmed `mode=all` excludes cancelled events during the current scan-based phase
+- confirmed `mode=mine` still includes cancelled owner events
 - confirmed the deployed function name is `aws-serverless-events-platform-dev-update-event`
 - confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-update-event`
 - confirmed successful creator-owned partial update returns `200`
 - confirmed unauthorized partial update returns `403`
 - confirmed invalid capacity reduction returns `400`
+- confirmed `status` is rejected as immutable update input with `400`
+- confirmed cancelled events cannot be updated and return `400`
 - confirmed conditional write protection (DynamoDB `ConditionExpression`) prevents capacity race conditions
 - confirmed direct invocation and API Gateway-style body input both work for `update-event`
 - confirmed returned updated items use the locked public event DTO under `item`
 - confirmed internal storage helper fields remain hidden from updated responses
+- confirmed the deployed function name is `aws-serverless-events-platform-dev-cancel-event`
+- confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-cancel-event`
+- confirmed successful creator-owned cancel returns `200`
+- confirmed unauthorized cancel returns `403`
+- confirmed repeated cancel returns `200`
+- confirmed returned cancelled items use the locked public event DTO under `item`
+- confirmed returned cancelled items include `status = CANCELLED`
+- confirmed cancel removes public GSI helper attributes while preserving creator visibility helpers in storage
 - confirmed Terraform outputs match the created Lambda and log group identities
 - see evidence screenshots under `docs/assets/lambda/`
 
@@ -373,7 +400,9 @@ Validation:
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.14.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.37 |
 
+## Providers
 
+No providers.
 
 ## Modules
 
@@ -384,16 +413,18 @@ Validation:
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
 | <a name="module_sqs"></a> [sqs](#module\_sqs) | ../../modules/sqs | n/a |
 
+## Resources
 
+No resources.
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region where resources will be deployed. | `string` | n/a | yes |
+| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 | <a name="input_environment"></a> [environment](#input\_environment) | Deployment environment name. | `string` | n/a | yes |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Project name used for naming and tagging resources. | `string` | n/a | yes |
-| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 
 ## Outputs
 

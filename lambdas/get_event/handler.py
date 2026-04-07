@@ -143,6 +143,7 @@ def _to_event_dto(item: dict[str, Any]) -> dict[str, Any]:
     # get-event becomes the single-item companion to that collection read.
     return {
         "event_id": _to_event_id(item.get("event_pk")),
+        "status": _normalize_status(item.get("status")),
         "title": _normalize_text(item.get("title"), field_name="title"),
         # The DTO contract says all fields must always be present. Canonical
         # event records should normally have real date values, but the mapper
@@ -238,6 +239,19 @@ def _normalize_bool(value: Any, *, field_name: str) -> bool:
         return value
 
     raise EventDtoMappingError(f"Stored {field_name} must be a boolean.")
+
+
+def _normalize_status(value: Any) -> str:
+    """Validate and normalize the stored lifecycle status for the public DTO."""
+    # Event lifecycle is now part of the locked public DTO, so canonical
+    # records must store one explicit valid status value.
+    if value == "ACTIVE":
+        return "ACTIVE"
+
+    if value == "CANCELLED":
+        return "CANCELLED"
+
+    raise EventDtoMappingError("Stored status must be ACTIVE or CANCELLED.")
 
 
 def _normalize_counter(value: Any, *, field_name: str) -> int:

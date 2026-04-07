@@ -25,6 +25,7 @@ def _valid_item(**overrides) -> dict[str, object]:
     # test can override only the field it actually cares about.
     item: dict[str, object] = {
         "event_pk": "EVENT#11111111-1111-1111-1111-111111111111",
+        "status": "ACTIVE",
         "title": "Platform Launch Event",
         "date": "2026-06-15T00:00:00Z",
         "description": "Kickoff for the new platform.",
@@ -87,6 +88,7 @@ def test_lambda_handler_allows_creator_to_update_one_field(mock_table):
     assert json.loads(response["body"]) == {
         "item": {
             "event_id": "11111111-1111-1111-1111-111111111111",
+            "status": "ACTIVE",
             "title": "Updated Launch Event",
             "date": "2026-06-15T00:00:00Z",
             "description": "Kickoff for the new platform.",
@@ -100,6 +102,7 @@ def test_lambda_handler_allows_creator_to_update_one_field(mock_table):
             "attending_count": 2,
         }
     }
+    assert "event_pk" not in json.loads(response["body"])["item"]
 
     mock_table.get_item.assert_called_once_with(
         Key={"event_pk": "EVENT#11111111-1111-1111-1111-111111111111"}
@@ -131,6 +134,7 @@ def test_lambda_handler_allows_creator_to_update_multiple_fields(mock_table):
     )
 
     assert response["statusCode"] == 200
+    assert json.loads(response["body"])["item"]["status"] == "ACTIVE"
     assert json.loads(response["body"])["item"]["title"] == "Updated Launch Event"
     assert json.loads(response["body"])["item"]["location"] == "Hamburg"
     assert json.loads(response["body"])["item"]["capacity"] == 75
@@ -154,6 +158,7 @@ def test_lambda_handler_allows_admin_to_update_someone_elses_event(mock_table):
     )
 
     assert response["statusCode"] == 200
+    assert json.loads(response["body"])["item"]["status"] == "ACTIVE"
     assert json.loads(response["body"])["item"]["requires_admin"] is True
 
 
@@ -176,6 +181,7 @@ def test_lambda_handler_accepts_api_gateway_body_json(mock_table):
     )
 
     assert response["statusCode"] == 200
+    assert json.loads(response["body"])["item"]["status"] == "ACTIVE"
     assert json.loads(response["body"])["item"]["description"] == "Updated from API Gateway body"
 
 
@@ -228,6 +234,7 @@ def test_lambda_handler_recomputes_gsi_helpers_when_date_changes(mock_table):
     )
 
     assert response["statusCode"] == 200
+    assert json.loads(response["body"])["item"]["status"] == "ACTIVE"
     assert json.loads(response["body"])["item"]["date"] == "2026-08-20T00:00:00Z"
 
     update_kwargs = mock_table.update_item.call_args.kwargs
@@ -313,6 +320,7 @@ def test_lambda_handler_allows_capacity_to_be_set_to_null(mock_table):
     )
 
     assert response["statusCode"] == 200
+    assert json.loads(response["body"])["item"]["status"] == "ACTIVE"
     assert json.loads(response["body"])["item"]["capacity"] is None
 
     update_kwargs = mock_table.update_item.call_args.kwargs
@@ -432,6 +440,24 @@ def test_lambda_handler_returns_400_for_immutable_field(mock_table):
     assert "Immutable fields cannot be updated" in json.loads(response["body"])["message"]
 
 
+def test_lambda_handler_returns_400_when_status_is_provided_in_payload(mock_table):
+    mock_table.get_item.return_value = {
+        "Item": _valid_item(),
+    }
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "event_id": "11111111-1111-1111-1111-111111111111",
+            "status": "CANCELLED",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 400
+    assert "Immutable fields cannot be updated" in json.loads(response["body"])["message"]
+
+
 def test_lambda_handler_returns_400_for_invalid_title(mock_table):
     response = handler.lambda_handler(
         {
@@ -509,6 +535,26 @@ def test_lambda_handler_returns_400_when_capacity_is_below_current_attending_cou
     assert response["statusCode"] == 400
     assert json.loads(response["body"]) == {
         "message": "capacity cannot be reduced below the current number of attending RSVPs."
+    }
+
+
+def test_lambda_handler_returns_400_for_cancelled_event(mock_table):
+    mock_table.get_item.return_value = {
+        "Item": _valid_item(status="CANCELLED"),
+    }
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "event_id": "11111111-1111-1111-1111-111111111111",
+            "title": "Updated Launch Event",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 400
+    assert json.loads(response["body"]) == {
+        "message": "Cancelled events cannot be updated."
     }
 
 
@@ -624,6 +670,24 @@ def test_lambda_handler_returns_500_for_invalid_stored_creator_id_shape(mock_tab
     assert json.loads(response["body"]) == {"message": "Internal server error."}
 
 
+def test_lambda_handler_returns_500_for_missing_stored_status(mock_table):
+    mock_table.get_item.return_value = {
+        "Item": _valid_item(status=None),
+    }
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "event_id": "11111111-1111-1111-1111-111111111111",
+            "title": "Updated Launch Event",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 500
+    assert json.loads(response["body"]) == {"message": "Internal server error."}
+
+
 def test_lambda_handler_returns_500_for_invalid_stored_attending_count_shape(mock_table):
     mock_table.get_item.return_value = {
         "Item": _valid_item(attending_count="two"),
@@ -648,6 +712,27 @@ def test_lambda_handler_returns_500_for_invalid_updated_dynamodb_item_mapping(mo
     }
     mock_table.update_item.return_value = {
         "Attributes": _valid_item(title=["not-a-string"]),
+    }
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "event_id": "11111111-1111-1111-1111-111111111111",
+            "title": "Updated Launch Event",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 500
+    assert json.loads(response["body"]) == {"message": "Internal server error."}
+
+
+def test_lambda_handler_returns_500_for_invalid_updated_status_mapping(mock_table):
+    mock_table.get_item.return_value = {
+        "Item": _valid_item(),
+    }
+    mock_table.update_item.return_value = {
+        "Attributes": _valid_item(status="ARCHIVED"),
     }
 
     response = handler.lambda_handler(

@@ -25,10 +25,10 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 ### Current focus
 
 - Core synchronous Lambda rollout is in progress (business-critical write/read paths)
-- `create-event`, `list-events`, `get-event`, and `update-event` are implemented, wired in `envs/dev`, and validated in AWS
+- `create-event`, `list-events`, `get-event`, `update-event`, and `cancel-event` are implemented, wired in `envs/dev`, and validated in AWS
 - `update-event` introduces conditional writes, partial updates, and GSI consistency handling
-- Current next target: `cancel-event`
-- After the remaining core synchronous handlers, the next platform milestone is API Gateway + Cognito
+- `cancel-event` introduces the first soft-delete lifecycle transition for canonical events
+- After completing the remaining core synchronous handlers, the next platform milestone is API Gateway + Cognito
 
 ### Completed milestones
 
@@ -56,6 +56,9 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - fourth real Lambda workload: `update-event` (conditional writes, partial updates, GSI consistency)
 - `infrastructure/envs/dev` wiring for `update-event`
 - validation and AWS deployment evidence for `update-event`
+- fifth real Lambda workload: `cancel-event` (soft-delete lifecycle transition)
+- `infrastructure/envs/dev` wiring for `cancel-event`
+- validation and AWS deployment evidence for `cancel-event`
 - external Lambda artifact packaging workflow via `scripts/package_lambda.py`
 - Python handler validation for implemented Lambda handlers
 - local `terraform plan` validation for the wired dev environment
@@ -64,7 +67,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Next milestones
 
-- Remaining core synchronous Lambda workloads (`cancel-event`, `rsvp`, `get-event-rsvps`)
+- Remaining core synchronous Lambda workloads (`rsvp`, `get-event-rsvps`)
 - API Gateway + Cognito authentication
 - Edge delivery layer (S3 + CloudFront + WAF)
 - EventBridge + SNS integration
@@ -258,7 +261,7 @@ Planned implementation sequence:
    - `list-events` ✅
    - `get-event` ✅
    - `update-event` ✅
-   - `cancel-event`
+   - `cancel-event` ✅
    - `rsvp`
    - `get-event-rsvps`
 7. API Gateway and Cognito authentication

@@ -617,7 +617,7 @@ The cancel flow should use:
 
 Recommended condition:
 
-- `attribute_exists(event_pk) AND (attribute_not_exists(#status) OR #status = :active)`
+- `attribute_exists(event_pk) AND #status = :active`
 
 If the conditional write fails:
 

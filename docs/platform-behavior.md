@@ -661,6 +661,7 @@ RSVP authorization depends on event type.
 
 - public event:
   - anonymous RSVP allowed
+  - authenticated RSVP allowed
 - protected event:
   - authenticated user required
 - admin event:
@@ -668,6 +669,304 @@ RSVP authorization depends on event type.
 
 This decision remains business-driven inside Lambda even after API Gateway and
 Cognito handle generic auth.
+
+#### Anonymous subject strategy
+
+Anonymous RSVP is supported only for public events.
+
+For anonymous RSVP in this phase, the caller must provide:
+
+- `anonymous_token`
+
+Rules:
+
+- `anonymous_token` is required for anonymous RSVP
+- trim leading and trailing whitespace before validation and storage
+- reject if empty after trim
+- store the trimmed value
+- build the canonical anonymous subject key from the trimmed token
+- authenticated callers must not send `anonymous_token`
+- protected and admin-only events reject anonymous callers before token handling matters
+
+#### Canonical RSVP key shape
+
+The canonical RSVP storage shape is:
+
+- partition key:
+  - `event_pk = EVENT#<event_id>`
+- sort key:
+  - authenticated subject:
+    - `subject_sk = USER#<user_id>`
+  - anonymous subject:
+    - `subject_sk = ANON#<anonymous_token>`
+
+Canonical RSVP items should stay minimal and currently include:
+
+- `event_pk`
+- `subject_sk`
+- `attending`
+- `created_at`
+- `updated_at`
+- `subject_type`
+- `user_id` for authenticated subjects
+- `anonymous_token` for anonymous subjects
+
+No speculative metadata should be added beyond what the current handler needs.
+
+#### Lifecycle and time gating
+
+RSVP must reject:
+
+- missing event with `404`
+- cancelled event with `400`
+- past event with `400`
+
+Locked messages:
+
+- `Event not found.`
+- `Cancelled events cannot accept RSVPs.`
+- `Past events cannot accept RSVPs.`
+
+Past-event evaluation uses the stored event date compared against current UTC
+time.
+
+Rules:
+
+- if `event.date <= now`, reject RSVP
+- stored `event.date` is expected to be a valid canonical ISO 8601 UTC timestamp
+- if stored `event.date` cannot be parsed, return `500`
+
+#### Write semantics
+
+The write is an upsert per:
+
+- `(event_id, subject)`
+
+Locked behavior:
+
+- no prior RSVP + `attending = true`:
+  - create RSVP item
+- no prior RSVP + `attending = false`:
+  - create RSVP item
+- prior RSVP exists with same `attending` value:
+  - counters remain unchanged
+  - preserve original `created_at`
+  - update `updated_at`
+  - return `200`
+  - return `operation = "updated"`
+- prior RSVP `true -> false`:
+  - same item key is overwritten
+  - counters update transactionally
+- prior RSVP `false -> true`:
+  - same item key is overwritten
+  - counters update transactionally
+
+Timestamp rules:
+
+- on first create:
+  - `created_at = now`
+  - `updated_at = now`
+- on overwrite or change:
+  - preserve original `created_at`
+  - set `updated_at = now`
+
+#### Counter delta rules
+
+The helper counters on the event item must remain transactionally correct:
+
+- `rsvp_total`
+- `attending_count`
+- `not_attending_count`
+
+Locked deltas:
+
+- no previous RSVP -> new `attending = true`:
+  - `rsvp_total +1`
+  - `attending_count +1`
+  - `not_attending_count +0`
+- no previous RSVP -> new `attending = false`:
+  - `rsvp_total +1`
+  - `attending_count +0`
+  - `not_attending_count +1`
+- previous `attending = true` -> new `attending = true`:
+  - all counters unchanged
+- previous `attending = false` -> new `attending = false`:
+  - all counters unchanged
+- previous `attending = true` -> new `attending = false`:
+  - `rsvp_total +0`
+  - `attending_count -1`
+  - `not_attending_count +1`
+- previous `attending = false` -> new `attending = true`:
+  - `rsvp_total +0`
+  - `attending_count +1`
+  - `not_attending_count -1`
+
+#### Capacity handling
+
+Capacity rules are:
+
+- `capacity = null` means unlimited
+- capacity applies only to `attending = true`
+- `attending = false` is always allowed, even if the event is full
+- first RSVP with `attending = true` must be rejected when `attending_count >= capacity`
+- `false -> true` must be rejected when `attending_count >= capacity`
+- same-value overwrite `true -> true` is allowed when already attending because it does not consume a new seat
+- `true -> false` is always allowed
+- first RSVP with `attending = false` is always allowed
+
+Full-capacity rejection message:
+
+- `Event is at full capacity.`
+
+#### Concurrent final-slot contention
+
+Concurrent seat consumption must be guarded transactionally.
+
+Rules:
+
+- if two callers compete for the final seat, only one may succeed
+- the losing transaction must be translated into business `400`
+- the event update inside the transaction must enforce capacity availability at write time
+
+#### Transactional write model
+
+The current RSVP business write must not be split into best-effort separate
+writes.
+
+Locked flow:
+
+1. `GetItem` on `events`
+2. validate existence, lifecycle, time, and access rules
+3. `GetItem` on the existing RSVP item for the resolved subject
+4. calculate counter deltas and capacity impact
+5. perform one `TransactWriteItems` call across:
+   - RSVP `Put`
+   - event `Update`
+
+The event update inside the transaction must:
+
+- keep helper counters transactionally correct
+- require `attribute_exists(event_pk)`
+- require `status = ACTIVE`
+- enforce capacity availability for seat-consuming writes
+
+If the transaction fails, re-read the event item first and classify in this order:
+
+- event missing -> `404`
+- event cancelled -> `400`
+- event full for a seat-consuming write -> `400`
+- otherwise unexpected failure -> `500`
+
+Do not re-read the RSVP item unless a later implementation detail makes that
+strictly necessary.
+
+#### Request contract
+
+Support both:
+
+- direct invocation payload
+- API Gateway-style body input
+
+Resolved request inputs are:
+
+- `event_id`
+  - resolution order:
+    1. `pathParameters.event_id`
+    2. top-level `event_id`
+- `attending`
+  - required boolean
+- `anonymous_token`
+  - required only for anonymous RSVP
+  - forbidden for authenticated RSVP
+
+Caller context:
+
+- authenticated user ID from `requestContext.authorizer.user_id`
+- admin flag from authorizer context
+
+Anonymous is defined as absence of authenticated caller context.
+
+#### Response contract
+
+The Lambda returns the standard API Gateway-style wrapper.
+
+Successful response body shape:
+
+- `item`
+- `event_summary`
+- `operation`
+
+Successful RSVP `item` includes:
+
+- `event_id`
+- `subject`
+- `attending`
+- `created_at`
+- `updated_at`
+
+Successful `event_summary` includes:
+
+- `status`
+- `capacity`
+- `rsvp_count`
+- `attending_count`
+- `not_attending_count`
+
+Rules:
+
+- `operation` is `created` or `updated`
+- do not expose `subject_sk`
+- do not expose raw DynamoDB keys
+- do not expose GSI helper fields
+- `not_attending_count` is allowed here even though it remains hidden from the public event DTO used by event-read handlers
+
+Anonymous success uses:
+
+- `subject.type = ANON`
+- `subject.user_id = null`
+- `subject.anonymous = true`
+
+Authenticated success uses:
+
+- `subject.type = USER`
+- `subject.user_id = <caller user_id>`
+- `subject.anonymous = false`
+
+#### Internal implementation notes for future async integration
+
+The handler should internally distinguish:
+
+- actor
+- RSVP subject
+
+The handler should also internally classify the change outcome, for example:
+
+- created attending
+- created not attending
+- changed to attending
+- changed to not attending
+- unchanged attending
+- unchanged not attending
+
+This should support later domain-event publication without changing the current
+API contract.
+
+#### Status code contract
+
+Locked status codes:
+
+- `200` updated existing RSVP
+- `201` created new RSVP
+- `400` invalid input, cancelled event, past event, full capacity
+- `403` authenticated caller lacks business permission for event type
+- `404` event not found
+- `500` unexpected internal/runtime/data issue
+
+#### Post-commit async rule
+
+All future domain write events are published only after durable business
+commit, and downstream notification delivery failures must not change the
+primary business result.
 
 ### `get-event-rsvps`
 

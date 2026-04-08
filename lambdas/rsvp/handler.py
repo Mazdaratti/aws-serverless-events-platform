@@ -532,6 +532,13 @@ def _build_event_update_transaction_item(
     # The event item is the place where aggregate helper counters live, so the
     # RSVP transaction updates those counters in the same durable write that
     # stores the canonical RSVP item.
+    expression_attribute_names = {
+        "#status": "status",
+    }
+
+    if change["seat_consuming_write"] and event_state["capacity"] is not None:
+        expression_attribute_names["#attending_count"] = "attending_count"
+
     return {
         "Update": {
             "TableName": table_name,
@@ -545,10 +552,7 @@ def _build_event_update_transaction_item(
                 seat_consuming_write=change["seat_consuming_write"],
                 event_has_capacity=event_state["capacity"] is not None,
             ),
-            "ExpressionAttributeNames": {
-                "#status": "status",
-                "#attending_count": "attending_count",
-            },
+            "ExpressionAttributeNames": expression_attribute_names,
             "ExpressionAttributeValues": _build_event_update_values(
                 change=change,
                 event_state=event_state,

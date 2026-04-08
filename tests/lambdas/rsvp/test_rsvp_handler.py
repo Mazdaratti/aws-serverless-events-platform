@@ -1022,6 +1022,27 @@ def test_build_rsvp_put_transaction_item_uses_previous_state_condition_for_updat
     }
 
 
+def test_build_event_update_transaction_item_omits_attending_name_for_non_seat_consuming_write():
+    """Non-seat-consuming writes must not send unused DynamoDB expression names."""
+    result = handler._build_event_update_transaction_item(
+        table_name="example-events",
+        event_key=build_event_key(),
+        event_state={
+            "capacity": 10,
+        },
+        change={
+            "rsvp_total_delta": 0,
+            "attending_count_delta": 0,
+            "not_attending_count_delta": 0,
+            "seat_consuming_write": False,
+        },
+    )
+
+    assert result["Update"]["ExpressionAttributeNames"] == {
+        "#status": "status",
+    }
+
+
 # transaction failure reclassification
 
 

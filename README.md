@@ -25,9 +25,10 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 ### Current focus
 
 - Core synchronous Lambda rollout is in progress (business-critical write/read paths)
-- `create-event`, `list-events`, `get-event`, `update-event`, and `cancel-event` are implemented, wired in `envs/dev`, and validated in AWS
+- `create-event`, `list-events`, `get-event`, `update-event`, `cancel-event`, and `rsvp` are implemented, wired in `envs/dev`, and validated in AWS
 - `update-event` introduces conditional writes, partial updates, and GSI consistency handling
 - `cancel-event` introduces the first soft-delete lifecycle transition for canonical events
+- `rsvp` introduces the first transactional cross-table business write for RSVP upsert and helper-counter maintenance
 - After completing the remaining core synchronous handlers, the next platform milestone is API Gateway + Cognito
 
 ### Completed milestones
@@ -59,6 +60,9 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - fifth real Lambda workload: `cancel-event` (soft-delete lifecycle transition)
 - `infrastructure/envs/dev` wiring for `cancel-event`
 - validation and AWS deployment evidence for `cancel-event`
+- sixth real Lambda workload: `rsvp` (transactional RSVP upsert and helper-counter maintenance)
+- `infrastructure/envs/dev` wiring for `rsvp`
+- validation and AWS deployment evidence for `rsvp`
 - external Lambda artifact packaging workflow via `scripts/package_lambda.py`
 - Python handler validation for implemented Lambda handlers
 - local `terraform plan` validation for the wired dev environment
@@ -67,7 +71,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Next milestones
 
-- Remaining core synchronous Lambda workloads (`rsvp`, `get-event-rsvps`)
+- Remaining core synchronous Lambda workloads (`get-event-rsvps`)
 - API Gateway + Cognito authentication
 - Edge delivery layer (S3 + CloudFront + WAF)
 - EventBridge + SNS integration
@@ -262,7 +266,7 @@ Planned implementation sequence:
    - `get-event` ✅
    - `update-event` ✅
    - `cancel-event` ✅
-   - `rsvp`
+   - `rsvp` ✅
    - `get-event-rsvps`
 7. API Gateway and Cognito authentication
 8. Frontend S3 hosting, CloudFront distribution, WAF protection

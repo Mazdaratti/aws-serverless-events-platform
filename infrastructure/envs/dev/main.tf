@@ -132,9 +132,14 @@ module "lambda" {
       package_path = abspath("${path.module}/../../../artifacts/lambda/${function_key}.zip")
       memory_size  = 256
       timeout      = 10
-      environment_variables = {
-        EVENTS_TABLE_NAME = module.dynamodb_data_layer.events_table_name
-      }
+      environment_variables = merge(
+        {
+          EVENTS_TABLE_NAME = module.dynamodb_data_layer.events_table_name
+        },
+        function_key == "rsvp" ? {
+          RSVPS_TABLE_NAME = module.dynamodb_data_layer.rsvps_table_name
+        } : {}
+      )
       log_retention_in_days = 14
     }
   }

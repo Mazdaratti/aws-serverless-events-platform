@@ -254,6 +254,7 @@ This environment currently wires in:
   - `list-events`
   - `update-event`
   - `cancel-event`
+  - `rsvp`
 
 Why this module is wired now:
 
@@ -273,8 +274,10 @@ Important design notes:
 - the deployed `list-events` function uses the existing least-privilege IAM `list-events` role
 - the deployed `update-event` function uses the existing least-privilege IAM `update-event` role
 - the deployed `cancel-event` function uses the existing least-privilege IAM `cancel-event` role
+- the deployed `rsvp` function uses the existing least-privilege IAM `rsvp` role
 - each deployed function receives only the environment variables it actually needs:
   - `EVENTS_TABLE_NAME`
+  - `rsvp` also receives `RSVPS_TABLE_NAME`
 - all deployed functions return an API Gateway-style wrapped response even before API Gateway is wired
 - event creation is authenticated-only in the current platform contract
 - event ownership is derived from caller context rather than a request-body `creator_id`
@@ -282,6 +285,15 @@ Important design notes:
 - single-item event reads are intentionally public in the current platform contract
 - broad event listing remains intentionally available through `mode=all`
 - creator-scoped event listing uses `mode=mine` with caller identity from `requestContext.authorizer.user_id`
+- RSVP authorization depends on event type:
+  - public events allow anonymous and authenticated RSVP
+  - protected events require authentication
+  - admin-only events require an authenticated admin caller
+- RSVP writes remain synchronous and transactional across the `events` and `rsvps` tables
+- RSVP responses expose the public RSVP contract:
+  - `item`
+  - `event_summary`
+  - `operation`
 
 Current business behavior validated in this step:
 
@@ -311,6 +323,14 @@ Current business behavior validated in this step:
 - repeated cancel returns `200` idempotently
 - cancelling an event sets `status = CANCELLED`
 - cancelling an event removes public discovery helper attributes while preserving creator visibility helpers
+- direct successful anonymous RSVP to a public event returns `201`
+- same-subject RSVP overwrite returns `200` with `operation = "updated"`
+- anonymous RSVP to a protected event returns `403`
+- authenticated RSVP to a protected event succeeds
+- non-admin RSVP to an admin-only event returns `403`
+- full-capacity attending RSVP returns `400`
+- not-attending RSVP is still allowed for a full event
+- cancelled events reject RSVP with `400`
 - partial updates preserve omitted mutable fields (no implicit overwrites)
 - API Gateway-style body input is supported for `update-event`
 - `body` takes precedence over top-level mutable fields for `update-event`
@@ -387,6 +407,18 @@ Validation:
 - confirmed returned cancelled items use the locked public event DTO under `item`
 - confirmed returned cancelled items include `status = CANCELLED`
 - confirmed cancel removes public GSI helper attributes while preserving creator visibility helpers in storage
+- confirmed the deployed function name is `aws-serverless-events-platform-dev-rsvp`
+- confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-rsvp`
+- confirmed successful anonymous RSVP to a public event returns `201`
+- confirmed same-subject overwrite returns `200` with `operation = "updated"`
+- confirmed protected-event anonymous RSVP returns `403`
+- confirmed admin-only RSVP by a non-admin caller returns `403`
+- confirmed full-capacity attending RSVP returns `400`
+- confirmed full-capacity not-attending RSVP still succeeds
+- confirmed cancelled events reject RSVP with `400`
+- confirmed RSVP writes the expected canonical item shape into the `rsvps` table
+- confirmed RSVP updates helper counters on the canonical event item in DynamoDB
+- confirmed RSVP responses hide internal storage fields and expose the locked public RSVP contract
 - confirmed Terraform outputs match the created Lambda and log group identities
 - see evidence screenshots under `docs/assets/lambda/`
 

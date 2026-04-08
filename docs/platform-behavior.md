@@ -968,6 +968,26 @@ All future domain write events are published only after durable business
 commit, and downstream notification delivery failures must not change the
 primary business result.
 
+#### Current implementation note
+
+The deployed `rsvp` Lambda now validates the locked RSVP write contract in
+`dev`:
+
+- direct and API Gateway-style request input are both supported
+- public events allow anonymous and authenticated RSVP
+- protected events require authentication
+- admin-only events require an authenticated admin caller
+- missing events return `404`
+- cancelled events return `400`
+- past events return `400`
+- full-capacity attending writes return `400`
+- same-subject overwrites preserve `created_at`, refresh `updated_at`, and keep counters stable when the RSVP value is unchanged
+- RSVP writes are committed transactionally across the `events` and `rsvps` tables
+- successful responses return the locked public RSVP contract:
+  - `item`
+  - `event_summary`
+  - `operation`
+
 ### `get-event-rsvps`
 
 The old monolith/OpenAPI contract exposed this broadly, but the final platform

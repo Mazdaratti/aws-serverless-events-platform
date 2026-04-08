@@ -40,5 +40,9 @@ locals {
     cancel-event = {
       description = "Soft-deletes a canonical event record by setting status to CANCELLED and removing public discovery helpers."
     }
+
+    rsvp = {
+      description = "Writes transactional RSVP state for one event and subject while keeping helper counters correct."
+    }
   }
 }

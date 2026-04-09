@@ -18,6 +18,7 @@ This module currently creates one IAM role and one customer-managed IAM policy p
 - `update-event`
 - `cancel-event`
 - `rsvp`
+- `get-event-rsvps`
 - `notification-worker`
 
 Each role uses the Lambda service trust relationship, and each role receives its own workload-specific least-privilege policy.
@@ -62,6 +63,7 @@ The current workload set is aligned to the repository's architecture and placeho
 - `update-event`
 - `cancel-event`
 - `rsvp`
+- `get-event-rsvps`
 - `notification-worker`
 
 ---
@@ -177,6 +179,30 @@ That boundary matters because the locked architecture keeps RSVP in the synchron
 
 Asynchronous processing begins only after the durable state change.
 
+### `get-event-rsvps`
+
+This role is intended for the Lambda that reads one event's RSVP list for the
+event creator or an admin.
+
+It currently receives:
+
+- CloudWatch Logs write permissions
+- optional X-Ray write permissions
+- narrow DynamoDB `GetItem` access for the `events` table
+- narrow DynamoDB `Query` access for the `rsvps` table
+
+This role stays read-only on purpose.
+
+The handler flow first reads the canonical event item to apply existence and
+authorization rules, then queries one event-scoped RSVP page. It does not
+currently need:
+
+- `PutItem`
+- `UpdateItem`
+- `Scan`
+- GSI access
+- SQS access
+
 ### `notification-worker`
 
 This role is intended for the first async notification worker.
@@ -262,24 +288,22 @@ The example shows how to:
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.14.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.37 |
 
 ## Providers
 
 | Name | Version |
-|------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.39.0 |
+| ---- | ------- |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.40.0 |
 
-## Modules
 
-No modules.
 
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [aws_iam_policy.workload](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
 | [aws_iam_role.workload](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
 | [aws_iam_role_policy_attachment.workload](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
@@ -292,18 +316,18 @@ No modules.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_events_table_arn"></a> [events\_table\_arn](#input\_events\_table\_arn) | ARN of the DynamoDB events table used by workload-specific IAM policies. | `string` | n/a | yes |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Shared environment naming prefix used to derive IAM role and policy names. | `string` | n/a | yes |
 | <a name="input_notification_dispatch_queue_arn"></a> [notification\_dispatch\_queue\_arn](#input\_notification\_dispatch\_queue\_arn) | ARN of the notification-dispatch SQS queue used by the notification worker IAM policy. | `string` | n/a | yes |
 | <a name="input_rsvps_table_arn"></a> [rsvps\_table\_arn](#input\_rsvps\_table\_arn) | ARN of the DynamoDB RSVP table used by workload-specific IAM policies. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
-| <a name="input_workloads"></a> [workloads](#input\_workloads) | Map of Lambda workload role definitions keyed by logical workload name.<br/><br/>Supported workload keys in v1:<br/>- create-event<br/>- get-event<br/>- list-events<br/>- update-event<br/>- cancel-event<br/>- rsvp<br/>- notification-worker | <pre>map(object({<br/>    access_profile = string<br/>    enable_logs    = optional(bool)<br/>    enable_xray    = optional(bool)<br/>  }))</pre> | n/a | yes |
+| <a name="input_workloads"></a> [workloads](#input\_workloads) | Map of Lambda workload role definitions keyed by logical workload name.<br/><br/>Supported workload keys in v1:<br/>- create-event<br/>- get-event<br/>- list-events<br/>- update-event<br/>- cancel-event<br/>- rsvp<br/>- get-event-rsvps<br/>- notification-worker | <pre>map(object({<br/>    access_profile = string<br/>    enable_logs    = optional(bool)<br/>    enable_xray    = optional(bool)<br/>  }))</pre> | n/a | yes |
 
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_role_arns"></a> [role\_arns](#output\_role\_arns) | Map of logical workload key to rendered IAM role ARN. |
 | <a name="output_role_names"></a> [role\_names](#output\_role\_names) | Map of logical workload key to rendered IAM role name. |
 <!-- END_TF_DOCS -->

@@ -35,6 +35,7 @@ locals {
   # Each access profile expands to a fixed least-privilege intent. The concrete
   # IAM actions will be generated from this profile data in main.tf.
   access_profiles = {
+    # Create-event performs one canonical event write and nothing broader.
     create_event = {
       dynamodb_table_arns = [var.events_table_arn]
       sqs_queue_arns      = []
@@ -43,6 +44,7 @@ locals {
       temporary_scan      = false
     }
 
+    # Get-event is a single-record public read by primary key.
     get_event = {
       dynamodb_table_arns = [var.events_table_arn]
       sqs_queue_arns      = []
@@ -51,6 +53,8 @@ locals {
       temporary_scan      = false
     }
 
+    # List-events needs read access for both direct item reads and the current
+    # temporary broad-list scan path.
     list_events = {
       dynamodb_table_arns = [var.events_table_arn]
       sqs_queue_arns      = []
@@ -59,6 +63,8 @@ locals {
       temporary_scan      = true
     }
 
+    # Update-event reads one canonical event, then performs a conditional
+    # partial update on that same item.
     update_event = {
       dynamodb_table_arns = [var.events_table_arn]
       sqs_queue_arns      = []
@@ -67,6 +73,8 @@ locals {
       temporary_scan      = false
     }
 
+    # Cancel-event reads one canonical event, then performs a conditional
+    # lifecycle update on that same item.
     cancel_event = {
       dynamodb_table_arns = [var.events_table_arn]
       sqs_queue_arns      = []
@@ -75,6 +83,8 @@ locals {
       temporary_scan      = false
     }
 
+    # RSVP is the first transactional cross-table write path, so it spans both
+    # business tables and keeps helper counters consistent.
     rsvp_transaction = {
       dynamodb_table_arns = [
         var.events_table_arn,
@@ -86,6 +96,21 @@ locals {
       temporary_scan = false
     }
 
+    # Get-event-rsvps reads the canonical event first for existence and
+    # authorization, then queries one event-scoped RSVP page.
+    get_event_rsvps = {
+      dynamodb_table_arns = [
+        var.events_table_arn,
+        var.rsvps_table_arn
+      ]
+      sqs_queue_arns = []
+      include_logs   = true
+      include_xray   = false
+      temporary_scan = false
+    }
+
+    # Notification-worker is intentionally isolated to asynchronous queue
+    # consumption rather than synchronous business-table access.
     notification_consume = {
       dynamodb_table_arns = []
       sqs_queue_arns      = [var.notification_dispatch_queue_arn]

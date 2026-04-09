@@ -1185,44 +1185,31 @@ Locked status codes:
 - `404` event not found
 - `500` unexpected internal/runtime/data issue
 
----
+#### Current implementation note
 
-## OpenAPI Reference Alignment
+The deployed `get-event-rsvps` Lambda now validates the locked RSVP read
+contract in `dev`:
 
-The older reference OpenAPI currently establishes these broad directions:
+- direct invocation and API Gateway-style request input are both supported
+- event creator can read RSVP subjects for their own events
+- admin can read RSVP subjects for any event
+- anonymous callers return `403`
+- authenticated non-owner non-admin callers return `403`
+- missing events return `404`
+- existing events with zero RSVPs return `200` with empty `items`
+- cancelled events remain readable to the creator and admins
+- past events remain readable to the creator and admins
+- response bodies return the locked public RSVP read contract:
+  - `event`
+  - `items`
+  - `stats`
+  - `next_cursor`
+- internal storage fields remain hidden from the response
+- pagination uses opaque `next_cursor`
 
-- `GET /api/events` is public
-- `GET /api/events/{event_id}` is public
-- `POST /api/events` requires authentication
-- RSVP access varies by event type
-- `GET /api/rsvps/event/{event_id}` is public in the old contract
+## Lambda Implementation Status
 
-This repository uses that contract as a reference point, not as a requirement
-to preserve every old behavior unchanged.
-
-Where the platform intentionally evolves beyond the older behavior, this
-document should be treated as the newer source of truth.
-
----
-
-## Lambda Set
-
-The currently locked Lambda set is:
-
-- `create-event` ✅
-- `list-events` ✅
-- `get-event` ✅
-- `update-event` ✅
-- `cancel-event` ✅
-- `rsvp` ✅
-- `get-event-rsvps`
-- `notification-worker`
-
----
-
-## Locked Implementation Order
-
-The currently locked Lambda implementation order is:
+The currently locked Lambda set and rollout status are:
 
 1. `create-event` ✅
 2. `list-events` ✅
@@ -1230,10 +1217,10 @@ The currently locked Lambda implementation order is:
 4. `update-event` ✅
 5. `cancel-event` ✅
 6. `rsvp` ✅
-7. `get-event-rsvps`
+7. `get-event-rsvps` ✅
 8. `notification-worker`
 
-This sequence is intentional:
+This sequence remains intentional:
 
 - first create and read basics
 - then ownership-based event management

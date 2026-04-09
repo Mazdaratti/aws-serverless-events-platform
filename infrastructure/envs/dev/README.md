@@ -198,6 +198,7 @@ This environment currently wires in:
 - one execution role for `update-event`
 - one execution role for `cancel-event`
 - one execution role for `rsvp`
+- one execution role for `get-event-rsvps`
 - one execution role for `notification-worker`
 
 Why this module is wired now:
@@ -213,6 +214,9 @@ Important design notes:
 - `update-event` receives narrow `GetItem` + `UpdateItem` access for the events table
 - `cancel-event` receives narrow `GetItem` + `UpdateItem` access for the events table
 - `rsvp` is the special transactional role spanning both DynamoDB business tables
+- `get-event-rsvps` is the read-only RSVP visibility role and receives:
+  - `GetItem` on the `events` table
+  - `Query` on the `rsvps` table
 - `rsvp` intentionally has no SQS permissions
 - only `notification-worker` gets SQS consumer permissions
 - `list-events` currently includes temporary `Scan` access only as a short-term contract accommodation
@@ -230,6 +234,9 @@ Validation:
 - confirmed `update-event` has narrow read/write access for the events table
 - confirmed `cancel-event` has narrow read/write access for the events table
 - confirmed the RSVP policy includes transactional DynamoDB access across both business tables
+- confirmed `get-event-rsvps` has read-only DynamoDB access across the two business tables:
+  - `GetItem` on `events`
+  - `Query` on `rsvps`
 - confirmed only `notification-worker` has SQS consumer permissions
 - confirmed Terraform outputs match the created IAM role identities
 - see evidence screenshots under `docs/assets/iam/`
@@ -246,95 +253,108 @@ Implemented via:
 
 ### Lambda workloads
 
-This environment currently wires in:
+This environment currently wires in these deployed Lambda workloads:
 
-- deployed Lambda workloads:
-  - `create-event`
-  - `get-event`
-  - `list-events`
-  - `update-event`
-  - `cancel-event`
-  - `rsvp`
+- `create-event`
+- `get-event`
+- `list-events`
+- `update-event`
+- `cancel-event`
+- `rsvp`
+- `get-event-rsvps`
 
 Why this module is wired now:
 
 - the platform now has the minimum supporting layers needed for real compute:
   - DynamoDB business tables
   - workload IAM roles
-- the platform can now validate the first real business write path and multiple
-  real business read paths end to end in AWS
+- the platform can validate both synchronous write paths and multiple read paths end to end in AWS
 - packaging stays outside Terraform, while deployment stays inside the reusable Lambda module
 
 Important design notes:
 
 - the Lambda module remains infrastructure-focused and consumes a prepared ZIP artifact
 - `envs/dev` stays thin and composition-only
-- the deployed `create-event` function uses the existing least-privilege IAM `create-event` role
-- the deployed `get-event` function uses the existing least-privilege IAM `get-event` role
-- the deployed `list-events` function uses the existing least-privilege IAM `list-events` role
-- the deployed `update-event` function uses the existing least-privilege IAM `update-event` role
-- the deployed `cancel-event` function uses the existing least-privilege IAM `cancel-event` role
-- the deployed `rsvp` function uses the existing least-privilege IAM `rsvp` role
+- each deployed function uses its matching least-privilege IAM role
 - each deployed function receives only the environment variables it actually needs:
-  - `EVENTS_TABLE_NAME`
-  - `rsvp` also receives `RSVPS_TABLE_NAME`
+  - all current Lambda workloads receive `EVENTS_TABLE_NAME`
+  - `rsvp` and `get-event-rsvps` also receive `RSVPS_TABLE_NAME`
 - all deployed functions return an API Gateway-style wrapped response even before API Gateway is wired
-- event creation is authenticated-only in the current platform contract
-- event ownership is derived from caller context rather than a request-body `creator_id`
-- admin-only events require admin caller context
-- single-item event reads are intentionally public in the current platform contract
-- broad event listing remains intentionally available through `mode=all`
-- creator-scoped event listing uses `mode=mine` with caller identity from `requestContext.authorizer.user_id`
-- RSVP authorization depends on event type:
+- reusable AWS resource logic belongs in modules
+- packaging is prepared before Terraform
+
+Current business behavior validated in this environment:
+
+- `create-event`
+  - authenticated event creation succeeds
+  - non-admin admin-only creation is rejected
+  - canonical event items are written with `status = ACTIVE`
+  - request-body `creator_id` spoofing is ignored in favor of caller-context ownership
+  - public events populate the public upcoming GSI, while non-public events omit those helper attributes
+- `list-events`
+  - `mode=all` succeeds
+  - `mode=mine` succeeds with caller context
+  - `mode=mine` without caller context returns `400`
+  - returned items use the locked public event DTO and hide internal storage helper fields
+  - `mode=all` excludes cancelled events during the current scan-based phase
+  - `mode=mine` still includes cancelled owner events
+- `get-event`
+  - successful single-item lookup returns `200`
+  - missing event returns `404`
+  - single-item reads do not require caller context
+  - returned items use the locked public event DTO under `item`
+  - direct DynamoDB `GetItem` lookup is used by canonical `event_pk`
+- `update-event`
+  - creator-owned and admin updates succeed
+  - unauthorized updates return `403`
+  - invalid update input returns `400`
+  - capacity reductions below current `attending_count` return `400`
+  - cancelled events cannot be updated
+  - direct invocation and API Gateway-style body input both work
+  - partial updates preserve omitted mutable fields
+  - returned updated items use the locked public event DTO under `item`
+- `cancel-event`
+  - creator-owned cancel succeeds
+  - unauthorized cancel returns `403`
+  - repeated cancel returns `200`
+  - cancelled items use the locked public event DTO under `item`
+  - `status = CANCELLED` is returned
+  - public GSI helper attributes are removed while creator visibility helpers remain in storage
+- `rsvp`
   - public events allow anonymous and authenticated RSVP
   - protected events require authentication
   - admin-only events require an authenticated admin caller
-- RSVP writes remain synchronous and transactional across the `events` and `rsvps` tables
-- RSVP responses expose the public RSVP contract:
-  - `item`
-  - `event_summary`
-  - `operation`
+  - successful anonymous RSVP to a public event returns `201`
+  - same-subject overwrite returns `200` with `operation = "updated"`
+  - protected-event anonymous RSVP returns `403`
+  - admin-only RSVP by a non-admin caller returns `403`
+  - full-capacity attending RSVP returns `400`
+  - full-capacity not-attending RSVP still succeeds
+  - cancelled events reject RSVP with `400`
+  - RSVP writes remain synchronous and transactional across the `events` and `rsvps` tables
+  - responses expose the locked public RSVP contract:
+    - `item`
+    - `event_summary`
+    - `operation`
+- `get-event-rsvps`
+  - creator-owned RSVP reads return `200`
+  - admin RSVP reads return `200`
+  - anonymous and non-owner non-admin callers are rejected with `403`
+  - missing events return `404`
+  - request resolution supports:
+    - direct invocation input
+    - API Gateway-style `pathParameters` and `queryStringParameters`
+  - response body uses the locked public RSVP read contract:
+    - `event`
+    - `items`
+    - `stats`
+    - `next_cursor`
+  - internal storage fields stay hidden from the response
+  - cancelled and past events remain readable for the creator and admins
+  - pagination works through opaque `next_cursor`
 
-Current business behavior validated in this step:
+Public event DTO behavior validated across the event read/update/cancel flows:
 
-- direct successful creation of a public event by an authenticated caller
-- direct successful creation of a protected event by an authenticated caller
-- direct successful creation of an admin-only event by an admin caller
-- canonical event item write into the `events` table
-- new canonical event records include `status = ACTIVE`
-- request-body `creator_id` spoofing is ignored in favor of caller-context ownership
-- non-admin callers are rejected when attempting to create admin-only events
-- sparse public GSI behavior:
-  - public events are written to the public upcoming index
-  - non-public events omit the public index attributes
-- direct successful broad event listing through `mode=all`
-- direct successful creator-scoped event listing through `mode=mine`
-- `mine` mode without caller context returns `400`
-- direct successful single-item event read through `event_id`
-- missing single-item event read returns `404`
-- single-item event read does not require caller context
-- direct successful partial event update by the event creator
-- direct successful partial event update by an admin caller
-- unauthorized partial event update returns `403`
-- invalid partial update input returns `400`
-- capacity reductions below current `attending_count` return `400`
-- direct successful event cancellation by the event creator
-- unauthorized cancel attempt returns `403`
-- repeated cancel returns `200` idempotently
-- cancelling an event sets `status = CANCELLED`
-- cancelling an event removes public discovery helper attributes while preserving creator visibility helpers
-- direct successful anonymous RSVP to a public event returns `201`
-- same-subject RSVP overwrite returns `200` with `operation = "updated"`
-- anonymous RSVP to a protected event returns `403`
-- authenticated RSVP to a protected event succeeds
-- non-admin RSVP to an admin-only event returns `403`
-- full-capacity attending RSVP returns `400`
-- not-attending RSVP is still allowed for a full event
-- cancelled events reject RSVP with `400`
-- partial updates preserve omitted mutable fields (no implicit overwrites)
-- API Gateway-style body input is supported for `update-event`
-- `body` takes precedence over top-level mutable fields for `update-event`
-- `pathParameters.event_id` takes precedence over top-level `event_id` for `update-event`
 - returned event items use the locked public DTO contract:
   - `event_id`
   - `status`
@@ -349,76 +369,21 @@ Current business behavior validated in this step:
   - `created_at`
   - `rsvp_count`
   - `attending_count`
-- internal GSI helper fields and `not_attending_count` stay hidden from the response shape
+- internal GSI helper fields and `not_attending_count` stay hidden from the public event response shape
 - `capacity = null` is preserved for unlimited-capacity events
 - frontend is expected to render user-friendly timestamp formatting from backend-provided ISO UTC timestamps
-- `get-event` uses direct DynamoDB `GetItem` lookup by canonical `event_pk`
-
-The environment should stay thin:
-
-- reusable AWS resource logic belongs in modules
-- packaging is prepared before Terraform
-- `envs/dev` should focus on composition and environment-level identity and placement inputs
 
 Validation:
 
 - validated via external artifact packaging, `terraform apply`, Lambda invocation, DynamoDB inspection, CloudWatch logs inspection, and a clean post-apply `terraform plan`
-- confirmed the deployed function name is `aws-serverless-events-platform-dev-create-event`
-- confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-create-event`
-- confirmed successful authenticated invocation returns `201` with the wrapped response body
-- confirmed the returned create-event `item` uses the locked public event DTO
-- confirmed returned created items include `status = ACTIVE`
-- confirmed missing caller context returns `400`
-- confirmed non-admin admin-only creation returns `400`
-- confirmed the Lambda writes the expected canonical event item shape into DynamoDB
-- confirmed stored created event items include `status = ACTIVE`
-- confirmed `creator_id` is derived from caller context
-- confirmed non-public events omit the public GSI attributes
-- confirmed the deployed function name is `aws-serverless-events-platform-dev-get-event`
-- confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-get-event`
-- confirmed successful single-item invocation returns `200`
-- confirmed missing item invocation returns `404`
-- confirmed single-item reads do not require caller context
-- confirmed returned items use the locked public event DTO under `item`
-- confirmed the deployed function name is `aws-serverless-events-platform-dev-list-events`
-- confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-list-events`
-- confirmed successful `mode=all` invocation returns `200`
-- confirmed successful `mode=mine` invocation returns `200`
-- confirmed `mode=mine` without caller context returns `400`
-- confirmed returned items use the locked public event DTO and hide internal storage helper fields
-- confirmed `mode=all` excludes cancelled events during the current scan-based phase
-- confirmed `mode=mine` still includes cancelled owner events
-- confirmed the deployed function name is `aws-serverless-events-platform-dev-update-event`
-- confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-update-event`
-- confirmed successful creator-owned partial update returns `200`
-- confirmed unauthorized partial update returns `403`
-- confirmed invalid capacity reduction returns `400`
-- confirmed `status` is rejected as immutable update input with `400`
-- confirmed cancelled events cannot be updated and return `400`
-- confirmed conditional write protection (DynamoDB `ConditionExpression`) prevents capacity race conditions
-- confirmed direct invocation and API Gateway-style body input both work for `update-event`
-- confirmed returned updated items use the locked public event DTO under `item`
-- confirmed internal storage helper fields remain hidden from updated responses
-- confirmed the deployed function name is `aws-serverless-events-platform-dev-cancel-event`
-- confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-cancel-event`
-- confirmed successful creator-owned cancel returns `200`
-- confirmed unauthorized cancel returns `403`
-- confirmed repeated cancel returns `200`
-- confirmed returned cancelled items use the locked public event DTO under `item`
-- confirmed returned cancelled items include `status = CANCELLED`
-- confirmed cancel removes public GSI helper attributes while preserving creator visibility helpers in storage
-- confirmed the deployed function name is `aws-serverless-events-platform-dev-rsvp`
-- confirmed the log group is `/aws/lambda/aws-serverless-events-platform-dev-rsvp`
-- confirmed successful anonymous RSVP to a public event returns `201`
-- confirmed same-subject overwrite returns `200` with `operation = "updated"`
-- confirmed protected-event anonymous RSVP returns `403`
-- confirmed admin-only RSVP by a non-admin caller returns `403`
-- confirmed full-capacity attending RSVP returns `400`
-- confirmed full-capacity not-attending RSVP still succeeds
-- confirmed cancelled events reject RSVP with `400`
-- confirmed RSVP writes the expected canonical item shape into the `rsvps` table
-- confirmed RSVP updates helper counters on the canonical event item in DynamoDB
-- confirmed RSVP responses hide internal storage fields and expose the locked public RSVP contract
+- confirmed deployed function names and log groups for:
+  - `create-event`
+  - `get-event`
+  - `list-events`
+  - `update-event`
+  - `cancel-event`
+  - `rsvp`
+  - `get-event-rsvps`
 - confirmed Terraform outputs match the created Lambda and log group identities
 - see evidence screenshots under `docs/assets/lambda/`
 
@@ -428,40 +393,36 @@ Validation:
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.14.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.37 |
 
-## Providers
 
-No providers.
 
 ## Modules
 
 | Name | Source | Version |
-|------|--------|---------|
+| ---- | ------ | ------- |
 | <a name="module_dynamodb_data_layer"></a> [dynamodb\_data\_layer](#module\_dynamodb\_data\_layer) | ../../modules/dynamodb_data_layer | n/a |
 | <a name="module_iam"></a> [iam](#module\_iam) | ../../modules/iam | n/a |
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
 | <a name="module_sqs"></a> [sqs](#module\_sqs) | ../../modules/sqs | n/a |
 
-## Resources
 
-No resources.
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region where resources will be deployed. | `string` | n/a | yes |
-| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 | <a name="input_environment"></a> [environment](#input\_environment) | Deployment environment name. | `string` | n/a | yes |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Project name used for naming and tagging resources. | `string` | n/a | yes |
+| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_events_table_arn"></a> [events\_table\_arn](#output\_events\_table\_arn) | ARN of the DynamoDB events table created for the dev environment. |
 | <a name="output_events_table_name"></a> [events\_table\_name](#output\_events\_table\_name) | Name of the DynamoDB events table created for the dev environment. |
 | <a name="output_iam_role_arns"></a> [iam\_role\_arns](#output\_iam\_role\_arns) | Map of workload IAM role ARNs for the dev environment. |

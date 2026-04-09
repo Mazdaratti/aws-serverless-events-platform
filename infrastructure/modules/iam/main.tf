@@ -171,23 +171,82 @@ data "aws_iam_policy_document" "workload" {
     for_each = each.value.access_profile == "rsvp_transaction" ? [1] : []
 
     content {
-      sid    = "RsvpTransactionalDynamoAccess"
+      sid    = "RsvpReadUpdateEventsTable"
       effect = "Allow"
 
       actions = [
         "dynamodb:GetItem",
-        "dynamodb:PutItem",
-        "dynamodb:Query",
-        "dynamodb:TransactWriteItems",
         "dynamodb:UpdateItem"
       ]
 
-      resources = [
-        var.events_table_arn,
-        "${var.events_table_arn}/index/*",
-        var.rsvps_table_arn,
-        "${var.rsvps_table_arn}/index/*"
+      # The handler reads the canonical event item first, and the transaction
+      # later updates counters on the events table. No index access is needed.
+      resources = [var.events_table_arn]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = each.value.access_profile == "rsvp_transaction" ? [1] : []
+
+    content {
+      sid    = "RsvpReadWriteRsvpsTable"
+      effect = "Allow"
+
+      actions = [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem"
       ]
+
+      # The handler reads the current RSVP subject record and writes the
+      # canonical RSVP item back to the base RSVP table.
+      resources = [var.rsvps_table_arn]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = each.value.access_profile == "rsvp_transaction" ? [1] : []
+
+    content {
+      sid    = "RsvpTransactionalWrite"
+      effect = "Allow"
+
+      actions = ["dynamodb:TransactWriteItems"]
+
+      # DynamoDB authorizes TransactWriteItems at the API level, so this
+      # permission remains wildcarded even though the handler itself touches
+      # only the events and RSVP tables above.
+      resources = ["*"]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = each.value.access_profile == "get_event_rsvps" ? [1] : []
+
+    content {
+      sid    = "GetEventRsvpsReadEvent"
+      effect = "Allow"
+
+      actions = ["dynamodb:GetItem"]
+
+      # The read flow starts by fetching the one canonical event item so the
+      # handler can apply existence and creator/admin authorization rules.
+      resources = [var.events_table_arn]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = each.value.access_profile == "get_event_rsvps" ? [1] : []
+
+    content {
+      sid    = "GetEventRsvpsQueryRsvps"
+      effect = "Allow"
+
+      actions = ["dynamodb:Query"]
+
+      # After the event read succeeds, the handler queries RSVP items directly
+      # from the base RSVP table by event_pk. No write, scan, or index access
+      # is needed for this phase.
+      resources = [var.rsvps_table_arn]
     }
   }
 

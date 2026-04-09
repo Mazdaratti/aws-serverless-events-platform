@@ -103,6 +103,10 @@ module "iam" {
       access_profile = "rsvp_transaction"
     }
 
+    get-event-rsvps = {
+      access_profile = "get_event_rsvps"
+    }
+
     notification-worker = {
       access_profile = "notification_consume"
     }
@@ -136,7 +140,7 @@ module "lambda" {
         {
           EVENTS_TABLE_NAME = module.dynamodb_data_layer.events_table_name
         },
-        function_key == "rsvp" ? {
+        contains(["rsvp", "get-event-rsvps"], function_key) ? {
           RSVPS_TABLE_NAME = module.dynamodb_data_layer.rsvps_table_name
         } : {}
       )

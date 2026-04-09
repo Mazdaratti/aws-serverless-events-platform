@@ -990,61 +990,237 @@ The deployed `rsvp` Lambda now validates the locked RSVP write contract in
 
 ### `get-event-rsvps`
 
-The old monolith/OpenAPI contract exposed this broadly, but the final platform
-visibility policy for event RSVP reads is still open.
+The old monolith/OpenAPI contract exposed this broadly, but the current
+platform deliberately narrows RSVP-read visibility to the operational users who
+actually need subject-level attendee visibility.
 
-That final read-policy decision should be locked later when the RSVP read side
-is implemented.
+#### Access rule
 
----
+Allowed:
 
-## OpenAPI Reference Alignment
+- event creator for their own event
+- admin for any event
 
-The older reference OpenAPI currently establishes these broad directions:
+Rejected:
 
-- `GET /api/events` is public
-- `GET /api/events/{event_id}` is public
-- `POST /api/events` requires authentication
-- RSVP access varies by event type
-- `GET /api/rsvps/event/{event_id}` is public in the old contract
+- anonymous caller
+- authenticated non-owner non-admin caller
 
-This repository uses that contract as a reference point, not as a requirement
-to preserve every old behavior unchanged.
+Unauthorized access returns `403`, not `404`, when the event exists.
 
-Where the platform intentionally evolves beyond the older behavior, this
-document should be treated as the newer source of truth.
+#### Existence and authorization order
 
----
+Use this exact order:
 
-## Lambda Set
+1. resolve and validate `event_id`
+2. `GetItem` on `events`
+3. if missing: `404`
+4. if present but caller not allowed: `403`
+5. if allowed: query `rsvps`
 
-The currently locked Lambda set is:
+This keeps the handler operationally useful for creators and admin callers while
+matching the current ownership/admin authorization direction used elsewhere in
+the platform.
 
-- `create-event` ✅
-- `list-events` ✅
-- `get-event` ✅
-- `update-event` ✅
-- `cancel-event`
-- `rsvp`
-- `get-event-rsvps`
-- `notification-worker`
+#### Lifecycle behavior
 
----
+Readable:
 
-## Locked Implementation Order
+- `ACTIVE`
+- `CANCELLED`
+- past events
 
-The currently locked Lambda implementation order is:
+This is a read/reporting operation, not a write path, so cancelled and past
+events still expose RSVP lists to the creator and admins.
+
+#### Request contract
+
+Support both:
+
+- direct invocation payload
+- API Gateway-style `pathParameters` + `queryStringParameters`
+
+Resolved inputs are:
+
+- `event_id`
+  - resolution order:
+    1. `pathParameters.event_id`
+    2. top-level `event_id`
+- `limit`
+  - resolution order:
+    1. `queryStringParameters.limit`
+    2. top-level `limit`
+- `next_cursor`
+  - resolution order:
+    1. `queryStringParameters.next_cursor`
+    2. top-level `next_cursor`
+
+Validation rules:
+
+- `event_id` is required
+- `event_id` must be a trimmed non-empty string
+- `event_id` must use the public identifier, not internal `EVENT#...` form
+- `limit` is optional
+- `next_cursor` is optional and must be an opaque string when provided
+
+#### Pagination contract
+
+Pagination is included now to avoid later contract churn on an event-scoped
+query path.
+
+Rules:
+
+- default limit: `50`
+- max limit: `100`
+- `next_cursor` is an opaque string derived from DynamoDB `LastEvaluatedKey`
+- the public contract must not expose raw DynamoDB key structure directly
+
+Do not add filtering, sorting options, or attendee search in this phase.
+
+#### Read model
+
+Use this exact read model:
+
+1. `GetItem` from `events`
+2. authorize against that canonical event
+3. `Query` `rsvps` where:
+   - `event_pk = EVENT#<event_id>`
+4. paginate using `ExclusiveStartKey`
+
+Ascending default DynamoDB sort order is acceptable for now.
+
+Do not add an RSVP GSI for this step. The existing RSVP table shape is already
+efficient for per-event reads.
+
+#### Stats source
+
+Global RSVP stats come from the canonical event helper counters:
+
+- `rsvp_total`
+- `attending_count`
+- `not_attending_count`
+
+Do not recalculate totals from the queried page.
+
+This keeps the read efficient and prevents page-local item counts from
+masquerading as global event totals.
+
+#### Empty RSVP behavior
+
+An existing event with zero RSVPs returns:
+
+- `200`
+- `items: []`
+- `stats.total = 0`
+- `stats.attending = 0`
+- `stats.not_attending = 0`
+- `next_cursor = null`
+
+This is not a not-found or special-case failure.
+
+#### Response contract
+
+The Lambda returns the standard API Gateway-style wrapper.
+
+Success body shape:
+
+- `event`
+- `items`
+- `stats`
+- `next_cursor`
+
+Locked `event` summary fields:
+
+- `event_id`
+- `status`
+- `title`
+- `date`
+- `capacity`
+- `created_by`
+- `rsvp_count`
+- `attending_count`
+
+Each RSVP item includes:
+
+- `subject`
+- `attending`
+- `created_at`
+- `updated_at`
+
+`subject` rules:
+
+- authenticated RSVP:
+  - `type = USER`
+  - `user_id = <stored user_id>`
+  - `anonymous = false`
+- anonymous RSVP:
+  - `type = ANON`
+  - `user_id = null`
+  - `anonymous = true`
+
+`stats` includes:
+
+- `total`
+- `attending`
+- `not_attending`
+
+#### Hidden fields
+
+Never expose:
+
+- `subject_sk`
+- `anonymous_token`
+- `event_pk`
+- raw DynamoDB keys
+- helper GSI attributes
+- internal storage-only fields
+
+#### Status code contract
+
+Locked status codes:
+
+- `200` success
+- `400` invalid input
+- `403` caller is not allowed to view RSVP subjects for the event
+- `404` event not found
+- `500` unexpected internal/runtime/data issue
+
+#### Current implementation note
+
+The deployed `get-event-rsvps` Lambda now validates the locked RSVP read
+contract in `dev`:
+
+- direct invocation and API Gateway-style request input are both supported
+- event creator can read RSVP subjects for their own events
+- admin can read RSVP subjects for any event
+- anonymous callers return `403`
+- authenticated non-owner non-admin callers return `403`
+- missing events return `404`
+- existing events with zero RSVPs return `200` with empty `items`
+- cancelled events remain readable to the creator and admins
+- past events remain readable to the creator and admins
+- response bodies return the locked public RSVP read contract:
+  - `event`
+  - `items`
+  - `stats`
+  - `next_cursor`
+- internal storage fields remain hidden from the response
+- pagination uses opaque `next_cursor`
+
+## Lambda Implementation Status
+
+The currently locked Lambda set and rollout status are:
 
 1. `create-event` ✅
 2. `list-events` ✅
 3. `get-event` ✅
 4. `update-event` ✅
-5. `cancel-event`
-6. `rsvp`
-7. `get-event-rsvps`
+5. `cancel-event` ✅
+6. `rsvp` ✅
+7. `get-event-rsvps` ✅
 8. `notification-worker`
 
-This sequence is intentional:
+This sequence remains intentional:
 
 - first create and read basics
 - then ownership-based event management
@@ -1058,11 +1234,7 @@ This sequence is intentional:
 
 The following behaviors are intentionally not fully locked yet:
 
-- final private/admin visibility behavior for `get-event`
-- final visibility policy for `get-event-rsvps`
 - exact account-deletion cleanup semantics
-- implementation details for admin-only event creation beyond the already
-  locked business rule that only admins may create admin-only events
 
 These should be decided in the implementation steps where they become
 immediately relevant.

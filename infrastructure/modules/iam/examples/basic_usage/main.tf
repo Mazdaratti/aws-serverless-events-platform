@@ -126,6 +126,14 @@ module "iam" {
       enable_xray    = false
     }
 
+    # This workload reads the canonical event first and then queries one RSVP
+    # page, so the example includes the matching read-only access profile.
+    get-event-rsvps = {
+      access_profile = "get_event_rsvps"
+      enable_logs    = true
+      enable_xray    = false
+    }
+
     notification-worker = {
       access_profile = "notification_consume"
       enable_logs    = true

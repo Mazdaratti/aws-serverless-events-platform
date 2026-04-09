@@ -44,5 +44,9 @@ locals {
     rsvp = {
       description = "Writes transactional RSVP state for one event and subject while keeping helper counters correct."
     }
+
+    get-event-rsvps = {
+      description = "Reads one event's RSVP list for the creator or an admin using the canonical event-first authorization flow."
+    }
   }
 }

@@ -24,55 +24,68 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Core synchronous Lambda rollout is in progress (business-critical write/read paths)
-- `create-event`, `list-events`, `get-event`, `update-event`, `cancel-event`, and `rsvp` are implemented, wired in `envs/dev`, and validated in AWS
-- `update-event` introduces conditional writes, partial updates, and GSI consistency handling
-- `cancel-event` introduces the first soft-delete lifecycle transition for canonical events
-- `rsvp` introduces the first transactional cross-table business write for RSVP upsert and helper-counter maintenance
-- After completing the remaining core synchronous handlers, the next platform milestone is API Gateway + Cognito
+- API Gateway + Cognito authentication is the current implementation focus
+- the next step is to place authenticated and public HTTP routes in front of the already validated Lambda layer
+- this shifts validation from direct Lambda invocation toward routed API behavior and managed identity enforcement
 
 ### Completed milestones
 
-- AWS account setup and security baseline
-- Repository structure and modular Terraform design
-- API domain contract defined
-- Architecture decision validation
-- `infrastructure/envs/dev` environment foundation
-- `dynamodb_data_layer` module (events + RSVPs tables)
-- `infrastructure/envs/dev` wiring for the DynamoDB data layer
-- `sqs` module (standard queues + optional dedicated DLQs)
-- `infrastructure/envs/dev` wiring for the SQS messaging baseline
-- `iam` module (Lambda execution roles + workload-specific policies)
-- `infrastructure/envs/dev` wiring for the Lambda execution IAM baseline
-- `lambda` module (ZIP-packaged Lambda deployment baseline)
-- first real Lambda workload: `create-event`
-- `infrastructure/envs/dev` wiring for `create-event`
-- validation and AWS deployment evidence for `create-event`
-- second real Lambda workload: `list-events`
-- `infrastructure/envs/dev` wiring for `list-events`
-- validation and AWS deployment evidence for `list-events`
-- third real Lambda workload: `get-event`
-- `infrastructure/envs/dev` wiring for `get-event`
-- validation and AWS deployment evidence for `get-event`
-- fourth real Lambda workload: `update-event` (conditional writes, partial updates, GSI consistency)
-- `infrastructure/envs/dev` wiring for `update-event`
-- validation and AWS deployment evidence for `update-event`
-- fifth real Lambda workload: `cancel-event` (soft-delete lifecycle transition)
-- `infrastructure/envs/dev` wiring for `cancel-event`
-- validation and AWS deployment evidence for `cancel-event`
-- sixth real Lambda workload: `rsvp` (transactional RSVP upsert and helper-counter maintenance)
-- `infrastructure/envs/dev` wiring for `rsvp`
-- validation and AWS deployment evidence for `rsvp`
-- external Lambda artifact packaging workflow via `scripts/package_lambda.py`
-- Python handler validation for implemented Lambda handlers
-- local `terraform plan` validation for the wired dev environment
-- Repository-wide `terraform-docs` configuration
-- Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, and the dev root
+- Platform foundations
+  - AWS account setup and security baseline
+  - repository structure and modular Terraform design
+  - API domain contract defined
+  - architecture decision validation
+- Environment and shared infrastructure
+  - `infrastructure/envs/dev` environment foundation
+  - `dynamodb_data_layer` module (events + RSVPs tables)
+  - `infrastructure/envs/dev` wiring for the DynamoDB data layer
+  - `sqs` module (standard queues + optional dedicated DLQs)
+  - `infrastructure/envs/dev` wiring for the SQS messaging baseline
+  - `iam` module (Lambda execution roles + workload-specific policies)
+  - `infrastructure/envs/dev` wiring for the Lambda execution IAM baseline
+  - `lambda` module (ZIP-packaged Lambda deployment baseline)
+- Core synchronous Lambda rollout
+  - `create-event`
+    - implementation
+    - `envs/dev` wiring
+    - AWS validation and deployment evidence
+  - `list-events`
+    - implementation
+    - `envs/dev` wiring
+    - AWS validation and deployment evidence
+  - `get-event`
+    - implementation
+    - `envs/dev` wiring
+    - AWS validation and deployment evidence
+  - `update-event`
+    - implementation
+    - `envs/dev` wiring
+    - AWS validation and deployment evidence
+    - conditional writes, partial updates, and GSI consistency handling
+  - `cancel-event`
+    - implementation
+    - `envs/dev` wiring
+    - AWS validation and deployment evidence
+    - soft-delete lifecycle transition
+  - `rsvp`
+    - implementation
+    - `envs/dev` wiring
+    - AWS validation and deployment evidence
+    - transactional RSVP upsert and helper-counter maintenance
+  - `get-event-rsvps`
+    - implementation
+    - `envs/dev` wiring
+    - AWS validation and deployment evidence
+    - creator/admin RSVP read path with pagination
+- Validation and developer workflow
+  - external Lambda artifact packaging workflow via `scripts/package_lambda.py`
+  - Python handler validation for implemented Lambda handlers
+  - local `terraform plan` validation for the wired dev environment
+  - repository-wide `terraform-docs` configuration
+  - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, and the dev root
 
 ### Next milestones
 
-- Remaining core synchronous Lambda workloads (`get-event-rsvps`)
-- API Gateway + Cognito authentication
 - Edge delivery layer (S3 + CloudFront + WAF)
 - EventBridge + SNS integration
 - `notification-worker`
@@ -267,7 +280,7 @@ Planned implementation sequence:
    - `update-event` ✅
    - `cancel-event` ✅
    - `rsvp` ✅
-   - `get-event-rsvps`
+   - `get-event-rsvps` ✅
 7. API Gateway and Cognito authentication
 8. Frontend S3 hosting, CloudFront distribution, WAF protection
 9. EventBridge and SNS integration

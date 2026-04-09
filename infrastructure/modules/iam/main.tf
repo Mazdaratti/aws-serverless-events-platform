@@ -192,6 +192,37 @@ data "aws_iam_policy_document" "workload" {
   }
 
   dynamic "statement" {
+    for_each = each.value.access_profile == "get_event_rsvps" ? [1] : []
+
+    content {
+      sid    = "GetEventRsvpsReadEvent"
+      effect = "Allow"
+
+      actions = ["dynamodb:GetItem"]
+
+      # The read flow starts by fetching the one canonical event item so the
+      # handler can apply existence and creator/admin authorization rules.
+      resources = [var.events_table_arn]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = each.value.access_profile == "get_event_rsvps" ? [1] : []
+
+    content {
+      sid    = "GetEventRsvpsQueryRsvps"
+      effect = "Allow"
+
+      actions = ["dynamodb:Query"]
+
+      # After the event read succeeds, the handler queries RSVP items directly
+      # from the base RSVP table by event_pk. No write, scan, or index access
+      # is needed for this phase.
+      resources = [var.rsvps_table_arn]
+    }
+  }
+
+  dynamic "statement" {
     for_each = each.value.access_profile == "notification_consume" ? [1] : []
 
     content {

@@ -25,7 +25,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 ### Current focus
 
 - API Gateway + Cognito authentication is the current implementation focus
-- the next step is to place authenticated and public HTTP routes in front of the already validated Lambda layer
+- Cognito identity infrastructure is now implemented, wired in `envs/dev`, and validated in AWS
+- the next step is to place authenticated and public HTTP routes in front of the already validated Lambda layer and newly validated identity baseline
 - this shifts validation from direct Lambda invocation toward routed API behavior and managed identity enforcement
 
 ### Completed milestones
@@ -44,6 +45,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - `iam` module (Lambda execution roles + workload-specific policies)
   - `infrastructure/envs/dev` wiring for the Lambda execution IAM baseline
   - `lambda` module (ZIP-packaged Lambda deployment baseline)
+  - `cognito` module (managed identity baseline)
+  - `infrastructure/envs/dev` wiring for the Cognito identity baseline
 - Core synchronous Lambda rollout
   - `create-event`
     - implementation
@@ -82,7 +85,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - Python handler validation for implemented Lambda handlers
   - local `terraform plan` validation for the wired dev environment
   - repository-wide `terraform-docs` configuration
-  - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, and the dev root
+  - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, Cognito module/example, and the dev root
 
 ### Next milestones
 

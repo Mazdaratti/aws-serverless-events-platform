@@ -243,6 +243,66 @@ Validation:
 
 ---
 
+## Cognito Identity Baseline
+
+Creates the initial managed identity baseline for the platform.
+
+Implemented via:
+
+- `modules/cognito`
+
+This environment currently wires in:
+
+- one Cognito User Pool
+- one public Cognito User Pool Client
+- one Cognito User Group: `admin`
+
+Why this module is wired now:
+
+- the platform has already locked Cognito as the managed identity provider
+- the next major platform milestone is API Gateway + Cognito authentication
+- `envs/dev` now needs a real identity baseline before routed authenticated API behavior can be introduced
+
+Important design notes:
+
+- Cognito owns identity lifecycle
+- API Gateway will later consume Cognito JWTs and enforce route-level authentication
+- Lambda handlers remain free of generic authentication logic
+- future caller-context direction is:
+  - `requestContext.authorizer.user_id` from Cognito `sub`
+  - `requestContext.authorizer.is_admin` from Cognito `admin` group membership
+- the current baseline intentionally stays small:
+  - username is the primary sign-in attribute in v1
+  - email is required
+  - email verification is Cognito-managed
+  - self sign-up is enabled
+  - MFA is disabled in this phase
+  - hosted UI, social login, triggers, scopes, domains, and user seeding are not part of this step
+- `envs/dev` explicitly sets Cognito deletion protection to disabled for this non-production environment
+
+The environment should stay thin:
+
+- reusable AWS resource logic belongs in modules
+- `envs/dev` should focus on composition and environment-level identity and placement inputs
+
+Validation:
+
+- validated via `terraform apply`, AWS Console inspection, Terraform output verification, and a clean post-apply `terraform plan`
+- confirmed the Cognito User Pool was created in `eu-central-1`
+- confirmed the rendered User Pool name is `aws-serverless-events-platform-dev-users`
+- confirmed the rendered public app client name is `aws-serverless-events-platform-dev-app-client`
+- confirmed the `admin` Cognito group was created
+- confirmed the app client is public and has no client secret
+- confirmed the app client enables:
+  - username/password auth
+  - refresh token auth
+  - SRP auth
+- confirmed token revocation and prevent-user-existence hardening are enabled
+- confirmed Terraform outputs match the created User Pool, app client, issuer, and admin group identities
+- see evidence screenshots under `docs/assets/cognito/`
+
+---
+
 ## Lambda Compute Baseline
 
 Creates the first real Lambda compute baseline for the platform.
@@ -403,6 +463,7 @@ Validation:
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
+| <a name="module_cognito"></a> [cognito](#module\_cognito) | ../../modules/cognito | n/a |
 | <a name="module_dynamodb_data_layer"></a> [dynamodb\_data\_layer](#module\_dynamodb\_data\_layer) | ../../modules/dynamodb_data_layer | n/a |
 | <a name="module_iam"></a> [iam](#module\_iam) | ../../modules/iam | n/a |
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
@@ -423,6 +484,12 @@ Validation:
 
 | Name | Description |
 | ---- | ----------- |
+| <a name="output_cognito_admin_group_name"></a> [cognito\_admin\_group\_name](#output\_cognito\_admin\_group\_name) | Name of the Cognito admin group created for the dev environment. |
+| <a name="output_cognito_issuer"></a> [cognito\_issuer](#output\_cognito\_issuer) | JWT issuer URL for the Cognito User Pool created for the dev environment. |
+| <a name="output_cognito_user_pool_arn"></a> [cognito\_user\_pool\_arn](#output\_cognito\_user\_pool\_arn) | ARN of the Cognito User Pool created for the dev environment. |
+| <a name="output_cognito_user_pool_client_id"></a> [cognito\_user\_pool\_client\_id](#output\_cognito\_user\_pool\_client\_id) | ID of the Cognito User Pool Client created for the dev environment. |
+| <a name="output_cognito_user_pool_endpoint"></a> [cognito\_user\_pool\_endpoint](#output\_cognito\_user\_pool\_endpoint) | Endpoint of the Cognito User Pool created for the dev environment. |
+| <a name="output_cognito_user_pool_id"></a> [cognito\_user\_pool\_id](#output\_cognito\_user\_pool\_id) | ID of the Cognito User Pool created for the dev environment. |
 | <a name="output_events_table_arn"></a> [events\_table\_arn](#output\_events\_table\_arn) | ARN of the DynamoDB events table created for the dev environment. |
 | <a name="output_events_table_name"></a> [events\_table\_name](#output\_events\_table\_name) | Name of the DynamoDB events table created for the dev environment. |
 | <a name="output_iam_role_arns"></a> [iam\_role\_arns](#output\_iam\_role\_arns) | Map of workload IAM role ARNs for the dev environment. |

@@ -115,3 +115,40 @@ output "lambda_log_group_arns" {
   description = "Map of workload CloudWatch Logs log group ARNs for the dev environment."
   value       = module.lambda.log_group_arns
 }
+
+############################################
+# Cognito identity baseline outputs
+############################################
+
+# These outputs re-export the key Cognito identities from the module so later
+# environment-level consumers such as API Gateway wiring can use them directly
+# without re-describing Cognito internals in the root.
+output "cognito_user_pool_id" {
+  description = "ID of the Cognito User Pool created for the dev environment."
+  value       = module.cognito.user_pool_id
+}
+
+output "cognito_user_pool_arn" {
+  description = "ARN of the Cognito User Pool created for the dev environment."
+  value       = module.cognito.user_pool_arn
+}
+
+output "cognito_user_pool_client_id" {
+  description = "ID of the Cognito User Pool Client created for the dev environment."
+  value       = module.cognito.user_pool_client_id
+}
+
+output "cognito_issuer" {
+  description = "JWT issuer URL for the Cognito User Pool created for the dev environment."
+  value       = module.cognito.issuer
+}
+
+output "cognito_admin_group_name" {
+  description = "Name of the Cognito admin group created for the dev environment."
+  value       = module.cognito.admin_group_name
+}
+
+output "cognito_user_pool_endpoint" {
+  description = "Endpoint of the Cognito User Pool created for the dev environment."
+  value       = module.cognito.user_pool_endpoint
+}

@@ -35,29 +35,105 @@ This design protects the platform at the network edge and reduces load on backen
 
 ## Authentication Layer
 
-User authentication is handled by:
+The platform uses **Amazon Cognito User Pools** as its managed identity
+provider.
 
-- **Amazon Cognito**
+This creates a strict separation of concerns between identity, route
+protection, and authorization decisions.
 
-Cognito issues JWT tokens that are validated directly by:
+**Amazon Cognito** is responsible for:
 
-- **Amazon API Gateway (JWT Authorizer)**
+- user registration
+- user login
+- token issuance
+- email verification
+- password reset and recovery
+- user group membership such as admin
 
-This ensures:
+**Amazon API Gateway** is responsible for:
 
-- No authentication logic inside Lambda functions
-- Centralized identity management
-- Reduced operational complexity
-- Production-grade security posture
+- JWT validation
+- route-level authentication enforcement
 
-Generic authentication is intentionally separated from business authorization:
+**AWS Lambda** functions are responsible only for resource- and
+workflow-specific authorization:
 
-- API Gateway and Cognito handle JWT validation and route protection
-- Lambda functions do not implement login or JWT verification
-- Lambda functions still enforce business rules that depend on:
-  - event type
-  - resource ownership
-  - admin versus non-admin caller context
+- ownership checks
+- event-type-dependent access rules
+- admin versus non-admin business decisions
+
+Lambda functions do not implement:
+
+- login
+- session management
+- JWT verification
+- generic authentication logic
+
+This keeps authentication centralized while allowing business decisions to stay
+close to the resource workflows that depend on them.
+
+### Identity Model
+
+The platform's canonical internal user identifier is the Cognito user `sub`.
+
+Later API-layer identity projection should derive:
+
+- `requestContext.authorizer.user_id` from Cognito `sub`
+
+This keeps internal identity:
+
+- stable
+- immutable
+- independent of username or email changes
+
+### Sign-In Strategy (v1)
+
+Sign-in is Cognito-managed.
+
+The initial identity baseline uses:
+
+- username as the primary sign-in attribute
+- required email collection
+- Cognito-managed email verification
+
+This does not lock the platform into permanent username-only login. Future
+changes such as email-based sign-in can evolve without changing the canonical
+internal identity model.
+
+### Admin Model
+
+Administrative capabilities are derived from Cognito group membership.
+
+The initial identity baseline includes one Cognito group:
+
+- `admin`
+
+Later request context should derive:
+
+- `is_admin` from Cognito `admin` group membership
+
+Lambda functions must not infer admin privileges from request payloads or
+handler-specific custom auth logic.
+
+### Initial Cognito Scope
+
+The initial Cognito baseline intentionally includes only:
+
+- one User Pool
+- one public User Pool Client
+- one `admin` group
+
+The following identity features are intentionally deferred:
+
+- hosted UI
+- social identity providers
+- MFA
+- Lambda triggers
+- custom domains
+- OAuth scopes and resource servers
+
+This keeps the identity layer minimal while still supporting the platform's
+locked authentication and authorization direction.
 
 ---
 

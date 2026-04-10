@@ -148,3 +148,22 @@ module "lambda" {
     }
   }
 }
+
+############################################
+# Cognito identity baseline
+############################################
+
+# This environment wires in the reusable Cognito module so later API Gateway
+# integration can consume a real managed identity provider instead of direct
+# Lambda-only invocation flows.
+#
+# The module owns the Cognito identity baseline so envs/dev can stay focused on
+# composition and environment-level context only.
+module "cognito" {
+  source = "../../modules/cognito"
+
+  name_prefix = local.name_prefix
+  tags        = local.tags
+
+  deletion_protection_enabled = false
+}

@@ -27,40 +27,102 @@ meaningful way.
 
 ---
 
-## Auth Boundary
+## Authentication Behavior
 
-Generic authentication is handled outside Lambda.
+The platform uses **Amazon Cognito** as the sole identity provider.
 
-### Cognito and API Gateway are responsible for
+Authentication is fully externalized from Lambda business logic.
 
-- user registration
-- user login
-- token issuance
-- password reset and change-password flows
-- user verification
-- generic route protection
-- JWT validation
-- admin group and claim delivery
+### Responsibility Split
 
-### Lambda functions are not responsible for
+- Cognito is responsible for:
+  - user registration
+  - user login
+  - token issuance
+  - email verification
+  - password reset and recovery
+  - user group membership such as admin
+- API Gateway is responsible for:
+  - JWT validation
+  - rejecting unauthorized requests before they reach Lambda
+- Lambda functions:
+  - must not validate JWTs
+  - must not implement login or generic identity logic
+  - must rely on identity context provided by API Gateway
+  - must enforce only resource- and workflow-specific authorization
 
-- login
-- session management
-- JWT verification
-- generic auth implementation
+### Request Identity Contract
 
-### Lambda functions are still responsible for
+Lambda functions receive identity information via:
 
-- ownership checks
-- admin-versus-non-admin business decisions
-- event-type-dependent authorization
-- platform-specific deletion and cleanup decisions
+- `requestContext.authorizer`
 
-This split is intentional:
+The current platform contract relies on:
 
-- Cognito and API Gateway handle identity
-- Lambda handles business authorization where the decision depends on resource
-  ownership or event type
+- `requestContext.authorizer.user_id`
+- `requestContext.authorizer.is_admin`
+
+These values are derived from Cognito identity and API Gateway validation and
+must be treated as authoritative caller context for Lambda business logic once
+provided by the platform auth layer.
+
+### Canonical Identity Rule
+
+The canonical internal user identifier is:
+
+- Cognito user `sub`
+
+Later identity projection should map:
+
+- `requestContext.authorizer.user_id` from Cognito `sub`
+
+This canonical identity must be used as:
+
+- the internal user identifier
+- the basis for ownership checks
+- the key for user-scoped data such as authenticated RSVP subjects
+
+Username and email must not be treated as internal platform identity keys.
+
+### Admin Authorization Rule
+
+Administrative privileges are derived from Cognito group membership.
+
+The locked admin group name is:
+
+- `admin`
+
+Later request context should derive:
+
+- admin flag from Cognito `admin` group membership
+
+Lambda functions must:
+
+- trust the projected admin flag
+- not recompute admin status independently
+- not rely on request payload fields for admin decisions
+
+### Sign-In Behavior (v1)
+
+- sign-in is Cognito-managed
+- v1 uses username as the primary sign-in attribute
+- email is required
+- email verification is Cognito-managed
+
+This does not lock the platform into permanent username-only login behavior.
+
+### Explicit Non-Responsibilities of Lambda
+
+Lambda functions must not:
+
+- parse or validate JWTs
+- call Cognito to verify identity
+- implement authentication flows
+- infer identity from headers or request payload
+
+All caller identity used by Lambda must come from:
+
+- `requestContext.authorizer`
 
 ---
 

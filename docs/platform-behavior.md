@@ -20,7 +20,9 @@ This document is the working source of truth for:
 - RSVP access rules
 - account-management direction
 - auth versus business-authorization boundaries
+- normalized caller-context rules
 - Lambda implementation sequencing
+- future post-commit async event direction
 
 It should be updated when the platform's intended behavior changes in a
 meaningful way.
@@ -31,7 +33,14 @@ meaningful way.
 
 The platform uses **Amazon Cognito** as the sole identity provider.
 
-Authentication is fully externalized from Lambda business logic.
+Authentication is externalized from Lambda business logic, but the routed API
+uses two authorizer modes:
+
+- API Gateway native JWT authorizer for ordinary protected routes
+- a dedicated custom Lambda authorizer for the mixed-mode `rsvp` route
+
+Business Lambdas must consume one normalized caller contract regardless of
+which upstream authorizer mode produced the request context.
 
 ### Responsibility Split
 
@@ -43,28 +52,46 @@ Authentication is fully externalized from Lambda business logic.
   - password reset and recovery
   - user group membership such as admin
 - API Gateway is responsible for:
-  - JWT validation
-  - rejecting unauthorized requests before they reach Lambda
-- Lambda functions:
+  - native JWT validation on ordinary protected routes
+  - invoking the dedicated custom Lambda authorizer on the mixed-mode `rsvp` route
+  - rejecting unauthorized requests before they reach business Lambdas
+- shared request/auth normalization is responsible for:
+  - reading the upstream authorizer context shape
+  - supporting multiple upstream authorizer context shapes
+  - mapping authenticated identity into the normalized internal caller shape
+- business Lambda functions:
   - must not validate JWTs
   - must not implement login or generic identity logic
-  - must rely on identity context provided by API Gateway
+  - must not scatter raw authorizer parsing throughout business logic
+  - must rely on normalized caller context
   - must enforce only resource- and workflow-specific authorization
+- the dedicated `rsvp` Lambda authorizer:
+  - may validate a presented bearer token
+  - may project normalized caller context for the `rsvp` business Lambda
+  - is part of the platform auth layer, not business logic
 
 ### Request Identity Contract
 
-Lambda functions receive identity information via:
+Business Lambdas receive platform identity information via:
 
 - `requestContext.authorizer`
 
-The current platform contract relies on:
+The previous simplified direct platform-boundary assumption:
 
 - `requestContext.authorizer.user_id`
 - `requestContext.authorizer.is_admin`
 
-These values are derived from Cognito identity and API Gateway validation and
-must be treated as authoritative caller context for Lambda business logic once
-provided by the platform auth layer.
+is now deprecated as the raw platform-boundary truth.
+
+The platform must support multiple upstream authorizer context shapes,
+including:
+
+- native JWT authorizer context
+- custom Lambda authorizer context
+
+Business Lambdas must not depend directly on those raw shapes. They must
+consume normalized caller context produced by shared request/auth parsing
+logic.
 
 ### Canonical Identity Rule
 
@@ -72,9 +99,12 @@ The canonical internal user identifier is:
 
 - Cognito user `sub`
 
-Later identity projection should map:
+Locked raw identity sources:
 
-- `requestContext.authorizer.user_id` from Cognito `sub`
+- authenticated user identity comes from Cognito `sub`
+- admin capability comes from Cognito group membership
+- the locked admin group name is:
+  - `admin`
 
 This canonical identity must be used as:
 
@@ -88,19 +118,61 @@ Username and email must not be treated as internal platform identity keys.
 
 Administrative privileges are derived from Cognito group membership.
 
-The locked admin group name is:
+Locked admin rule:
 
 - `admin`
 
-Later request context should derive:
+Normalized caller context must derive:
 
-- admin flag from Cognito `admin` group membership
+- `caller.is_admin = true` when Cognito groups include `admin`
+- `caller.is_admin = false` otherwise
 
-Lambda functions must:
+Business Lambdas must:
 
-- trust the projected admin flag
+- trust normalized admin context
 - not recompute admin status independently
 - not rely on request payload fields for admin decisions
+
+### Normalized Caller Context Contract
+
+Business Lambdas must consume one normalized caller shape:
+
+- `caller.user_id`
+- `caller.is_authenticated`
+- `caller.is_admin`
+
+Rules:
+
+- authenticated caller:
+  - `caller.user_id = <Cognito sub>`
+  - `caller.is_authenticated = true`
+  - `caller.is_admin = true|false`
+- anonymous caller:
+  - `caller.user_id = null`
+  - `caller.is_authenticated = false`
+  - `caller.is_admin = false`
+
+This normalized shape is the internal business-logic contract.
+
+Anonymous caller definition:
+
+- anonymous is not a Cognito-provided identity
+- anonymous is derived when no authenticated caller context is present
+- upstream authorizers must not fabricate anonymous identity values
+
+### Mapping Helper Rule
+
+Caller normalization must happen through shared request/auth parsing logic.
+
+Rules:
+
+- one shared helper normalizes caller context
+- the helper must support:
+  - native JWT-authorizer upstream context
+  - custom Lambda-authorizer upstream context
+  - synthetic direct-invocation test context
+- handlers must resolve caller context once near the request edge
+- downstream business logic must consume only normalized caller values
 
 ### Sign-In Behavior (v1)
 
@@ -111,18 +183,75 @@ Lambda functions must:
 
 This does not lock the platform into permanent username-only login behavior.
 
-### Explicit Non-Responsibilities of Lambda
+### Explicit Non-Responsibilities of Business Lambdas
 
-Lambda functions must not:
+Business Lambda functions must not:
 
 - parse or validate JWTs
 - call Cognito to verify identity
 - implement authentication flows
 - infer identity from headers or request payload
+- duplicate ad hoc authorizer parsing logic across handlers
 
-All caller identity used by Lambda must come from:
+All caller identity used by business Lambdas must come from:
 
-- `requestContext.authorizer`
+- normalized caller context
+
+### Route Authentication Modes
+
+The platform uses three practical route modes.
+
+#### Public read route
+
+- route is publicly callable
+- no authentication is required
+- caller context may be anonymous
+
+Current examples:
+
+- `list-events`
+- `get-event`
+
+#### Authenticated route
+
+- route requires authenticated caller context
+- ordinary protected routes use API Gateway native JWT authorization
+- business Lambdas consume normalized caller context derived from the JWT
+  authorizer input
+
+Current examples:
+
+- `create-event`
+- `update-event`
+- `cancel-event`
+- `get-event-rsvps`
+
+#### Mixed-mode route
+
+- anonymous access is allowed
+- authenticated access is also allowed
+- authenticated callers must still be recognized as authenticated callers
+- this route requires an upstream authorizer strategy that:
+  - allows anonymous access
+  - preserves authenticated caller identity when present
+
+Current example:
+
+- `rsvp`
+
+#### Mixed-mode RSVP authorizer constraint
+
+The mixed-mode `rsvp` authorizer must not require anonymous callers to present
+an `Authorization` header before the authorizer is invoked.
+
+Rules:
+
+- anonymous public RSVP requests must still reach the authorizer path
+- absence of `Authorization` must be interpreted as anonymous access, not as an
+  automatic pre-Lambda `401`
+- initial implementation should prefer correctness over caching complexity
+- any future caching strategy must preserve mixed anonymous/authenticated route
+  behavior
 
 ---
 
@@ -169,7 +298,7 @@ relevant Cognito action.
 #### Ownership rule
 
 - event ownership must be derived from caller identity
-- `creator_id` should come from `requestContext.authorizer.user_id`
+- `creator_id` should come from `caller.user_id`
 - request-body `creator_id` must not be trusted as the source of ownership
 
 #### Current implementation note
@@ -177,7 +306,7 @@ relevant Cognito action.
 The deployed `create-event` Lambda now enforces the locked creation contract:
 
 - authenticated-only event creation
-- ownership derived from `requestContext.authorizer.user_id`
+- ownership derived from caller identity
 - request-body `creator_id` ignored as an ownership source
 - admin-only events restricted to admin callers
 - new canonical event records must include `status = ACTIVE`
@@ -289,12 +418,10 @@ The storage model and API model are intentionally separate:
 
 #### Caller context for direct invocation and tests
 
-Before API Gateway wiring, caller identity is represented as:
+Before routed API deployment, direct invocation and tests may use a synthetic
+normalized caller block for convenience.
 
-- `requestContext.authorizer.user_id`
-
-This keeps test and direct-invocation event shapes aligned with the future
-API Gateway/Cognito handoff.
+This local test shape must not be treated as the real API-boundary truth.
 
 #### Current implementation direction
 
@@ -322,8 +449,10 @@ contract in `dev`:
 
 Lifecycle note:
 
-- during the current temporary scan-based phase, `mode=all` must filter out cancelled events in Lambda
-- long-term behavior will rely on index-based access patterns instead of scan filtering
+- during the current temporary scan-based phase, `mode=all` must filter out
+  cancelled events in Lambda
+- long-term behavior will rely on index-based access patterns instead of scan
+  filtering
 - `mode=mine` includes cancelled events
 - both modes must expose `status` in the public DTO
 
@@ -447,7 +576,8 @@ Immutable/system-managed fields:
 - `rsvp_count`
 - `attending_count`
 
-`status` is a system-managed lifecycle field and must never be set directly by clients.
+`status` is a system-managed lifecycle field and must never be set directly by
+clients.
 
 #### Request contract
 
@@ -465,7 +595,8 @@ Update payload resolution:
 
 - if `body` is present, it must be a JSON string that decodes to an object
 - that decoded object becomes the update payload
-- otherwise, top-level fields are treated as the update payload for direct invocation
+- otherwise, top-level fields are treated as the update payload for direct
+  invocation
 
 #### Payload rules
 
@@ -490,8 +621,8 @@ Update payload resolution:
 
 Caller identity comes from:
 
-- `requestContext.authorizer.user_id`
-- admin flag in authorizer context
+- `caller.user_id`
+- `caller.is_admin`
 
 Current mutation rule:
 
@@ -521,8 +652,10 @@ Additional locked rule:
 
 Capacity safety rule:
 
-- if `capacity` is provided and is less than the current `attending_count`, reject with `400`
-- the response should explain that capacity cannot be reduced below the current number of attending RSVPs
+- if `capacity` is provided and is less than the current `attending_count`,
+  reject with `400`
+- the response should explain that capacity cannot be reduced below the current
+  number of attending RSVPs
 
 #### DynamoDB update strategy
 
@@ -562,7 +695,8 @@ Success body shape:
 
 - `item`
 
-The returned `item` should use the same locked public event DTO already used by:
+The returned `item` should use the same locked public event DTO already used
+by:
 
 - `list-events`
 - `get-event`
@@ -595,8 +729,10 @@ update contract in `dev`:
 - `status` is rejected as immutable input
 - `requires_admin = true` is restricted to admin callers
 - `capacity` cannot be reduced below current `attending_count`
-- conditional write protection (DynamoDB `ConditionExpression`) guards the capacity rule against concurrent changes
-- conditional write failures are re-evaluated to return correct business errors instead of generic failures
+- conditional write protection (DynamoDB `ConditionExpression`) guards the
+  capacity rule against concurrent changes
+- conditional write failures are re-evaluated to return correct business errors
+  instead of generic failures
 - returned items use the locked public event DTO under `item`
 - internal GSI helper fields remain hidden from the response
 
@@ -615,8 +751,8 @@ Lifecycle note:
 
 #### Naming direction
 
-`cancel-event` is preferred over hard delete as the default operation because it
-is safer, more realistic, and leaves room for history, notifications, and
+`cancel-event` is preferred over hard delete as the default operation because
+it is safer, more realistic, and leaves room for history, notifications, and
 later auditability.
 
 #### Deletion model
@@ -654,7 +790,8 @@ The returned `item` uses the locked public event DTO, including:
 `cancel-event` is idempotent.
 
 - if the event is already cancelled, return `200`
-- repeated cancel attempts return the normal wrapped `item` response instead of an error
+- repeated cancel attempts return the normal wrapped `item` response instead of
+  an error
 
 #### GSI behavior
 
@@ -665,7 +802,8 @@ On cancel:
 - keep `creator_events_gsi_pk`
 - keep `creator_events_gsi_sk`
 
-This removes cancelled events from public discovery while preserving creator/admin visibility.
+This removes cancelled events from public discovery while preserving
+creator/admin visibility.
 
 #### Write model
 
@@ -688,14 +826,17 @@ If the conditional write fails:
 - if now cancelled, return `200`
 - otherwise return `500`
 
-This keeps the mutation retry-safe and translates conditional-write outcomes back into the correct business result.
+This keeps the mutation retry-safe and translates conditional-write outcomes
+back into the correct business result.
 
 #### Interaction with other handlers
 
 - `get-event` still returns cancelled events by ID
 - `list-events mode=mine` includes cancelled events
-- `list-events mode=all` must filter cancelled events during the current scan-based phase
-- long-term `mode=all` behavior should rely on index-based access patterns instead of scan filtering
+- `list-events mode=all` must filter cancelled events during the current
+  scan-based phase
+- long-term `mode=all` behavior should rely on index-based access patterns
+  instead of scan filtering
 - `update-event` is blocked once an event is cancelled
 - there is no reactivation path in this phase
 
@@ -732,6 +873,47 @@ RSVP authorization depends on event type.
 This decision remains business-driven inside Lambda even after API Gateway and
 Cognito handle generic auth.
 
+#### Mixed-mode route direction
+
+`rsvp` remains one mixed-mode business route.
+
+Rules:
+
+- anonymous RSVP must remain supported for public events
+- authenticated RSVP must remain supported for public events
+- protected-event RSVP requires authenticated caller context
+- admin-event RSVP requires authenticated admin caller context
+- authenticated callers on public events must not be collapsed into anonymous
+  callers
+
+The dedicated `rsvp` Lambda authorizer exists to preserve this mixed-mode
+behavior while keeping JWT parsing and validation out of the business handler.
+
+#### Mixed-mode authorizer behavior
+
+The dedicated `rsvp` Lambda authorizer must support both anonymous and
+authenticated callers on the same route.
+
+Rules:
+
+- if no bearer token is present:
+  - allow anonymous route access
+  - project anonymous caller context
+- if a valid Cognito token is present:
+  - allow authenticated route access
+  - project authenticated caller context
+- if a malformed or invalid token is present:
+  - deny the request at the API edge
+  - the expected result is `401`
+  - the business `rsvp` Lambda must not run
+- the projected authorizer context should stay flat and minimal
+
+Locked v1 projected authorizer context fields are:
+
+- `user_id`
+- `is_authenticated`
+- `is_admin`
+
 #### Anonymous subject strategy
 
 Anonymous RSVP is supported only for public events.
@@ -748,7 +930,8 @@ Rules:
 - store the trimmed value
 - build the canonical anonymous subject key from the trimmed token
 - authenticated callers must not send `anonymous_token`
-- protected and admin-only events reject anonymous callers before token handling matters
+- protected and admin-only events reject anonymous callers before token
+  handling matters
 
 #### Canonical RSVP key shape
 
@@ -795,7 +978,8 @@ time.
 Rules:
 
 - if `event.date <= now`, reject RSVP
-- stored `event.date` is expected to be a valid canonical ISO 8601 UTC timestamp
+- stored `event.date` is expected to be a valid canonical ISO 8601 UTC
+  timestamp
 - if stored `event.date` cannot be parsed, return `500`
 
 #### Write semantics
@@ -870,9 +1054,11 @@ Capacity rules are:
 - `capacity = null` means unlimited
 - capacity applies only to `attending = true`
 - `attending = false` is always allowed, even if the event is full
-- first RSVP with `attending = true` must be rejected when `attending_count >= capacity`
+- first RSVP with `attending = true` must be rejected when
+  `attending_count >= capacity`
 - `false -> true` must be rejected when `attending_count >= capacity`
-- same-value overwrite `true -> true` is allowed when already attending because it does not consume a new seat
+- same-value overwrite `true -> true` is allowed when already attending
+  because it does not consume a new seat
 - `true -> false` is always allowed
 - first RSVP with `attending = false` is always allowed
 
@@ -888,7 +1074,8 @@ Rules:
 
 - if two callers compete for the final seat, only one may succeed
 - the losing transaction must be translated into business `400`
-- the event update inside the transaction must enforce capacity availability at write time
+- the event update inside the transaction must enforce capacity availability
+  at write time
 
 #### Transactional write model
 
@@ -912,7 +1099,8 @@ The event update inside the transaction must:
 - require `status = ACTIVE`
 - enforce capacity availability for seat-consuming writes
 
-If the transaction fails, re-read the event item first and classify in this order:
+If the transaction fails, re-read the event item first and classify in this
+order:
 
 - event missing -> `404`
 - event cancelled -> `400`
@@ -943,10 +1131,13 @@ Resolved request inputs are:
 
 Caller context:
 
-- authenticated user ID from `requestContext.authorizer.user_id`
-- admin flag from authorizer context
+- `caller.user_id`
+- `caller.is_authenticated`
+- `caller.is_admin`
 
-Anonymous is defined as absence of authenticated caller context.
+Anonymous is defined as:
+
+- `caller.is_authenticated = false`
 
 #### Response contract
 
@@ -980,7 +1171,8 @@ Rules:
 - do not expose `subject_sk`
 - do not expose raw DynamoDB keys
 - do not expose GSI helper fields
-- `not_attending_count` is allowed here even though it remains hidden from the public event DTO used by event-read handlers
+- `not_attending_count` is allowed here even though it remains hidden from the
+  public event DTO used by event-read handlers
 
 Anonymous success uses:
 
@@ -991,7 +1183,7 @@ Anonymous success uses:
 Authenticated success uses:
 
 - `subject.type = USER`
-- `subject.user_id = <caller user_id>`
+- `subject.user_id = <caller.user_id>`
 - `subject.anonymous = false`
 
 #### Internal implementation notes for future async integration
@@ -1024,12 +1216,6 @@ Locked status codes:
 - `404` event not found
 - `500` unexpected internal/runtime/data issue
 
-#### Post-commit async rule
-
-All future domain write events are published only after durable business
-commit, and downstream notification delivery failures must not change the
-primary business result.
-
 #### Current implementation note
 
 The deployed `rsvp` Lambda now validates the locked RSVP write contract in
@@ -1043,8 +1229,10 @@ The deployed `rsvp` Lambda now validates the locked RSVP write contract in
 - cancelled events return `400`
 - past events return `400`
 - full-capacity attending writes return `400`
-- same-subject overwrites preserve `created_at`, refresh `updated_at`, and keep counters stable when the RSVP value is unchanged
-- RSVP writes are committed transactionally across the `events` and `rsvps` tables
+- same-subject overwrites preserve `created_at`, refresh `updated_at`, and
+  keep counters stable when the RSVP value is unchanged
+- RSVP writes are committed transactionally across the `events` and `rsvps`
+  tables
 - successful responses return the locked public RSVP contract:
   - `item`
   - `event_summary`
@@ -1080,9 +1268,16 @@ Use this exact order:
 4. if present but caller not allowed: `403`
 5. if allowed: query `rsvps`
 
-This keeps the handler operationally useful for creators and admin callers while
-matching the current ownership/admin authorization direction used elsewhere in
-the platform.
+This keeps the handler operationally useful for creators and admin callers
+while matching the current ownership/admin authorization direction used
+elsewhere in the platform.
+
+#### Authorization direction
+
+Caller identity comes from normalized caller context:
+
+- `caller.user_id`
+- `caller.is_admin`
 
 #### Lifecycle behavior
 
@@ -1269,6 +1464,42 @@ contract in `dev`:
 - internal storage fields remain hidden from the response
 - pagination uses opaque `next_cursor`
 
+---
+
+## Post-Commit Async Direction
+
+Write Lambdas should remain easy to extend with post-commit domain event
+publication to EventBridge.
+
+This direction applies to write operations such as:
+
+- `create-event`
+- `update-event`
+- `cancel-event`
+- `rsvp`
+- future write workloads
+
+Locked rules:
+
+- the primary business write must complete durably first
+- any future EventBridge publication must happen only after successful
+  business commit
+- downstream async publication failure must not retroactively change the
+  primary synchronous business result
+- adding EventBridge later must not require redesigning the current
+  synchronous request/response contract
+
+Implementation direction:
+
+- write handlers should preserve enough internal change classification to
+  support future domain-event emission
+- write handlers should distinguish actor, affected resource, and resulting
+  change type clearly enough for later async publication
+- async integration must remain additive to the current synchronous business
+  path
+
+---
+
 ## Lambda Implementation Status
 
 The currently locked Lambda set and rollout status are:
@@ -1297,6 +1528,8 @@ This sequence remains intentional:
 The following behaviors are intentionally not fully locked yet:
 
 - exact account-deletion cleanup semantics
+- exact ordinary-route JWT authorizer implementation details
+- exact mixed-mode `rsvp` custom Lambda authorizer implementation details
 
 These should be decided in the implementation steps where they become
 immediately relevant.

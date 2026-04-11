@@ -166,6 +166,11 @@ def _claims_include_admin_group(raw_value: Any) -> bool:
         candidate = raw_value.strip()
         if not candidate:
             return False
+        # HTTP API JWT claims may arrive as a bracketed string such as
+        # "[admin]" instead of a real list. Normalize that shape before
+        # applying the usual group-name matching.
+        if candidate.startswith("[") and candidate.endswith("]"):
+            candidate = candidate[1:-1].strip()
         return any(part.strip() == ADMIN_GROUP_NAME for part in candidate.split(","))
 
     raise ValueError("requestContext.authorizer.jwt.claims.cognito:groups must be a string or list.")

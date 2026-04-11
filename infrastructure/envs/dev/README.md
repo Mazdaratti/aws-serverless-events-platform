@@ -266,11 +266,16 @@ Why this module is wired now:
 Important design notes:
 
 - Cognito owns identity lifecycle
-- API Gateway will later consume Cognito JWTs and enforce route-level authentication
-- Lambda handlers remain free of generic authentication logic
-- future caller-context direction is:
-  - `requestContext.authorizer.user_id` from Cognito `sub`
-  - `requestContext.authorizer.is_admin` from Cognito `admin` group membership
+- API Gateway will later consume Cognito-issued JWTs and enforce route-level authentication
+- the future routed API uses a hybrid auth model:
+  - native JWT authorization for ordinary protected routes
+  - a dedicated custom Lambda authorizer for the mixed-mode `rsvp` route
+- business Lambda handlers remain free of generic authentication logic
+- business Lambda handlers will later consume normalized caller context rather
+  than depending directly on one raw authorizer shape
+- the canonical identity baseline remains:
+  - Cognito `sub` for user identity
+  - Cognito `admin` group membership for admin capability
 - the current baseline intentionally stays small:
   - username is the primary sign-in attribute in v1
   - email is required
@@ -352,12 +357,13 @@ Current business behavior validated in this environment:
   - request-body `creator_id` spoofing is ignored in favor of caller-context ownership
   - public events populate the public upcoming GSI, while non-public events omit those helper attributes
 - `list-events`
-  - `mode=all` succeeds
-  - `mode=mine` succeeds with caller context
-  - `mode=mine` without caller context returns `400`
+  - broad public listing succeeds
   - returned items use the locked public event DTO and hide internal storage helper fields
-  - `mode=all` excludes cancelled events during the current scan-based phase
-  - `mode=mine` still includes cancelled owner events
+  - broad listing excludes cancelled events during the current scan-based phase
+- `list-my-events`
+  - is now the locked future direction for creator-scoped authenticated listing
+  - is not deployed in this environment yet
+  - will replace the previous `mode=mine` behavior from `list-events`
 - `get-event`
   - successful single-item lookup returns `200`
   - missing event returns `404`
@@ -444,6 +450,8 @@ Validation:
   - `cancel-event`
   - `rsvp`
   - `get-event-rsvps`
+- note: `list-my-events` is part of the locked platform direction but is not yet
+  deployed in this environment
 - confirmed Terraform outputs match the created Lambda and log group identities
 - see evidence screenshots under `docs/assets/lambda/`
 

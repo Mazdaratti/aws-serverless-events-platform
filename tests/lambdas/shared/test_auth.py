@@ -147,6 +147,29 @@ def test_require_authenticated_caller_returns_jwt_caller_when_valid():
     }
 
 
+def test_require_authenticated_caller_accepts_bracketed_jwt_groups_string():
+    caller = require_authenticated_caller(
+        {
+            "requestContext": {
+                "authorizer": {
+                    "jwt": {
+                        "claims": {
+                            "sub": "alice-sub",
+                            "cognito:groups": "[admin]",
+                        }
+                    }
+                }
+            }
+        }
+    )
+
+    assert caller == {
+        "user_id": "alice-sub",
+        "is_authenticated": True,
+        "is_admin": True,
+    }
+
+
 def test_require_authenticated_caller_raises_for_anonymous_event():
     with pytest.raises(ValueError, match="Authenticated caller context is required."):
         require_authenticated_caller({})

@@ -7,7 +7,7 @@ variable "name_prefix" {
   type        = string
 
   validation {
-    condition     = trim(var.name_prefix) != ""
+    condition     = trimspace(var.name_prefix) != ""
     error_message = "name_prefix must not be empty."
   }
 }
@@ -26,7 +26,7 @@ variable "stage_name" {
   type        = string
 
   validation {
-    condition     = trim(var.stage_name) != ""
+    condition     = trimspace(var.stage_name) != ""
     error_message = "stage_name must not be empty."
   }
 }
@@ -36,7 +36,7 @@ variable "jwt_issuer" {
   type        = string
 
   validation {
-    condition     = trim(var.jwt_issuer) != ""
+    condition     = trimspace(var.jwt_issuer) != ""
     error_message = "jwt_issuer must not be empty."
   }
 }
@@ -48,7 +48,7 @@ variable "jwt_audience" {
   validation {
     condition = length(var.jwt_audience) > 0 && alltrue([
       for audience in var.jwt_audience :
-      trim(audience) != ""
+      trimspace(audience) != ""
     ])
     error_message = "jwt_audience must contain at least one non-empty value."
   }

@@ -7,6 +7,10 @@ ADMIN_GROUP_NAME = "admin"
 
 
 class CallerContext(TypedDict):
+    # This is the one internal caller shape that business handlers should use
+    # after auth normalization. Handlers should not care whether the request
+    # originally came from direct test input, a JWT authorizer, or a custom
+    # flat authorizer context.
     user_id: str | None
     is_authenticated: bool
     is_admin: bool
@@ -14,6 +18,11 @@ class CallerContext(TypedDict):
 
 def resolve_optional_caller(event: dict[str, Any]) -> CallerContext:
     """Resolve one normalized caller contract from supported event shapes."""
+    # Keep the supported edge shapes explicit:
+    # 1. synthetic test input under top-level "caller"
+    # 2. API Gateway JWT authorizer shape
+    # 3. flat custom-authorizer shape
+    # 4. no caller context at all -> anonymous
     if not isinstance(event, dict):
         raise ValueError("Event payload must be a JSON object.")
 
@@ -42,6 +51,8 @@ def resolve_optional_caller(event: dict[str, Any]) -> CallerContext:
 
 def require_authenticated_caller(event: dict[str, Any]) -> CallerContext:
     """Resolve caller context and require an authenticated user."""
+    # Protected handlers should use this helper instead of re-checking
+    # user_id/is_admin manually in each file.
     caller = resolve_optional_caller(event)
     if not caller["is_authenticated"]:
         raise ValueError("Authenticated caller context is required.")
@@ -49,6 +60,9 @@ def require_authenticated_caller(event: dict[str, Any]) -> CallerContext:
 
 
 def _normalize_synthetic_caller(value: Any) -> CallerContext:
+    # Synthetic caller blocks are useful for direct invocation and tests before
+    # every real routed path is fully wired. They must still satisfy the same
+    # internal caller contract as real authorizer input.
     if not isinstance(value, dict):
         raise ValueError("caller must be an object when provided.")
 
@@ -71,6 +85,8 @@ def _normalize_synthetic_caller(value: Any) -> CallerContext:
 
 
 def _normalize_jwt_authorizer_context(value: Any) -> CallerContext:
+    # This path matches the HTTP API JWT authorizer shape where claims live
+    # under requestContext.authorizer.jwt.claims.
     if not isinstance(value, dict):
         raise ValueError("requestContext.authorizer.jwt must be an object when provided.")
 
@@ -84,6 +100,8 @@ def _normalize_jwt_authorizer_context(value: Any) -> CallerContext:
         claims.get("sub"),
         field_name="requestContext.authorizer.jwt.claims.sub",
     )
+    # If there is no usable Cognito "sub", we do not invent identity from
+    # other claims. The caller is treated as anonymous instead.
     if not user_id:
         return _anonymous_caller()
 
@@ -96,6 +114,8 @@ def _normalize_jwt_authorizer_context(value: Any) -> CallerContext:
 
 
 def _normalize_flat_authorizer_context(value: dict[str, Any]) -> CallerContext:
+    # This path supports the dedicated flat authorizer context shape used by
+    # mixed-mode routes such as RSVP.
     if "is_authenticated" not in value:
         if "user_id" in value or "is_admin" in value:
             raise ValueError(
@@ -126,6 +146,8 @@ def _normalize_flat_authorizer_context(value: dict[str, Any]) -> CallerContext:
 
 
 def _claims_include_admin_group(raw_value: Any) -> bool:
+    # Cognito group claims may arrive as a comma-separated string or a list,
+    # depending on how the request context was produced.
     if raw_value is None:
         return False
 
@@ -148,6 +170,9 @@ def _build_caller_context(
     is_admin: bool,
     source: str,
 ) -> CallerContext:
+    # Keep the internal contract strict in one place:
+    # - authenticated callers must have a user_id
+    # - anonymous callers must not have user_id/admin privileges
     if is_authenticated:
         if not user_id:
             raise ValueError(f"{source}.user_id is required when caller is authenticated.")
@@ -166,6 +191,8 @@ def _build_caller_context(
 
 
 def _normalize_optional_string(value: Any, *, field_name: str) -> str | None:
+    # Normalize blank strings to None so the rest of the module only has to
+    # reason about meaningful string values or the absence of a value.
     if value is None:
         return None
     if not isinstance(value, str):
@@ -178,6 +205,8 @@ def _normalize_optional_string(value: Any, *, field_name: str) -> str | None:
 
 
 def _coerce_bool(value: Any, *, field_name: str) -> bool:
+    # Keep accepted boolean input intentionally narrow so the auth boundary does
+    # not quietly accept surprising values such as 0/1.
     if isinstance(value, bool):
         return value
 
@@ -192,6 +221,7 @@ def _coerce_bool(value: Any, *, field_name: str) -> bool:
 
 
 def _anonymous_caller() -> CallerContext:
+    # Anonymous is a real internal state, not a missing-key accident.
     return {
         "user_id": None,
         "is_authenticated": False,

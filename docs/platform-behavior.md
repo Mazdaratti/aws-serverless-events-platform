@@ -212,20 +212,6 @@ Current examples:
 - `list-events`
 - `get-event`
 
-#### Authenticated route
-
-- route requires authenticated caller context
-- ordinary protected routes use API Gateway native JWT authorization
-- business Lambdas consume normalized caller context derived from the JWT
-  authorizer input
-
-Current examples:
-
-- `create-event`
-- `update-event`
-- `cancel-event`
-- `get-event-rsvps`
-
 #### Mixed-mode route
 
 - anonymous access is allowed
@@ -238,6 +224,21 @@ Current examples:
 Current example:
 
 - `rsvp`
+
+#### Authenticated route
+
+- route requires authenticated caller context
+- ordinary protected routes use API Gateway native JWT authorization
+- business Lambdas consume normalized caller context derived from the JWT
+  authorizer input
+
+Current examples:
+
+- `create-event`
+- `list-my-events`
+- `update-event`
+- `cancel-event`
+- `get-event-rsvps`
 
 #### Mixed-mode RSVP authorizer constraint
 
@@ -317,12 +318,6 @@ The deployed `create-event` Lambda now enforces the locked creation contract:
 #### Access rule
 
 - all users may use broad event listing
-- authenticated users may additionally use `mine`
-
-#### Query modes currently locked
-
-- `all`
-- `mine`
 
 #### Request contract
 
@@ -333,13 +328,8 @@ Support both:
 
 Supported request parameters:
 
-- `mode`
 - `limit`
 - `next_cursor`
-
-#### Default
-
-- `mode=all`
 
 #### Response contract
 
@@ -349,7 +339,6 @@ The response body shape is:
 
 - `items`
 - `next_cursor`
-- `mode`
 
 #### Event DTO contract
 
@@ -416,24 +405,14 @@ The storage model and API model are intentionally separate:
 - internally it is derived from DynamoDB `LastEvaluatedKey`
 - the public contract must not expose raw DynamoDB key structure directly
 
-#### Caller context for direct invocation and tests
-
-Before routed API deployment, direct invocation and tests may use a synthetic
-normalized caller block for convenience.
-
-This local test shape must not be treated as the real API-boundary truth.
-
 #### Current implementation direction
 
-- `mode=all` uses a temporary table `Scan`
-- `mode=mine` uses the `creator-events` GSI
-- pagination is required in both modes
+- broad public listing currently uses a temporary table `Scan`
+- pagination is required
 
 This is an intentional tradeoff:
 
 - broad listing preserves the current product direction
-- creator-scoped listing already aligns with the validated DynamoDB access
-  pattern
 - long-term scan reduction remains desirable, but broad listing is currently an
   intentional platform behavior
 
@@ -442,19 +421,88 @@ This is an intentional tradeoff:
 The deployed `list-events` Lambda now validates the currently locked read
 contract in `dev`:
 
-- broad `all` mode returns the current event collection
-- authenticated `mine` mode returns creator-scoped events
-- `mine` without caller context returns `400`
+- broad public listing returns the current event collection
 - returned items use the locked public event DTO
 
 Lifecycle note:
 
-- during the current temporary scan-based phase, `mode=all` must filter out
+- during the current temporary scan-based phase, `list-events` must filter out
   cancelled events in Lambda
 - long-term behavior will rely on index-based access patterns instead of scan
   filtering
-- `mode=mine` includes cancelled events
-- both modes must expose `status` in the public DTO
+- `list-events` must expose `status` in the public DTO
+
+### `list-my-events`
+
+#### Access rule
+
+- authenticated users may list the events they created
+- anonymous caller is not allowed
+- missing authenticated caller context must not fall back to public behavior
+
+#### Query direction
+
+This operation replaces the previous authenticated `mine` mode from
+`list-events`.
+
+The route is intentionally split so:
+
+- broad event discovery remains public
+- creator-scoped event listing becomes a straightforward authenticated route
+- API Gateway can enforce authentication at the route level instead of relying
+  on mode-specific business gating for one listing route
+
+#### Request contract
+
+Support both:
+
+- direct invocation payload
+- API Gateway-style `queryStringParameters`
+
+Supported request parameters:
+
+- `limit`
+- `next_cursor`
+
+#### Caller context
+
+Caller identity comes from:
+
+- `caller.user_id`
+
+#### Response contract
+
+The Lambda returns an API Gateway-style wrapped response.
+
+The response body shape is:
+
+- `items`
+- `next_cursor`
+
+The returned items use the same locked public event DTO as:
+
+- `list-events`
+- `get-event`
+
+#### Current implementation direction
+
+- `list-my-events` should use the `creator-events` GSI
+- pagination is required
+
+#### Lifecycle visibility
+
+Visible in this route:
+
+- `ACTIVE`
+- `CANCELLED`
+- past events
+
+Past events remain visible unless a later product behavior explicitly changes
+that rule.
+
+#### Status direction
+
+`list-my-events` must expose `status` in the public event DTO.
 
 ### `get-event`
 
@@ -832,7 +880,7 @@ back into the correct business result.
 #### Interaction with other handlers
 
 - `get-event` still returns cancelled events by ID
-- `list-events mode=mine` includes cancelled events
+- `list-my-events` includes cancelled events
 - `list-events mode=all` must filter cancelled events during the current
   scan-based phase
 - long-term `mode=all` behavior should rely on index-based access patterns

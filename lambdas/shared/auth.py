@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import logging
 from typing import Any, TypedDict
 
 
 ADMIN_GROUP_NAME = "admin"
-logger = logging.getLogger(__name__)
 
 
 class CallerContext(TypedDict):
@@ -101,12 +99,6 @@ def _normalize_jwt_authorizer_context(value: Any) -> CallerContext:
     user_id = _normalize_optional_string(
         claims.get("sub"),
         field_name="requestContext.authorizer.jwt.claims.sub",
-    )
-    logger.info(
-        "jwt claims normalized for auth: sub=%r cognito:groups raw=%r type=%s",
-        claims.get("sub"),
-        claims.get("cognito:groups"),
-        type(claims.get("cognito:groups")).__name__,
     )
     # If there is no usable Cognito "sub", we do not invent identity from
     # other claims. The caller is treated as anonymous instead.

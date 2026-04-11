@@ -143,7 +143,7 @@ def collect_files_to_package(
             seen_archive_names.add(archive_name)
 
     add_directory(source_dir, archive_base=source_dir)
-    add_directory(shared_dir, archive_base=repo_root)
+    add_directory(shared_dir, archive_base=shared_dir.parent)
 
     return packaged_files
 

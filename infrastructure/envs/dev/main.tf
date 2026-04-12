@@ -169,12 +169,12 @@ module "cognito" {
 }
 
 ############################################
-# API Gateway protected create-event slice
+# API Gateway protected routed slice
 ############################################
 
-# This environment wires in a deliberately narrow HTTP API slice so the
-# platform can validate one protected routed path end to end before broadening
-# API Gateway coverage across the remaining Lambda workloads.
+# This environment wires in a deliberately incremental HTTP API slice so the
+# platform can validate one ordinary JWT-protected handler at a time before
+# broadening API Gateway coverage across the remaining Lambda workloads.
 module "api_gateway" {
   source = "../../modules/api_gateway"
 
@@ -190,6 +190,13 @@ module "api_gateway" {
       route_key            = "POST /events"
       lambda_invoke_arn    = module.lambda.invoke_arns["create-event"]
       lambda_function_name = module.lambda.function_names["create-event"]
+      authorization_type   = "JWT"
+    }
+
+    update-event = {
+      route_key            = "PATCH /events/{event_id}"
+      lambda_invoke_arn    = module.lambda.invoke_arns["update-event"]
+      lambda_function_name = module.lambda.function_names["update-event"]
       authorization_type   = "JWT"
     }
   }

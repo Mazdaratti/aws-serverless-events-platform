@@ -310,7 +310,8 @@ Validation:
 This is the first end-to-end validated request path in the platform:
 Cognito → API Gateway → Lambda → DynamoDB.
 
-This section documents the first API Gateway slice introduced for the platform.
+This section documents the current incremental API Gateway slice introduced for
+the platform.
 
 Implemented via:
 
@@ -321,23 +322,26 @@ This environment currently wires in:
 - one HTTP API
 - one stage
 - one JWT authorizer (Cognito-based)
-- one protected route:
+- two protected routes:
   - `POST /events`
-- one Lambda integration:
+  - `PATCH /events/{event_id}`
+- two Lambda integrations:
   - `create-event`
+  - `update-event`
 
 Why this module is wired now:
 
 - the platform needed one real routed path to validate caller identity normalization end to end
 - `create-event` was the narrowest protected route to prove first
+- `update-event` is the next ordinary JWT-protected routed step validated in the same incremental way
 - broader route rollout remains later work
 
 Important design notes:
 
-- this is intentionally a narrow first slice, not the final API surface
+- this is intentionally an incremental routed slice, not the final API surface
 - ordinary protected routes use native JWT authorization at API Gateway
 - the mixed-mode `rsvp` route is not yet implemented in this environment because it requires a dedicated Lambda authorizer
-- the business `create-event` Lambda consumes normalized caller context instead of parsing JWTs directly
+- the business `create-event` and `update-event` Lambdas consume normalized caller context instead of parsing JWTs directly
 - reusable API Gateway logic belongs in modules while `envs/dev` stays composition-oriented
 
 Validation:
@@ -346,14 +350,21 @@ Validation:
 - confirmed the HTTP API was created in `eu-central-1`
 - confirmed the rendered API name is `aws-serverless-events-platform-dev-http-api`
 - confirmed the stage name is `dev`
-- confirmed the route key is:
+- confirmed the route keys are:
   - `POST /events`
+  - `PATCH /events/{event_id}`
 - confirmed JWT authorization is attached to the route
 - confirmed anonymous requests are rejected at the API edge
 - confirmed authenticated `create-event` invocation succeeds through API Gateway with JWT validation
+- confirmed authenticated owner `update-event` invocation succeeds through API Gateway with JWT validation
+- confirmed authenticated admin `update-event` invocation succeeds through API Gateway with JWT validation
+- confirmed authenticated non-owner `update-event` invocation returns `403`
+- confirmed cancelled-event `update-event` invocation returns `400`
 - confirmed normalized caller context is correctly resolved inside the Lambda from the JWT authorizer input
 - confirmed event items are successfully written to DynamoDB through the routed path
+- confirmed event updates are successfully applied through the routed path
 - confirmed admin-only creation behavior is enforced correctly by the Lambda through the routed path
+- confirmed immutable-field and malformed-body validation still work through the routed `update-event` path
 - confirmed Terraform outputs match the deployed API ID, stage URL, authorizer ID, and route wiring
 - see evidence screenshots under `docs/assets/lambda_api/`
 
@@ -425,6 +436,10 @@ Current business behavior validated in this environment:
   - returned items use the locked public event DTO under `item`
   - direct DynamoDB `GetItem` lookup is used by canonical `event_pk`
 - `update-event`
+  - protected routed invocation via `PATCH /events/{event_id}` succeeds for authenticated owners
+  - protected routed invocation via `PATCH /events/{event_id}` succeeds for authenticated admins
+  - authenticated non-owner routed invocation returns `403`
+  - cancelled-event routed invocation returns `400`
   - creator-owned and admin updates succeed
   - unauthorized updates return `403`
   - invalid update input returns `400`
@@ -515,7 +530,7 @@ Validation:
 ## Requirements
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.14.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.37 |
 
@@ -526,7 +541,7 @@ No providers.
 ## Modules
 
 | Name | Source | Version |
-| ---- | ------ | ------- |
+|------|--------|---------|
 | <a name="module_api_gateway"></a> [api\_gateway](#module\_api\_gateway) | ../../modules/api_gateway | n/a |
 | <a name="module_cognito"></a> [cognito](#module\_cognito) | ../../modules/cognito | n/a |
 | <a name="module_dynamodb_data_layer"></a> [dynamodb\_data\_layer](#module\_dynamodb\_data\_layer) | ../../modules/dynamodb_data_layer | n/a |
@@ -541,7 +556,7 @@ No resources.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-| ---- | ----------- | ---- | ------- | :------: |
+|------|-------------|------|---------|:--------:|
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region where resources will be deployed. | `string` | n/a | yes |
 | <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 | <a name="input_environment"></a> [environment](#input\_environment) | Deployment environment name. | `string` | n/a | yes |
@@ -550,7 +565,7 @@ No resources.
 ## Outputs
 
 | Name | Description |
-| ---- | ----------- |
+|------|-------------|
 | <a name="output_api_gateway_api_arn"></a> [api\_gateway\_api\_arn](#output\_api\_gateway\_api\_arn) | ARN of the HTTP API created for the dev environment routed slice. |
 | <a name="output_api_gateway_api_endpoint"></a> [api\_gateway\_api\_endpoint](#output\_api\_gateway\_api\_endpoint) | Base invoke endpoint of the HTTP API created for the dev environment routed slice. |
 | <a name="output_api_gateway_api_id"></a> [api\_gateway\_api\_id](#output\_api\_gateway\_api\_id) | ID of the HTTP API created for the dev environment routed slice. |

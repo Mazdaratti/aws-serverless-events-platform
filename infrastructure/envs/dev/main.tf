@@ -167,3 +167,30 @@ module "cognito" {
 
   deletion_protection_enabled = false
 }
+
+############################################
+# API Gateway protected create-event slice
+############################################
+
+# This environment wires in a deliberately narrow HTTP API slice so the
+# platform can validate one protected routed path end to end before broadening
+# API Gateway coverage across the remaining Lambda workloads.
+module "api_gateway" {
+  source = "../../modules/api_gateway"
+
+  name_prefix = local.name_prefix
+  tags        = local.tags
+
+  stage_name   = var.environment
+  jwt_issuer   = module.cognito.issuer
+  jwt_audience = [module.cognito.user_pool_client_id]
+
+  routes = {
+    create-event = {
+      route_key            = "POST /events"
+      lambda_invoke_arn    = module.lambda.invoke_arns["create-event"]
+      lambda_function_name = module.lambda.function_names["create-event"]
+      authorization_type   = "JWT"
+    }
+  }
+}

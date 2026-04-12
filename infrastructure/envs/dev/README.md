@@ -260,19 +260,16 @@ This environment currently wires in:
 Why this module is wired now:
 
 - the platform has already locked Cognito as the managed identity provider
-- the next major platform milestone is API Gateway + Cognito authentication
 - `envs/dev` now needs a real identity baseline before routed authenticated API behavior can be introduced
 
 Important design notes:
 
 - Cognito owns identity lifecycle
-- API Gateway will later consume Cognito-issued JWTs and enforce route-level authentication
-- the future routed API uses a hybrid auth model:
+- the routed API uses a hybrid auth model:
   - native JWT authorization for ordinary protected routes
   - a dedicated custom Lambda authorizer for the mixed-mode `rsvp` route
 - business Lambda handlers remain free of generic authentication logic
-- business Lambda handlers will later consume normalized caller context rather
-  than depending directly on one raw authorizer shape
+- business Lambda handlers consume normalized caller context rather than depending directly on a single raw authorizer shape
 - the canonical identity baseline remains:
   - Cognito `sub` for user identity
   - Cognito `admin` group membership for admin capability
@@ -305,6 +302,60 @@ Validation:
 - confirmed token revocation and prevent-user-existence hardening are enabled
 - confirmed Terraform outputs match the created User Pool, app client, issuer, and admin group identities
 - see evidence screenshots under `docs/assets/cognito/`
+
+---
+
+## API Gateway Slice
+
+This is the first end-to-end validated request path in the platform:
+Cognito → API Gateway → Lambda → DynamoDB.
+
+This section documents the first API Gateway slice introduced for the platform.
+
+Implemented via:
+
+- `modules/api_gateway`
+
+This environment currently wires in:
+
+- one HTTP API
+- one stage
+- one JWT authorizer (Cognito-based)
+- one protected route:
+  - `POST /events`
+- one Lambda integration:
+  - `create-event`
+
+Why this module is wired now:
+
+- the platform needed one real routed path to validate caller identity normalization end to end
+- `create-event` was the narrowest protected route to prove first
+- broader route rollout remains later work
+
+Important design notes:
+
+- this is intentionally a narrow first slice, not the final API surface
+- ordinary protected routes use native JWT authorization at API Gateway
+- the mixed-mode `rsvp` route is not yet implemented in this environment because it requires a dedicated Lambda authorizer
+- the business `create-event` Lambda consumes normalized caller context instead of parsing JWTs directly
+- reusable API Gateway logic belongs in modules while `envs/dev` stays composition-oriented
+
+Validation:
+
+- validated via `terraform apply`, AWS Console inspection, Terraform output verification, real Cognito token acquisition, routed API invocation, Lambda execution verification, and a clean post-apply `terraform plan`
+- confirmed the HTTP API was created in `eu-central-1`
+- confirmed the rendered API name is `aws-serverless-events-platform-dev-http-api`
+- confirmed the stage name is `dev`
+- confirmed the route key is:
+  - `POST /events`
+- confirmed JWT authorization is attached to the route
+- confirmed anonymous requests are rejected at the API edge
+- confirmed authenticated `create-event` invocation succeeds through API Gateway with JWT validation
+- confirmed normalized caller context is correctly resolved inside the Lambda from the JWT authorizer input
+- confirmed event items are successfully written to DynamoDB through the routed path
+- confirmed admin-only creation behavior is enforced correctly by the Lambda through the routed path
+- confirmed Terraform outputs match the deployed API ID, stage URL, authorizer ID, and route wiring
+- see evidence screenshots under `docs/assets/lambda_api/`
 
 ---
 
@@ -351,8 +402,11 @@ Important design notes:
 Current business behavior validated in this environment:
 
 - `create-event`
+  - protected routed invocation via `POST /events` succeeds for authenticated callers
+  - anonymous routed invocation is rejected at the API edge
   - authenticated event creation succeeds
   - non-admin admin-only creation is rejected
+  - admin admin-only creation succeeds
   - canonical event items are written with `status = ACTIVE`
   - request-body `creator_id` spoofing is ignored in favor of caller-context ownership
   - public events populate the public upcoming GSI, while non-public events omit those helper attributes
@@ -465,33 +519,47 @@ Validation:
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.14.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.37 |
 
+## Providers
 
+No providers.
 
 ## Modules
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
+| <a name="module_api_gateway"></a> [api\_gateway](#module\_api\_gateway) | ../../modules/api_gateway | n/a |
 | <a name="module_cognito"></a> [cognito](#module\_cognito) | ../../modules/cognito | n/a |
 | <a name="module_dynamodb_data_layer"></a> [dynamodb\_data\_layer](#module\_dynamodb\_data\_layer) | ../../modules/dynamodb_data_layer | n/a |
 | <a name="module_iam"></a> [iam](#module\_iam) | ../../modules/iam | n/a |
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
 | <a name="module_sqs"></a> [sqs](#module\_sqs) | ../../modules/sqs | n/a |
 
+## Resources
 
+No resources.
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region where resources will be deployed. | `string` | n/a | yes |
+| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 | <a name="input_environment"></a> [environment](#input\_environment) | Deployment environment name. | `string` | n/a | yes |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Project name used for naming and tagging resources. | `string` | n/a | yes |
-| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 
 ## Outputs
 
 | Name | Description |
 | ---- | ----------- |
+| <a name="output_api_gateway_api_arn"></a> [api\_gateway\_api\_arn](#output\_api\_gateway\_api\_arn) | ARN of the HTTP API created for the dev environment routed slice. |
+| <a name="output_api_gateway_api_endpoint"></a> [api\_gateway\_api\_endpoint](#output\_api\_gateway\_api\_endpoint) | Base invoke endpoint of the HTTP API created for the dev environment routed slice. |
+| <a name="output_api_gateway_api_id"></a> [api\_gateway\_api\_id](#output\_api\_gateway\_api\_id) | ID of the HTTP API created for the dev environment routed slice. |
+| <a name="output_api_gateway_execution_arn"></a> [api\_gateway\_execution\_arn](#output\_api\_gateway\_execution\_arn) | Execution ARN of the HTTP API created for the dev environment routed slice. |
+| <a name="output_api_gateway_jwt_authorizer_id"></a> [api\_gateway\_jwt\_authorizer\_id](#output\_api\_gateway\_jwt\_authorizer\_id) | JWT authorizer ID of the HTTP API created for the dev environment routed slice. |
+| <a name="output_api_gateway_route_ids"></a> [api\_gateway\_route\_ids](#output\_api\_gateway\_route\_ids) | Map of logical route name to route ID for the dev environment routed slice. |
+| <a name="output_api_gateway_route_keys"></a> [api\_gateway\_route\_keys](#output\_api\_gateway\_route\_keys) | Map of logical route name to route key for the dev environment routed slice. |
+| <a name="output_api_gateway_stage_invoke_url"></a> [api\_gateway\_stage\_invoke\_url](#output\_api\_gateway\_stage\_invoke\_url) | Stage-qualified invoke URL of the HTTP API created for the dev environment routed slice. |
+| <a name="output_api_gateway_stage_name"></a> [api\_gateway\_stage\_name](#output\_api\_gateway\_stage\_name) | Stage name of the HTTP API created for the dev environment routed slice. |
 | <a name="output_cognito_admin_group_name"></a> [cognito\_admin\_group\_name](#output\_cognito\_admin\_group\_name) | Name of the Cognito admin group created for the dev environment. |
 | <a name="output_cognito_issuer"></a> [cognito\_issuer](#output\_cognito\_issuer) | JWT issuer URL for the Cognito User Pool created for the dev environment. |
 | <a name="output_cognito_user_pool_arn"></a> [cognito\_user\_pool\_arn](#output\_cognito\_user\_pool\_arn) | ARN of the Cognito User Pool created for the dev environment. |

@@ -306,7 +306,7 @@ Planned implementation sequence:
    - shared helper test coverage ✅
    - shared packaging support for `shared/...` imports ✅
    - `create-event` normalization adoption ✅
-   - `update-event` pending
+   - `update-event` normalization adoption ✅
    - `cancel-event` pending
    - `get-event-rsvps` pending
    - `list-events` cleanup pending
@@ -315,6 +315,7 @@ Planned implementation sequence:
 11. `rsvp` normalization for mixed-mode authorizer contract
 12. API Gateway routed validation and rollout
    - narrow protected `create-event` route slice ✅ (end-to-end validated)
+   - incremental protected `update-event` route slice ✅ (end-to-end validated)
    - broader route rollout pending
 13. Frontend S3 hosting, CloudFront distribution, WAF protection
 14. EventBridge and SNS integration

@@ -295,19 +295,36 @@ Planned implementation sequence:
    - `cancel-event` ✅
    - `rsvp` ✅
    - `get-event-rsvps` ✅
-7. Lambda identity normalization across authorizer modes
-8. `list-my-events` workload split from `list-events`
-9. Mixed-mode RSVP authorizer
-10. API Gateway and Cognito authentication
-11. Frontend S3 hosting, CloudFront distribution, WAF protection
-12. EventBridge and SNS integration
-13. `notification-worker`
-14. CloudWatch observability and X-Ray tracing
-15. Remote Terraform backend and GitHub OIDC
-16. CI/CD deployment workflow
+   - note: workload implementations exist, but identity-normalization adoption
+     and routed API alignment are still being completed incrementally
+7. Cognito authentication baseline (foundation) ✅
+   - Cognito User Pool ✅
+   - public app client ✅
+   - admin group ✅
+8. Lambda identity normalization across authorizer modes
+   - shared caller normalization helper ✅
+   - shared helper test coverage ✅
+   - shared packaging support for `shared/...` imports ✅
+   - `create-event` normalization adoption ✅
+   - `update-event` pending
+   - `cancel-event` pending
+   - `get-event-rsvps` pending
+   - `list-events` cleanup pending
+9. `list-my-events` workload split from `list-events`
+10. Mixed-mode RSVP authorizer
+11. `rsvp` normalization for mixed-mode authorizer contract
+12. API Gateway routed validation and rollout
+   - narrow protected `create-event` route slice ✅ (end-to-end validated)
+   - broader route rollout pending
+13. Frontend S3 hosting, CloudFront distribution, WAF protection
+14. EventBridge and SNS integration
+15. `notification-worker`
+16. CloudWatch observability and X-Ray tracing
+17. Remote Terraform backend and GitHub OIDC
+18. CI/CD deployment workflow
 
 
-The repository now also includes a Terraform validation workflow for the currently implemented module, example, and `envs/dev` root, plus focused Python validation for the first real Lambda handler. That workflow improves static validation confidence, while real AWS creation is still verified through local `plan` and `apply` in the dev environment.
+The repository now also includes a Terraform validation workflow for the currently implemented modules, examples, and `envs/dev` root, plus focused Python validation for the implemented Lambda handlers. That workflow improves static validation confidence, while real AWS creation is still verified through local `plan` and `apply` in the dev environment.
 
 ---
 

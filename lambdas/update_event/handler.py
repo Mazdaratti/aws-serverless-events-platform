@@ -158,11 +158,13 @@ def _extract_payload(event: dict[str, Any]) -> dict[str, Any]:
         return payload
 
     # Direct invocation keeps event_id at the top level for identifier
-    # resolution, but it should not be treated as part of the mutable payload.
+    # resolution, but identity/helper envelope fields should not be treated as
+    # part of the mutable payload. This keeps direct-invocation tests aligned
+    # with the same business payload shape used after routed auth handling.
     return {
         key: value
         for key, value in event.items()
-        if key not in {"pathParameters", "requestContext", "event_id", "body"}
+        if key not in {"pathParameters", "requestContext", "caller", "event_id", "body"}
     }
 
 

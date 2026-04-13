@@ -11,9 +11,15 @@ EVENT_ID = "11111111-1111-1111-1111-111111111111"
 OTHER_EVENT_ID = "22222222-2222-2222-2222-222222222222"
 
 
-def build_authorizer(*, user_id: object = "alice", is_admin: object = False) -> dict[str, object]:
-    """Build the minimal authorizer shape that the handler expects."""
+def build_authorizer(
+    *,
+    user_id: object = "alice",
+    is_authenticated: object = True,
+    is_admin: object = False,
+) -> dict[str, object]:
+    """Build the normalized flat caller shape used by shared auth parsing."""
     return {
+        "is_authenticated": is_authenticated,
         "user_id": user_id,
         "is_admin": is_admin,
     }

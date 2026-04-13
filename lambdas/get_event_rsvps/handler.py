@@ -64,7 +64,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         logger.info("get-event-rsvps completed for event_id %s", request["event_id"])
         return _success_response(status_code=status_code, body=response_body)
-    except RequestValidationError as exc:
+    except (RequestValidationError, ValueError) as exc:
         logger.info("get-event-rsvps validation failed: %s", exc)
         return _error_response(status_code=400, message=str(exc))
     except PermissionError as exc:

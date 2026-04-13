@@ -308,7 +308,7 @@ Planned implementation sequence:
    - `create-event` normalization adoption ✅
    - `update-event` normalization adoption ✅
    - `cancel-event` normalization adoption ✅
-   - `get-event-rsvps` pending
+   - `get-event-rsvps` normalization adoption ✅
    - `list-events` cleanup pending
 9. `list-my-events` workload split from `list-events`
 10. Mixed-mode RSVP authorizer
@@ -317,6 +317,7 @@ Planned implementation sequence:
    - narrow protected `create-event` route slice ✅ (end-to-end validated)
    - incremental protected `update-event` route slice ✅ (end-to-end validated)
    - incremental protected `cancel-event` route slice ✅ (end-to-end validated)
+   - incremental protected `get-event-rsvps` route slice ✅ (end-to-end validated)
    - broader route rollout pending
 13. Frontend S3 hosting, CloudFront distribution, WAF protection
 14. EventBridge and SNS integration

@@ -26,7 +26,7 @@ class RequestValidationError(ValueError):
     """Raised when the incoming request shape or values are invalid."""
 
 
-class NotFoundError(ValueError):
+class NotFoundError(Exception):
     """Raised when a requested resource does not exist."""
 
 

@@ -60,7 +60,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - implementation
     - `envs/dev` wiring
     - AWS validation and deployment evidence
-    - currently still includes the older creator-scoped listing behavior that will be split out in a later step
+    - now locked as the public broad-list workload
+    - creator-scoped listing is reserved for the future `list-my-events` split
   - `get-event`
     - implementation
     - `envs/dev` wiring
@@ -309,7 +310,7 @@ Planned implementation sequence:
    - `update-event` normalization adoption ✅
    - `cancel-event` normalization adoption ✅
    - `get-event-rsvps` normalization adoption ✅
-   - `list-events` cleanup pending
+   - `list-events` public-only cleanup ✅
 9. `list-my-events` workload split from `list-events`
 10. Mixed-mode RSVP authorizer
 11. `rsvp` normalization for mixed-mode authorizer contract

@@ -199,5 +199,12 @@ module "api_gateway" {
       lambda_function_name = module.lambda.function_names["update-event"]
       authorization_type   = "JWT"
     }
+
+    cancel-event = {
+      route_key            = "POST /events/{event_id}/cancel"
+      lambda_invoke_arn    = module.lambda.invoke_arns["cancel-event"]
+      lambda_function_name = module.lambda.function_names["cancel-event"]
+      authorization_type   = "JWT"
+    }
   }
 }

@@ -240,6 +240,34 @@ Current examples:
 - `cancel-event`
 - `get-event-rsvps`
 
+### Ordinary Routed API Shape
+
+The ordinary routed API shape for the currently implemented handlers is locked
+as:
+
+- `POST /events`
+  - `create-event`
+- `GET /events`
+  - `list-events`
+- `GET /events/{event_id}`
+  - `get-event`
+- `PATCH /events/{event_id}`
+  - `update-event`
+- `POST /events/{event_id}/cancel`
+  - `cancel-event`
+- `GET /events/{event_id}/rsvps`
+  - `get-event-rsvps`
+
+After the listing split, the creator-scoped listing route is:
+
+- `GET /events/mine`
+  - `list-my-events`
+
+The mixed-mode RSVP route is locked as:
+
+- `POST /events/{event_id}/rsvp`
+  - `rsvp`
+
 #### Mixed-mode RSVP authorizer constraint
 
 The mixed-mode `rsvp` authorizer must not require anonymous callers to present
@@ -791,6 +819,10 @@ Lifecycle note:
 - there are no metadata edits after cancellation in this phase
 
 ### `cancel-event`
+
+Routed API shape:
+
+- `POST /events/{event_id}/cancel`
 
 #### Access rule
 

@@ -206,5 +206,12 @@ module "api_gateway" {
       lambda_function_name = module.lambda.function_names["cancel-event"]
       authorization_type   = "JWT"
     }
+
+    get-event-rsvps = {
+      route_key            = "GET /events/{event_id}/rsvps"
+      lambda_invoke_arn    = module.lambda.invoke_arns["get-event-rsvps"]
+      lambda_function_name = module.lambda.function_names["get-event-rsvps"]
+      authorization_type   = "JWT"
+    }
   }
 }

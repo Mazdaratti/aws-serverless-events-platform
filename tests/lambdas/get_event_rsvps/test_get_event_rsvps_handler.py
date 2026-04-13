@@ -349,7 +349,7 @@ def test_lambda_handler_returns_400_for_invalid_authorizer_is_admin_type(fake_cl
     assert_error_response(
         response,
         status_code=400,
-        message="requestContext.authorizer.is_admin must be a boolean-like value when provided.",
+        message="requestContext.authorizer.is_admin must be a boolean when provided.",
     )
 
 
@@ -514,7 +514,13 @@ def test_lambda_handler_treats_blank_authorizer_user_id_as_anonymous(fake_client
     fake_client.queue_get_item("example-events", build_event_key(), {"Item": build_event_item(creator_id="alice")})
 
     response = handler.lambda_handler(
-        build_direct_event(authorizer=build_authorizer(user_id="   ", is_admin=False)),
+        build_direct_event(
+            authorizer=build_authorizer(
+                user_id=None,
+                is_authenticated=False,
+                is_admin=False,
+            )
+        ),
         None,
     )
 

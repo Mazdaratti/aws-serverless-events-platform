@@ -52,17 +52,23 @@ protection, and authorization decisions.
 
 **Amazon API Gateway** is responsible for:
 
-- JWT validation
+- native JWT validation on ordinary protected routes
+- invoking a dedicated custom Lambda authorizer for the mixed-mode RSVP route
 - route-level authentication enforcement
 
-**AWS Lambda** functions are responsible only for resource- and
+**Shared request/auth normalization** is responsible for:
+
+- accepting multiple upstream authorizer context shapes
+- mapping caller identity into one normalized internal caller contract
+
+**Business AWS Lambda** functions are responsible only for resource- and
 workflow-specific authorization:
 
 - ownership checks
 - event-type-dependent access rules
 - admin versus non-admin business decisions
 
-Lambda functions do not implement:
+Business Lambda functions do not implement:
 
 - login
 - session management
@@ -72,13 +78,20 @@ Lambda functions do not implement:
 This keeps authentication centralized while allowing business decisions to stay
 close to the resource workflows that depend on them.
 
+The dedicated custom RSVP authorizer remains part of the platform auth layer,
+not part of business workflow logic.
+
 ### Identity Model
 
 The platform's canonical internal user identifier is the Cognito user `sub`.
 
-Later API-layer identity projection should derive:
+The platform's raw identity baseline derives from:
 
-- `requestContext.authorizer.user_id` from Cognito `sub`
+- Cognito `sub` for user identity
+- Cognito group membership for admin capability
+
+Business Lambdas consume a normalized internal caller contract rather than
+depending directly on one raw API Gateway authorizer shape.
 
 This keeps internal identity:
 
@@ -107,10 +120,6 @@ Administrative capabilities are derived from Cognito group membership.
 The initial identity baseline includes one Cognito group:
 
 - `admin`
-
-Later request context should derive:
-
-- `is_admin` from Cognito `admin` group membership
 
 Lambda functions must not infer admin privileges from request payloads or
 handler-specific custom auth logic.
@@ -154,9 +163,16 @@ This keeps the compute layer aligned with the platform's business workflow
 boundaries, such as:
 
 - event creation
-- event listing and lookup
+- public event listing and lookup
+- creator-scoped event listing
 - creator-owned event management
 - synchronous RSVP business handling
+
+The routed API intentionally uses a hybrid authorization model:
+
+- public read routes such as broad event listing and single-event lookup remain open
+- ordinary protected routes use the native JWT authorizer path
+- the RSVP route uses a dedicated custom authorizer path to support mixed anonymous and authenticated access on one operation
 
 ---
 
@@ -184,7 +200,10 @@ The RSVP decision itself remains business-driven inside Lambda:
 - protected events require authenticated callers
 - admin events require admin callers
 
-Generic JWT validation still stays outside Lambda in API Gateway/Cognito.
+JWT validation remains outside the RSVP business Lambda.
+
+For the mixed-mode RSVP route, token validation is performed in the dedicated
+custom Lambda authorizer, not in the business handler.
 
 ---
 

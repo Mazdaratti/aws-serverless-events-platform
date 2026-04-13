@@ -9,12 +9,14 @@ from lambdas.cancel_event import handler
 
 
 def _authenticated_event(*, user_id: str = "alice", is_admin: bool = False) -> dict[str, object]:
+    # Use the normalized synthetic caller test shape supported by the shared
+    # auth helper so these tests stay focused on cancel-event business rules
+    # instead of one raw authorizer transport format.
     return {
-        "requestContext": {
-            "authorizer": {
-                "user_id": user_id,
-                "is_admin": is_admin,
-            }
+        "caller": {
+            "user_id": user_id,
+            "is_authenticated": True,
+            "is_admin": is_admin,
         }
     }
 

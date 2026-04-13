@@ -24,10 +24,14 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- API Gateway + Cognito authentication is the current implementation focus
+- Lambda identity normalization and API-edge preparation are the current implementation focus
 - Cognito identity infrastructure is now implemented, wired in `envs/dev`, and validated in AWS
-- the next step is to place authenticated and public HTTP routes in front of the already validated Lambda layer and newly validated identity baseline
-- this shifts validation from direct Lambda invocation toward routed API behavior and managed identity enforcement
+- the next steps are to:
+  - normalize caller identity handling across Lambda workloads
+  - split creator-scoped event listing into its own authenticated workload
+  - add the mixed-mode RSVP authorizer
+  - place authenticated and public HTTP routes in front of the validated Lambda layer
+- this shifts the platform from direct Lambda invocation assumptions toward routed API behavior and managed identity enforcement
 
 ### Completed milestones
 
@@ -56,6 +60,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - implementation
     - `envs/dev` wiring
     - AWS validation and deployment evidence
+    - now locked as the public broad-list workload
+    - creator-scoped listing is reserved for the future `list-my-events` split
   - `get-event`
     - implementation
     - `envs/dev` wiring
@@ -130,7 +136,9 @@ AWS Shield Standard provides automatic edge protection.
 ### API Request Flow
 
 4. The frontend sends API requests to **Amazon API Gateway**.
-5. Protected endpoints require authentication via **Amazon Cognito** using JWT authorizers.
+5. Route protection is enforced at API Gateway using a hybrid authorizer model:
+   - native JWT authorizer for ordinary protected routes
+   - a dedicated Lambda authorizer for the mixed-mode RSVP route
 
 ### Event Management
 
@@ -187,6 +195,10 @@ Asynchronous processing is reserved for durable post-commit work, starting with 
 **Managed Authentication**
 
 Amazon Cognito replaces custom authentication logic, improving security and reducing operational overhead.
+
+The routed API intentionally uses a hybrid authorizer model so ordinary protected
+routes stay simple while the RSVP route can support anonymous and authenticated
+callers on one business operation.
 
 **No VPC Architecture**
 
@@ -284,16 +296,39 @@ Planned implementation sequence:
    - `cancel-event` ✅
    - `rsvp` ✅
    - `get-event-rsvps` ✅
-7. API Gateway and Cognito authentication
-8. Frontend S3 hosting, CloudFront distribution, WAF protection
-9. EventBridge and SNS integration
-10. `notification-worker`
-11. CloudWatch observability and X-Ray tracing
-12. Remote Terraform backend and GitHub OIDC
-13. CI/CD deployment workflow
+   - note: workload implementations exist, but identity-normalization adoption
+     and routed API alignment are still being completed incrementally
+7. Cognito authentication baseline (foundation) ✅
+   - Cognito User Pool ✅
+   - public app client ✅
+   - admin group ✅
+8. Lambda identity normalization across authorizer modes
+   - shared caller normalization helper ✅
+   - shared helper test coverage ✅
+   - shared packaging support for `shared/...` imports ✅
+   - `create-event` normalization adoption ✅
+   - `update-event` normalization adoption ✅
+   - `cancel-event` normalization adoption ✅
+   - `get-event-rsvps` normalization adoption ✅
+   - `list-events` public-only cleanup ✅
+9. `list-my-events` workload split from `list-events`
+10. Mixed-mode RSVP authorizer
+11. `rsvp` normalization for mixed-mode authorizer contract
+12. API Gateway routed validation and rollout
+   - narrow protected `create-event` route slice ✅ (end-to-end validated)
+   - incremental protected `update-event` route slice ✅ (end-to-end validated)
+   - incremental protected `cancel-event` route slice ✅ (end-to-end validated)
+   - incremental protected `get-event-rsvps` route slice ✅ (end-to-end validated)
+   - broader route rollout pending
+13. Frontend S3 hosting, CloudFront distribution, WAF protection
+14. EventBridge and SNS integration
+15. `notification-worker`
+16. CloudWatch observability and X-Ray tracing
+17. Remote Terraform backend and GitHub OIDC
+18. CI/CD deployment workflow
 
 
-The repository now also includes a Terraform validation workflow for the currently implemented module, example, and `envs/dev` root, plus focused Python validation for the first real Lambda handler. That workflow improves static validation confidence, while real AWS creation is still verified through local `plan` and `apply` in the dev environment.
+The repository now also includes a Terraform validation workflow for the currently implemented modules, examples, and `envs/dev` root, plus focused Python validation for the implemented Lambda handlers. That workflow improves static validation confidence, while real AWS creation is still verified through local `plan` and `apply` in the dev environment.
 
 ---
 

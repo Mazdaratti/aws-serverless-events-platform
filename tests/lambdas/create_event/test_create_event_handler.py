@@ -7,13 +7,14 @@ from lambdas.create_event import handler
 
 
 def _authenticated_event(*, user_id: str = "alice", is_admin: bool = False) -> dict[str, object]:
-    # Keep test events close to the future API Gateway authorizer handoff.
+    # Use the normalized synthetic caller test shape supported by the shared
+    # auth helper so handler tests stay decoupled from any one raw authorizer
+    # event layout.
     return {
-        "requestContext": {
-            "authorizer": {
-                "user_id": user_id,
-                "is_admin": is_admin,
-            }
+        "caller": {
+            "user_id": user_id,
+            "is_authenticated": True,
+            "is_admin": is_admin,
         }
     }
 

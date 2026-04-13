@@ -8,6 +8,8 @@ from typing import Any
 import boto3
 from botocore.exceptions import ClientError
 
+from shared.auth import resolve_optional_caller
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -24,15 +26,15 @@ class RequestValidationError(ValueError):
     """Raised when the incoming request shape or values are invalid."""
 
 
-class NotFoundError(ValueError):
+class NotFoundError(Exception):
     """Raised when a requested resource does not exist."""
 
 
-class EventStateError(ValueError):
+class EventStateError(Exception):
     """Raised when the stored event item has an invalid internal shape."""
 
 
-class RsvpStateError(ValueError):
+class RsvpStateError(Exception):
     """Raised when the stored RSVP item has an invalid internal shape."""
 
 
@@ -62,7 +64,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         logger.info("get-event-rsvps completed for event_id %s", request["event_id"])
         return _success_response(status_code=status_code, body=response_body)
-    except RequestValidationError as exc:
+    except (RequestValidationError, ValueError) as exc:
         logger.info("get-event-rsvps validation failed: %s", exc)
         return _error_response(status_code=400, message=str(exc))
     except PermissionError as exc:
@@ -132,7 +134,10 @@ def _resolve_request(event: dict[str, Any]) -> dict[str, Any]:
         raw_value=_resolve_next_cursor(event),
         event_id=event_id,
     )
-    caller_context = _resolve_caller_context(event)
+    # Resolve one normalized caller contract at the handler edge so the rest
+    # of the business flow can stay focused on existence, authorization, and
+    # RSVP read behavior instead of raw authorizer shapes.
+    caller_context = resolve_optional_caller(event)
 
     return {
         "event_id": event_id,
@@ -269,52 +274,6 @@ def _encode_cursor(last_evaluated_key: dict[str, Any] | None) -> str | None:
     payload = json.dumps(last_evaluated_key, separators=(",", ":"), sort_keys=True)
     encoded = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("utf-8")
     return encoded.rstrip("=")
-
-
-def _resolve_caller_context(event: dict[str, Any]) -> dict[str, Any]:
-    """Resolve creator/admin caller context from requestContext.authorizer."""
-    request_context = event.get("requestContext")
-    if request_context is None:
-        return {"user_id": None, "is_admin": False}
-    if not isinstance(request_context, dict):
-        raise RequestValidationError("requestContext must be an object when provided.")
-
-    authorizer = request_context.get("authorizer")
-    if authorizer is None:
-        return {"user_id": None, "is_admin": False}
-    if not isinstance(authorizer, dict):
-        raise RequestValidationError("requestContext.authorizer must be an object when provided.")
-
-    raw_user_id = authorizer.get("user_id")
-    raw_is_admin = authorizer.get("is_admin", False)
-
-    if raw_user_id is None:
-        return {"user_id": None, "is_admin": _coerce_admin_flag(raw_is_admin)}
-    if not isinstance(raw_user_id, str):
-        raise RequestValidationError("requestContext.authorizer.user_id must be a string when provided.")
-
-    user_id = raw_user_id.strip()
-    if not user_id:
-        return {"user_id": None, "is_admin": _coerce_admin_flag(raw_is_admin)}
-
-    return {
-        "user_id": user_id,
-        "is_admin": _coerce_admin_flag(raw_is_admin),
-    }
-
-
-def _coerce_admin_flag(value: Any) -> bool:
-    """Normalize tolerant authorizer admin flag values into a boolean."""
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"true", "1", "yes"}:
-            return True
-        if lowered in {"false", "0", "no", ""}:
-            return False
-
-    raise RequestValidationError("requestContext.authorizer.is_admin must be a boolean-like value when provided.")
 
 
 def _authorize_event_rsvp_read(*, event: dict[str, Any], caller_user_id: str | None, is_admin: bool) -> None:

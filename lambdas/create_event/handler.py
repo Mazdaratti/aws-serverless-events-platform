@@ -7,6 +7,8 @@ from typing import Any
 
 import boto3
 
+from shared.auth import require_authenticated_caller
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -22,7 +24,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     logger.info("create-event invocation started")
 
     try:
-        caller_context = _get_caller_context(event)
+        caller_context = require_authenticated_caller(event)
         payload = _extract_payload(event)
         validated_payload = _validate_payload(payload=payload, caller_context=caller_context)
 
@@ -233,30 +235,6 @@ def _get_required_env(name: str) -> str:
     return value
 
 
-def _get_caller_context(event: dict[str, Any]) -> dict[str, Any]:
-    # Keep the temporary direct-invoke/test event shape aligned with the future
-    # API Gateway handoff: requestContext.authorizer carries caller identity.
-    request_context = event.get("requestContext", {})
-    if not isinstance(request_context, dict):
-        raise ValueError("Authenticated caller context is required.")
-
-    authorizer = request_context.get("authorizer", {})
-    if not isinstance(authorizer, dict):
-        raise ValueError("Authenticated caller context is required.")
-
-    user_id = str(authorizer.get("user_id", "")).strip()
-    if not user_id:
-        raise ValueError("Authenticated caller context is required.")
-
-    return {
-        "user_id": user_id,
-        "is_admin": _coerce_optional_bool(
-            authorizer.get("is_admin", False),
-            "requestContext.authorizer.is_admin",
-        ),
-    }
-
-
 def _get_dynamodb_table(table_name: str):
     # Create the DynamoDB table resource lazily so importing this module does
     # not require ambient AWS region configuration during tests.
@@ -268,15 +246,6 @@ def _coerce_bool(value: Any, field_name: str) -> bool:
         return value
 
     raise ValueError(f"{field_name} must be a boolean when provided.")
-
-
-def _coerce_optional_bool(value: Any, field_name: str) -> bool:
-    # Some authorizer fields may be omitted in early direct invocation/testing
-    # flows, so treat missing optional booleans as False.
-    if value is None:
-        return False
-
-    return _coerce_bool(value, field_name)
 
 
 def _success_response(*, status_code: int, body: dict[str, Any]) -> dict[str, Any]:

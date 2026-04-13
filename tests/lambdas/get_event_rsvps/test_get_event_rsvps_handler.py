@@ -11,9 +11,15 @@ EVENT_ID = "11111111-1111-1111-1111-111111111111"
 OTHER_EVENT_ID = "22222222-2222-2222-2222-222222222222"
 
 
-def build_authorizer(*, user_id: object = "alice", is_admin: object = False) -> dict[str, object]:
-    """Build the minimal authorizer shape that the handler expects."""
+def build_authorizer(
+    *,
+    user_id: object = "alice",
+    is_authenticated: object = True,
+    is_admin: object = False,
+) -> dict[str, object]:
+    """Build the normalized flat caller shape used by shared auth parsing."""
     return {
+        "is_authenticated": is_authenticated,
         "user_id": user_id,
         "is_admin": is_admin,
     }
@@ -343,7 +349,7 @@ def test_lambda_handler_returns_400_for_invalid_authorizer_is_admin_type(fake_cl
     assert_error_response(
         response,
         status_code=400,
-        message="requestContext.authorizer.is_admin must be a boolean-like value when provided.",
+        message="requestContext.authorizer.is_admin must be a boolean when provided.",
     )
 
 
@@ -508,7 +514,13 @@ def test_lambda_handler_treats_blank_authorizer_user_id_as_anonymous(fake_client
     fake_client.queue_get_item("example-events", build_event_key(), {"Item": build_event_item(creator_id="alice")})
 
     response = handler.lambda_handler(
-        build_direct_event(authorizer=build_authorizer(user_id="   ", is_admin=False)),
+        build_direct_event(
+            authorizer=build_authorizer(
+                user_id=None,
+                is_authenticated=False,
+                is_admin=False,
+            )
+        ),
         None,
     )
 

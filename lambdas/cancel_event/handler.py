@@ -7,6 +7,8 @@ from typing import Any
 import boto3
 from botocore.exceptions import ClientError
 
+from shared.auth import require_authenticated_caller
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -35,7 +37,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         if not isinstance(event, dict):
             raise ValueError("Event payload must be a JSON object.")
 
-        caller_context = _get_caller_context(event)
+        # Protected routes should resolve the authenticated caller once at the
+        # handler edge, then pass the normalized caller shape through the rest
+        # of the business flow.
+        caller_context = require_authenticated_caller(event)
         event_id = _validate_event_id(event)
 
         events_table_name = _get_required_env("EVENTS_TABLE_NAME")
@@ -67,28 +72,6 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     except Exception:
         logger.exception("cancel-event failed unexpectedly")
         return _error_response(status_code=500, message="Internal server error.")
-
-
-def _get_caller_context(event: dict[str, Any]) -> dict[str, Any]:
-    request_context = event.get("requestContext", {})
-    if not isinstance(request_context, dict):
-        raise ValueError("Authenticated caller context is required.")
-
-    authorizer = request_context.get("authorizer", {})
-    if not isinstance(authorizer, dict):
-        raise ValueError("Authenticated caller context is required.")
-
-    user_id = str(authorizer.get("user_id", "")).strip()
-    if not user_id:
-        raise ValueError("Authenticated caller context is required.")
-
-    return {
-        "user_id": user_id,
-        "is_admin": _coerce_optional_bool(
-            authorizer.get("is_admin", False),
-            "requestContext.authorizer.is_admin",
-        ),
-    }
 
 
 def _validate_event_id(event: dict[str, Any]) -> str:
@@ -346,13 +329,6 @@ def _coerce_bool(value: Any, field_name: str) -> bool:
         return value
 
     raise ValueError(f"{field_name} must be a boolean when provided.")
-
-
-def _coerce_optional_bool(value: Any, field_name: str) -> bool:
-    if value is None:
-        return False
-
-    return _coerce_bool(value, field_name)
 
 
 def _success_response(*, status_code: int, body: dict[str, Any]) -> dict[str, Any]:

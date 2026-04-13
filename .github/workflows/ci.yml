@@ -34,6 +34,9 @@ jobs:
     name: Validate Python Lambda Handlers
     runs-on: ubuntu-latest
 
+    env:
+      PYTHONPATH: .:lambdas
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -62,6 +65,7 @@ jobs:
         directory:
           # Keep CI focused on the Terraform roots that currently exist
           # and are relevant for this stage of the repository.
+          - infrastructure/modules/api_gateway
           - infrastructure/modules/cognito
           - infrastructure/modules/cognito/examples/basic_usage
           - infrastructure/modules/dynamodb_data_layer

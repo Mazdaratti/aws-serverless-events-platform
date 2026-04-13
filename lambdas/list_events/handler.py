@@ -6,7 +6,6 @@ from decimal import Decimal
 from typing import Any
 
 import boto3
-from boto3.dynamodb.conditions import Key
 
 
 logger = logging.getLogger()
@@ -14,8 +13,6 @@ logger.setLevel(logging.INFO)
 
 
 # Keep the public request contract small and explicit.
-DEFAULT_MODE = "all"
-ALLOWED_MODES = {"all", "mine"}
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
 
@@ -27,9 +24,9 @@ class EventDtoMappingError(Exception):
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # Keep the handler flow easy to follow:
     # 1. extract request parameters from the supported event shapes
-    # 2. validate mode, limit, cursor, and caller context when needed
-    # 3. read from DynamoDB using the access path that matches the mode
-    # 4. map storage items into the public event DTO
+    # 2. validate the public-only limit/cursor contract
+    # 3. read from DynamoDB using the temporary broad listing access path
+    # 4. filter broad-list-ineligible items and map the rest into the public DTO
     # 5. return an API Gateway-style wrapped response
     logger.info("list-events invocation started")
 
@@ -42,8 +39,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         response_body = _list_events(table=table, request=validated_request)
         logger.info(
-            "list-events completed in mode %s with %s items",
-            validated_request["mode"],
+            "list-events completed with %s items",
             len(response_body["items"]),
         )
 
@@ -95,27 +91,15 @@ def _extract_request(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _validate_request(*, request: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
-    # Validate the small public request contract first, then resolve caller
-    # context only for the mode that actually needs it.
-    mode = str(request.get("mode", DEFAULT_MODE)).strip() or DEFAULT_MODE
-    if mode not in ALLOWED_MODES:
-        raise ValueError("mode must be one of: all, mine.")
-
+    # list-events is now a strictly public broad-list handler.
+    # Creator-specific listing behavior is reserved for list-my-events.
     limit = _validate_limit(request.get("limit"))
     next_cursor = _decode_cursor(request.get("next_cursor"))
 
-    validated_request = {
-        "mode": mode,
+    return {
         "limit": limit,
         "next_cursor": next_cursor,
     }
-
-    # Broad listing is intentionally public for now, but "mine" depends on
-    # caller identity because it lists events created by the current user.
-    if mode == "mine":
-        validated_request["user_id"] = _get_caller_user_id(event)
-
-    return validated_request
 
 
 def _validate_limit(raw_value: Any) -> int:
@@ -186,52 +170,24 @@ def _encode_cursor(last_evaluated_key: dict[str, Any] | None) -> str | None:
     return encoded.rstrip("=")
 
 
-def _get_caller_user_id(event: dict[str, Any]) -> str:
-    # Keep direct invocation and tests aligned with the future API Gateway
-    # authorizer handoff: caller identity lives in requestContext.authorizer.
-    request_context = event.get("requestContext", {})
-    if not isinstance(request_context, dict):
-        raise ValueError("Authenticated caller context is required for mode=mine.")
-
-    authorizer = request_context.get("authorizer", {})
-    if not isinstance(authorizer, dict):
-        raise ValueError("Authenticated caller context is required for mode=mine.")
-
-    user_id = str(authorizer.get("user_id", "")).strip()
-    if not user_id:
-        raise ValueError("Authenticated caller context is required for mode=mine.")
-
-    return user_id
-
-
 def _list_events(*, table: Any, request: dict[str, Any]) -> dict[str, Any]:
-    # Choose the DynamoDB access path that matches the requested listing mode.
-    if request["mode"] == "all":
-        dynamodb_response = _scan_all_events(
-            table=table,
-            limit=request["limit"],
-            next_cursor=request["next_cursor"],
-        )
-    else:
-        dynamodb_response = _query_creator_events(
-            table=table,
-            user_id=request["user_id"],
-            limit=request["limit"],
-            next_cursor=request["next_cursor"],
-        )
+    # list-events is now strictly the public broad-list path.
+    dynamodb_response = _scan_all_events(
+        table=table,
+        limit=request["limit"],
+        next_cursor=request["next_cursor"],
+    )
 
     raw_items = _validate_items(dynamodb_response.get("Items", []))
-    if request["mode"] == "all":
-        # Broad listing is still temporarily scan-backed, so cancelled events
-        # must be filtered in Lambda until this path becomes fully index-driven.
-        raw_items = [item for item in raw_items if _is_broad_listable_event(item)]
+    # Broad listing is still temporarily scan-backed, so cancelled events
+    # must be filtered in Lambda until this path becomes fully index-driven.
+    raw_items = [item for item in raw_items if _is_broad_listable_event(item)]
 
     items = [_to_event_dto(item) for item in raw_items]
 
     return {
         "items": items,
         "next_cursor": _encode_cursor(dynamodb_response.get("LastEvaluatedKey")),
-        "mode": request["mode"],
     }
 
 
@@ -262,27 +218,6 @@ def _scan_all_events(*, table: Any, limit: int, next_cursor: dict[str, Any] | No
         scan_kwargs["ExclusiveStartKey"] = next_cursor
 
     return table.scan(**scan_kwargs)
-
-
-def _query_creator_events(
-    *,
-    table: Any,
-    user_id: str,
-    limit: int,
-    next_cursor: dict[str, Any] | None,
-) -> dict[str, Any]:
-    # "mine" already has a dedicated access pattern, so use the creator-events
-    # GSI instead of falling back to a table scan.
-    query_kwargs: dict[str, Any] = {
-        "IndexName": "creator-events",
-        "KeyConditionExpression": Key("creator_events_gsi_pk").eq(f"CREATOR#{user_id}"),
-        "Limit": limit,
-    }
-
-    if next_cursor:
-        query_kwargs["ExclusiveStartKey"] = next_cursor
-
-    return table.query(**query_kwargs)
 
 
 def _to_event_dto(item: dict[str, Any]) -> dict[str, Any]:

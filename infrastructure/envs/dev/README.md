@@ -260,17 +260,19 @@ This environment currently wires in:
 Why this module is wired now:
 
 - the platform has already locked Cognito as the managed identity provider
-- the next major platform milestone is API Gateway + Cognito authentication
 - `envs/dev` now needs a real identity baseline before routed authenticated API behavior can be introduced
 
 Important design notes:
 
 - Cognito owns identity lifecycle
-- API Gateway will later consume Cognito JWTs and enforce route-level authentication
-- Lambda handlers remain free of generic authentication logic
-- future caller-context direction is:
-  - `requestContext.authorizer.user_id` from Cognito `sub`
-  - `requestContext.authorizer.is_admin` from Cognito `admin` group membership
+- the routed API uses a hybrid auth model:
+  - native JWT authorization for ordinary protected routes
+  - a dedicated custom Lambda authorizer for the mixed-mode `rsvp` route
+- business Lambda handlers remain free of generic authentication logic
+- business Lambda handlers consume normalized caller context rather than depending directly on a single raw authorizer shape
+- the canonical identity baseline remains:
+  - Cognito `sub` for user identity
+  - Cognito `admin` group membership for admin capability
 - the current baseline intentionally stays small:
   - username is the primary sign-in attribute in v1
   - email is required
@@ -300,6 +302,96 @@ Validation:
 - confirmed token revocation and prevent-user-existence hardening are enabled
 - confirmed Terraform outputs match the created User Pool, app client, issuer, and admin group identities
 - see evidence screenshots under `docs/assets/cognito/`
+
+---
+
+## API Gateway Slice
+
+This is the first end-to-end validated request path in the platform:
+Cognito → API Gateway → Lambda → DynamoDB.
+
+This section documents the current incremental API Gateway slice introduced for
+the platform.
+
+Implemented via:
+
+- `modules/api_gateway`
+
+This environment currently wires in:
+
+- one HTTP API
+- one stage
+- one JWT authorizer (Cognito-based)
+- four protected routes:
+  - `POST /events`
+  - `PATCH /events/{event_id}`
+  - `POST /events/{event_id}/cancel`
+  - `GET /events/{event_id}/rsvps`
+- four Lambda integrations:
+  - `create-event`
+  - `update-event`
+  - `cancel-event`
+  - `get-event-rsvps`
+
+Why this module is wired now:
+
+- the platform needed one real routed path to validate caller identity normalization end to end
+- `create-event` was the narrowest protected route to prove first
+- `update-event` is the next ordinary JWT-protected routed step validated in the same incremental way
+- `cancel-event` is the next ordinary JWT-protected routed step validated in the same incremental way
+- `get-event-rsvps` is the next ordinary JWT-protected routed step validated in the same incremental way
+- broader route rollout remains later work
+
+Important design notes:
+
+- this is intentionally an incremental routed slice, not the final API surface
+- ordinary protected routes use native JWT authorization at API Gateway
+- the mixed-mode `rsvp` route is not yet implemented in this environment because it requires a dedicated Lambda authorizer
+- the business `create-event`, `update-event`, `cancel-event`, and `get-event-rsvps` Lambdas consume normalized caller context instead of parsing JWTs directly
+- reusable API Gateway logic belongs in modules while `envs/dev` stays composition-oriented
+
+Validation:
+
+- validated via `terraform apply`, AWS Console inspection, Terraform output verification, real Cognito token acquisition, routed API invocation, Lambda execution verification, and a clean post-apply `terraform plan`
+- confirmed the HTTP API was created in `eu-central-1`
+- confirmed the rendered API name is `aws-serverless-events-platform-dev-http-api`
+- confirmed the stage name is `dev`
+- confirmed the route keys are:
+  - `POST /events`
+  - `PATCH /events/{event_id}`
+  - `POST /events/{event_id}/cancel`
+  - `GET /events/{event_id}/rsvps`
+- confirmed JWT authorization is attached to the route
+- confirmed anonymous requests are rejected at the API edge
+- confirmed authenticated `create-event` invocation succeeds through API Gateway with JWT validation
+- confirmed authenticated owner `update-event` invocation succeeds through API Gateway with JWT validation
+- confirmed authenticated admin `update-event` invocation succeeds through API Gateway with JWT validation
+- confirmed authenticated non-owner `update-event` invocation returns `403`
+- confirmed cancelled-event `update-event` invocation returns `400`
+- confirmed authenticated owner `cancel-event` invocation succeeds through API Gateway with JWT validation
+- confirmed authenticated admin `cancel-event` invocation succeeds through API Gateway with JWT validation
+- confirmed authenticated non-owner `cancel-event` invocation returns `403`
+- confirmed repeated routed `cancel-event` invocation remains idempotent and returns `200`
+- confirmed authenticated creator `get-event-rsvps` invocation succeeds through API Gateway with JWT validation
+- confirmed authenticated admin `get-event-rsvps` invocation succeeds through API Gateway with JWT validation
+- confirmed authenticated non-owner `get-event-rsvps` invocation returns `403`
+- confirmed missing-event routed `get-event-rsvps` invocation returns `404`
+- confirmed empty-RSVP routed `get-event-rsvps` invocation returns `200` with an empty `items` array
+- confirmed normalized caller context is correctly resolved inside the Lambda from the JWT authorizer input
+- confirmed event items are successfully written to DynamoDB through the routed path
+- confirmed event updates are successfully applied through the routed path
+- confirmed event cancellation is successfully applied through the routed path
+- confirmed RSVP-read results are successfully returned through the routed path
+- confirmed admin-only creation behavior is enforced correctly by the Lambda through the routed path
+- confirmed immutable-field and malformed-body validation still work through the routed `update-event` path
+- confirmed successful routed cancel removes public discovery helpers while keeping creator visibility helpers in storage
+- confirmed routed `get-event-rsvps` responses expose the locked RSVP-read contract:
+  - `event`
+  - `items`
+  - `stats`
+  - `next_cursor`
+- confirmed Terraform outputs match the deployed API ID, stage URL, authorizer ID, and route wiring
+- see evidence screenshots under `docs/assets/lambda_api/`
 
 ---
 
@@ -346,18 +438,24 @@ Important design notes:
 Current business behavior validated in this environment:
 
 - `create-event`
+  - protected routed invocation via `POST /events` succeeds for authenticated callers
+  - anonymous routed invocation is rejected at the API edge
   - authenticated event creation succeeds
   - non-admin admin-only creation is rejected
+  - admin admin-only creation succeeds
   - canonical event items are written with `status = ACTIVE`
   - request-body `creator_id` spoofing is ignored in favor of caller-context ownership
   - public events populate the public upcoming GSI, while non-public events omit those helper attributes
 - `list-events`
-  - `mode=all` succeeds
-  - `mode=mine` succeeds with caller context
-  - `mode=mine` without caller context returns `400`
+  - broad public listing succeeds
+  - this is a public (unauthenticated) listing workload
+  - no caller context is required or consumed
   - returned items use the locked public event DTO and hide internal storage helper fields
-  - `mode=all` excludes cancelled events during the current scan-based phase
-  - `mode=mine` still includes cancelled owner events
+  - broad listing excludes cancelled events during the current scan-based phase
+- `list-my-events`
+  - is now the locked future direction for creator-scoped authenticated listing
+  - is not deployed in this environment yet
+  - will take over creator-scoped authenticated listing as a dedicated workload
 - `get-event`
   - successful single-item lookup returns `200`
   - missing event returns `404`
@@ -365,6 +463,10 @@ Current business behavior validated in this environment:
   - returned items use the locked public event DTO under `item`
   - direct DynamoDB `GetItem` lookup is used by canonical `event_pk`
 - `update-event`
+  - protected routed invocation via `PATCH /events/{event_id}` succeeds for authenticated owners
+  - protected routed invocation via `PATCH /events/{event_id}` succeeds for authenticated admins
+  - authenticated non-owner routed invocation returns `403`
+  - cancelled-event routed invocation returns `400`
   - creator-owned and admin updates succeed
   - unauthorized updates return `403`
   - invalid update input returns `400`
@@ -374,6 +476,11 @@ Current business behavior validated in this environment:
   - partial updates preserve omitted mutable fields
   - returned updated items use the locked public event DTO under `item`
 - `cancel-event`
+  - protected routed invocation via `POST /events/{event_id}/cancel` succeeds for authenticated owners
+  - protected routed invocation via `POST /events/{event_id}/cancel` succeeds for authenticated admins
+  - authenticated non-owner routed invocation returns `403`
+  - repeated routed invocation returns `200` idempotently
+  - anonymous routed invocation is rejected at the API edge
   - creator-owned cancel succeeds
   - unauthorized cancel returns `403`
   - repeated cancel returns `200`
@@ -397,6 +504,12 @@ Current business behavior validated in this environment:
     - `event_summary`
     - `operation`
 - `get-event-rsvps`
+  - protected routed invocation via `GET /events/{event_id}/rsvps` succeeds for authenticated creators
+  - protected routed invocation via `GET /events/{event_id}/rsvps` succeeds for authenticated admins
+  - authenticated non-owner routed invocation returns `403`
+  - missing-event routed invocation returns `404`
+  - empty-RSVP routed invocation returns `200` with `items = []`
+  - anonymous routed invocation is rejected at the API edge
   - creator-owned RSVP reads return `200`
   - admin RSVP reads return `200`
   - anonymous and non-owner non-admin callers are rejected with `403`
@@ -444,6 +557,8 @@ Validation:
   - `cancel-event`
   - `rsvp`
   - `get-event-rsvps`
+- note: `list-my-events` is part of the locked platform direction but is not yet
+  deployed in this environment
 - confirmed Terraform outputs match the created Lambda and log group identities
 - see evidence screenshots under `docs/assets/lambda/`
 
@@ -453,37 +568,51 @@ Validation:
 ## Requirements
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.14.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.37 |
 
+## Providers
 
+No providers.
 
 ## Modules
 
 | Name | Source | Version |
-| ---- | ------ | ------- |
+|------|--------|---------|
+| <a name="module_api_gateway"></a> [api\_gateway](#module\_api\_gateway) | ../../modules/api_gateway | n/a |
 | <a name="module_cognito"></a> [cognito](#module\_cognito) | ../../modules/cognito | n/a |
 | <a name="module_dynamodb_data_layer"></a> [dynamodb\_data\_layer](#module\_dynamodb\_data\_layer) | ../../modules/dynamodb_data_layer | n/a |
 | <a name="module_iam"></a> [iam](#module\_iam) | ../../modules/iam | n/a |
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
 | <a name="module_sqs"></a> [sqs](#module\_sqs) | ../../modules/sqs | n/a |
 
+## Resources
 
+No resources.
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-| ---- | ----------- | ---- | ------- | :------: |
+|------|-------------|------|---------|:--------:|
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region where resources will be deployed. | `string` | n/a | yes |
+| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 | <a name="input_environment"></a> [environment](#input\_environment) | Deployment environment name. | `string` | n/a | yes |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Project name used for naming and tagging resources. | `string` | n/a | yes |
-| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 
 ## Outputs
 
 | Name | Description |
-| ---- | ----------- |
+|------|-------------|
+| <a name="output_api_gateway_api_arn"></a> [api\_gateway\_api\_arn](#output\_api\_gateway\_api\_arn) | ARN of the HTTP API created for the dev environment routed slice. |
+| <a name="output_api_gateway_api_endpoint"></a> [api\_gateway\_api\_endpoint](#output\_api\_gateway\_api\_endpoint) | Base invoke endpoint of the HTTP API created for the dev environment routed slice. |
+| <a name="output_api_gateway_api_id"></a> [api\_gateway\_api\_id](#output\_api\_gateway\_api\_id) | ID of the HTTP API created for the dev environment routed slice. |
+| <a name="output_api_gateway_execution_arn"></a> [api\_gateway\_execution\_arn](#output\_api\_gateway\_execution\_arn) | Execution ARN of the HTTP API created for the dev environment routed slice. |
+| <a name="output_api_gateway_jwt_authorizer_id"></a> [api\_gateway\_jwt\_authorizer\_id](#output\_api\_gateway\_jwt\_authorizer\_id) | JWT authorizer ID of the HTTP API created for the dev environment routed slice. |
+| <a name="output_api_gateway_route_ids"></a> [api\_gateway\_route\_ids](#output\_api\_gateway\_route\_ids) | Map of logical route name to route ID for the dev environment routed slice. |
+| <a name="output_api_gateway_route_keys"></a> [api\_gateway\_route\_keys](#output\_api\_gateway\_route\_keys) | Map of logical route name to route key for the dev environment routed slice. |
+| <a name="output_api_gateway_stage_invoke_url"></a> [api\_gateway\_stage\_invoke\_url](#output\_api\_gateway\_stage\_invoke\_url) | Stage-qualified invoke URL of the HTTP API created for the dev environment routed slice. |
+| <a name="output_api_gateway_stage_name"></a> [api\_gateway\_stage\_name](#output\_api\_gateway\_stage\_name) | Stage name of the HTTP API created for the dev environment routed slice. |
 | <a name="output_cognito_admin_group_name"></a> [cognito\_admin\_group\_name](#output\_cognito\_admin\_group\_name) | Name of the Cognito admin group created for the dev environment. |
 | <a name="output_cognito_issuer"></a> [cognito\_issuer](#output\_cognito\_issuer) | JWT issuer URL for the Cognito User Pool created for the dev environment. |
 | <a name="output_cognito_user_pool_arn"></a> [cognito\_user\_pool\_arn](#output\_cognito\_user\_pool\_arn) | ARN of the Cognito User Pool created for the dev environment. |

@@ -167,3 +167,51 @@ module "cognito" {
 
   deletion_protection_enabled = false
 }
+
+############################################
+# API Gateway protected routed slice
+############################################
+
+# This environment wires in a deliberately incremental HTTP API slice so the
+# platform can validate one ordinary JWT-protected handler at a time before
+# broadening API Gateway coverage across the remaining Lambda workloads.
+module "api_gateway" {
+  source = "../../modules/api_gateway"
+
+  name_prefix = local.name_prefix
+  tags        = local.tags
+
+  stage_name   = var.environment
+  jwt_issuer   = module.cognito.issuer
+  jwt_audience = [module.cognito.user_pool_client_id]
+
+  routes = {
+    create-event = {
+      route_key            = "POST /events"
+      lambda_invoke_arn    = module.lambda.invoke_arns["create-event"]
+      lambda_function_name = module.lambda.function_names["create-event"]
+      authorization_type   = "JWT"
+    }
+
+    update-event = {
+      route_key            = "PATCH /events/{event_id}"
+      lambda_invoke_arn    = module.lambda.invoke_arns["update-event"]
+      lambda_function_name = module.lambda.function_names["update-event"]
+      authorization_type   = "JWT"
+    }
+
+    cancel-event = {
+      route_key            = "POST /events/{event_id}/cancel"
+      lambda_invoke_arn    = module.lambda.invoke_arns["cancel-event"]
+      lambda_function_name = module.lambda.function_names["cancel-event"]
+      authorization_type   = "JWT"
+    }
+
+    get-event-rsvps = {
+      route_key            = "GET /events/{event_id}/rsvps"
+      lambda_invoke_arn    = module.lambda.invoke_arns["get-event-rsvps"]
+      lambda_function_name = module.lambda.function_names["get-event-rsvps"]
+      authorization_type   = "JWT"
+    }
+  }
+}

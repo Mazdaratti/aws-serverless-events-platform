@@ -345,7 +345,9 @@ The deployed `create-event` Lambda now enforces the locked creation contract:
 
 #### Access rule
 
-- all users may use broad event listing
+- all users may use public broad event listing
+- this is a public route
+- no caller context is required or consumed by this handler
 
 #### Request contract
 
@@ -437,6 +439,9 @@ The storage model and API model are intentionally separate:
 
 - broad public listing currently uses a temporary table `Scan`
 - pagination is required
+- creator-scoped listing behavior no longer belongs to this handler
+- the future authenticated creator-scoped listing workload is:
+  - `list-my-events`
 
 This is an intentional tradeoff:
 
@@ -451,6 +456,9 @@ contract in `dev`:
 
 - broad public listing returns the current event collection
 - returned items use the locked public event DTO
+- request validation is intentionally limited to:
+  - `limit`
+  - `next_cursor`
 
 Lifecycle note:
 
@@ -470,8 +478,8 @@ Lifecycle note:
 
 #### Query direction
 
-This operation replaces the previous authenticated `mine` mode from
-`list-events`.
+This operation is the dedicated creator-scoped listing workload and replaces
+the previous creator-scoped behavior that was formerly part of `list-events`.
 
 The route is intentionally split so:
 
@@ -913,9 +921,9 @@ back into the correct business result.
 
 - `get-event` still returns cancelled events by ID
 - `list-my-events` includes cancelled events
-- `list-events mode=all` must filter cancelled events during the current
-  scan-based phase
-- long-term `mode=all` behavior should rely on index-based access patterns
+- `list-events` must filter cancelled events during the current scan-based
+  phase
+- long-term `list-events` behavior should rely on index-based access patterns
   instead of scan filtering
 - `update-event` is blocked once an event is cancelled
 - there is no reactivation path in this phase

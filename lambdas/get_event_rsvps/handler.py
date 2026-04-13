@@ -30,11 +30,11 @@ class NotFoundError(Exception):
     """Raised when a requested resource does not exist."""
 
 
-class EventStateError(ValueError):
+class EventStateError(Exception):
     """Raised when the stored event item has an invalid internal shape."""
 
 
-class RsvpStateError(ValueError):
+class RsvpStateError(Exception):
     """Raised when the stored RSVP item has an invalid internal shape."""
 
 

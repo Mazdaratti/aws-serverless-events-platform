@@ -322,18 +322,21 @@ This environment currently wires in:
 - one HTTP API
 - one stage
 - one JWT authorizer (Cognito-based)
-- two protected routes:
+- three protected routes:
   - `POST /events`
   - `PATCH /events/{event_id}`
-- two Lambda integrations:
+  - `POST /events/{event_id}/cancel`
+- three Lambda integrations:
   - `create-event`
   - `update-event`
+  - `cancel-event`
 
 Why this module is wired now:
 
 - the platform needed one real routed path to validate caller identity normalization end to end
 - `create-event` was the narrowest protected route to prove first
 - `update-event` is the next ordinary JWT-protected routed step validated in the same incremental way
+- `cancel-event` is the next ordinary JWT-protected routed step validated in the same incremental way
 - broader route rollout remains later work
 
 Important design notes:
@@ -341,7 +344,7 @@ Important design notes:
 - this is intentionally an incremental routed slice, not the final API surface
 - ordinary protected routes use native JWT authorization at API Gateway
 - the mixed-mode `rsvp` route is not yet implemented in this environment because it requires a dedicated Lambda authorizer
-- the business `create-event` and `update-event` Lambdas consume normalized caller context instead of parsing JWTs directly
+- the business `create-event`, `update-event`, and `cancel-event` Lambdas consume normalized caller context instead of parsing JWTs directly
 - reusable API Gateway logic belongs in modules while `envs/dev` stays composition-oriented
 
 Validation:
@@ -353,6 +356,7 @@ Validation:
 - confirmed the route keys are:
   - `POST /events`
   - `PATCH /events/{event_id}`
+  - `POST /events/{event_id}/cancel`
 - confirmed JWT authorization is attached to the route
 - confirmed anonymous requests are rejected at the API edge
 - confirmed authenticated `create-event` invocation succeeds through API Gateway with JWT validation
@@ -360,11 +364,17 @@ Validation:
 - confirmed authenticated admin `update-event` invocation succeeds through API Gateway with JWT validation
 - confirmed authenticated non-owner `update-event` invocation returns `403`
 - confirmed cancelled-event `update-event` invocation returns `400`
+- confirmed authenticated owner `cancel-event` invocation succeeds through API Gateway with JWT validation
+- confirmed authenticated admin `cancel-event` invocation succeeds through API Gateway with JWT validation
+- confirmed authenticated non-owner `cancel-event` invocation returns `403`
+- confirmed repeated routed `cancel-event` invocation remains idempotent and returns `200`
 - confirmed normalized caller context is correctly resolved inside the Lambda from the JWT authorizer input
 - confirmed event items are successfully written to DynamoDB through the routed path
 - confirmed event updates are successfully applied through the routed path
+- confirmed event cancellation is successfully applied through the routed path
 - confirmed admin-only creation behavior is enforced correctly by the Lambda through the routed path
 - confirmed immutable-field and malformed-body validation still work through the routed `update-event` path
+- confirmed successful routed cancel removes public discovery helpers while keeping creator visibility helpers in storage
 - confirmed Terraform outputs match the deployed API ID, stage URL, authorizer ID, and route wiring
 - see evidence screenshots under `docs/assets/lambda_api/`
 
@@ -449,6 +459,11 @@ Current business behavior validated in this environment:
   - partial updates preserve omitted mutable fields
   - returned updated items use the locked public event DTO under `item`
 - `cancel-event`
+  - protected routed invocation via `POST /events/{event_id}/cancel` succeeds for authenticated owners
+  - protected routed invocation via `POST /events/{event_id}/cancel` succeeds for authenticated admins
+  - authenticated non-owner routed invocation returns `403`
+  - repeated routed invocation returns `200` idempotently
+  - anonymous routed invocation is rejected at the API edge
   - creator-owned cancel succeeds
   - unauthorized cancel returns `403`
   - repeated cancel returns `200`

@@ -448,12 +448,14 @@ Current business behavior validated in this environment:
   - public events populate the public upcoming GSI, while non-public events omit those helper attributes
 - `list-events`
   - broad public listing succeeds
+  - this is a public (unauthenticated) listing workload
+  - no caller context is required or consumed
   - returned items use the locked public event DTO and hide internal storage helper fields
   - broad listing excludes cancelled events during the current scan-based phase
 - `list-my-events`
   - is now the locked future direction for creator-scoped authenticated listing
   - is not deployed in this environment yet
-  - will replace the previous `mode=mine` behavior from `list-events`
+  - will take over creator-scoped authenticated listing as a dedicated workload
 - `get-event`
   - successful single-item lookup returns `200`
   - missing event returns `404`

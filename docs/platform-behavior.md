@@ -249,6 +249,8 @@ as:
   - `create-event`
 - `GET /events`
   - `list-events`
+- `GET /events/mine`
+  - `list-my-events`
 - `GET /events/{event_id}`
   - `get-event`
 - `PATCH /events/{event_id}`
@@ -257,11 +259,6 @@ as:
   - `cancel-event`
 - `GET /events/{event_id}/rsvps`
   - `get-event-rsvps`
-
-After the listing split, the creator-scoped listing route is:
-
-- `GET /events/mine`
-  - `list-my-events`
 
 The mixed-mode RSVP route is locked as:
 
@@ -440,7 +437,7 @@ The storage model and API model are intentionally separate:
 - broad public listing currently uses a temporary table `Scan`
 - pagination is required
 - creator-scoped listing behavior no longer belongs to this handler
-- the future authenticated creator-scoped listing workload is:
+- the dedicated authenticated creator-scoped listing workload is:
   - `list-my-events`
 
 This is an intentional tradeoff:
@@ -459,6 +456,10 @@ contract in `dev`:
 - request validation is intentionally limited to:
   - `limit`
   - `next_cursor`
+- the public routed path is:
+  - `GET /events`
+- the current broad public route filters cancelled events
+- due to the temporary scan-based access path, non-public and past events may still appear in this phase
 
 Lifecycle note:
 
@@ -522,7 +523,7 @@ The returned items use the same locked public event DTO as:
 
 #### Current implementation direction
 
-- `list-my-events` should use the `creator-events` GSI
+- `list-my-events` now uses the `creator-events` GSI
 - pagination is required
 
 #### Lifecycle visibility
@@ -539,6 +540,27 @@ that rule.
 #### Status direction
 
 `list-my-events` must expose `status` in the public event DTO.
+
+#### Current implementation note
+
+The deployed `list-my-events` Lambda now validates the currently locked
+creator-scoped read contract in `dev`:
+
+- the authenticated routed path is:
+  - `GET /events/mine`
+- anonymous requests are rejected at the API edge for this route
+- authenticated creator-scoped listing succeeds through the dedicated routed path
+- returned items use the same locked public event DTO as:
+  - `list-events`
+  - `get-event`
+- request validation is limited to:
+  - `limit`
+  - `next_cursor`
+- the current access path uses the `creator-events` GSI
+- creator-scoped results include:
+  - `ACTIVE`
+  - `CANCELLED`
+  - past events
 
 ### `get-event`
 
@@ -1594,16 +1616,18 @@ The currently locked Lambda set and rollout status are:
 
 1. `create-event` ✅
 2. `list-events` ✅
-3. `get-event` ✅
-4. `update-event` ✅
-5. `cancel-event` ✅
-6. `rsvp` ✅
-7. `get-event-rsvps` ✅
-8. `notification-worker`
+3. `list-my-events` ✅
+4. `get-event` ✅
+5. `update-event` ✅
+6. `cancel-event` ✅
+7. `rsvp` ✅
+8. `get-event-rsvps` ✅
+9. `notification-worker`
 
 This sequence remains intentional:
 
 - first create and read basics
+- then split broad and creator-scoped event listing clearly
 - then ownership-based event management
 - then transactional RSVP complexity
 - then RSVP read/reporting

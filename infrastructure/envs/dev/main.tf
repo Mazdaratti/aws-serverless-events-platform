@@ -91,6 +91,10 @@ module "iam" {
       access_profile = "list_events"
     }
 
+    list-my-events = {
+      access_profile = "list_my_events"
+    }
+
     update-event = {
       access_profile = "update_event"
     }
@@ -186,6 +190,20 @@ module "api_gateway" {
   jwt_audience = [module.cognito.user_pool_client_id]
 
   routes = {
+    list-events = {
+      route_key            = "GET /events"
+      lambda_invoke_arn    = module.lambda.invoke_arns["list-events"]
+      lambda_function_name = module.lambda.function_names["list-events"]
+      authorization_type   = "NONE"
+    }
+
+    list-my-events = {
+      route_key            = "GET /events/mine"
+      lambda_invoke_arn    = module.lambda.invoke_arns["list-my-events"]
+      lambda_function_name = module.lambda.function_names["list-my-events"]
+      authorization_type   = "JWT"
+    }
+
     create-event = {
       route_key            = "POST /events"
       lambda_invoke_arn    = module.lambda.invoke_arns["create-event"]

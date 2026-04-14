@@ -195,6 +195,7 @@ This environment currently wires in:
 - one execution role for `create-event`
 - one execution role for `get-event`
 - one execution role for `list-events`
+- one execution role for `list-my-events`
 - one execution role for `update-event`
 - one execution role for `cancel-event`
 - one execution role for `rsvp`
@@ -217,6 +218,8 @@ Important design notes:
 - `get-event-rsvps` is the read-only RSVP visibility role and receives:
   - `GetItem` on the `events` table
   - `Query` on the `rsvps` table
+- `list-my-events` is the dedicated creator-scoped listing role and receives:
+  - `Query` on the `creator-events` GSI
 - `rsvp` intentionally has no SQS permissions
 - only `notification-worker` gets SQS consumer permissions
 - `list-events` currently includes temporary `Scan` access only as a short-term contract accommodation
@@ -231,6 +234,8 @@ Validation:
 - validated via `terraform apply`, AWS inspection, and a clean post-apply `terraform plan`
 - confirmed all wired workload roles were created with Lambda-only trust relationships
 - confirmed `get-event` has narrow direct-read access for the events table
+- confirmed `list-events` has temporary `Scan` access for the events table only
+- confirmed `list-my-events` has narrow `Query` access for the `creator-events` GSI
 - confirmed `update-event` has narrow read/write access for the events table
 - confirmed `cancel-event` has narrow read/write access for the events table
 - confirmed the RSVP policy includes transactional DynamoDB access across both business tables
@@ -322,32 +327,44 @@ This environment currently wires in:
 - one HTTP API
 - one stage
 - one JWT authorizer (Cognito-based)
-- four protected routes:
+- six routed API endpoints:
   - `POST /events`
   - `PATCH /events/{event_id}`
   - `POST /events/{event_id}/cancel`
   - `GET /events/{event_id}/rsvps`
-- four Lambda integrations:
+  - `GET /events`
+  - `GET /events/mine`
+- six Lambda integrations:
   - `create-event`
   - `update-event`
   - `cancel-event`
   - `get-event-rsvps`
+  - `list-events`
+  - `list-my-events`
 
 Why this module is wired now:
 
-- the platform needed one real routed path to validate caller identity normalization end to end
-- `create-event` was the narrowest protected route to prove first
-- `update-event` is the next ordinary JWT-protected routed step validated in the same incremental way
-- `cancel-event` is the next ordinary JWT-protected routed step validated in the same incremental way
-- `get-event-rsvps` is the next ordinary JWT-protected routed step validated in the same incremental way
-- broader route rollout remains later work
+- the platform needed to validate public and JWT-protected Lambda handlers end to end through API Gateway
+- the routed API rollout was implemented incrementally, adding and validating one path per Lambda
+- currently implemented and validated routes are:
+  - `GET /events`
+  - `GET /events/mine`
+  - `POST /events`
+  - `PATCH /events/{event_id}`
+  - `POST /events/{event_id}/cancel`
+  - `GET /events/{event_id}/rsvps`
+- still to implement in this routed API line are:
+  - `GET /events/{event_id}`
+  - `POST /events/{event_id}/rsvp`
 
 Important design notes:
 
 - this is intentionally an incremental routed slice, not the final API surface
+- `GET /events` is intentionally a public route with `authorization_type = NONE`
 - ordinary protected routes use native JWT authorization at API Gateway
+- `GET /events/mine` is intentionally JWT-protected so API Gateway enforces the creator-route authentication boundary
 - the mixed-mode `rsvp` route is not yet implemented in this environment because it requires a dedicated Lambda authorizer
-- the business `create-event`, `update-event`, `cancel-event`, and `get-event-rsvps` Lambdas consume normalized caller context instead of parsing JWTs directly
+- the business `create-event`, `list-my-events`, `update-event`, `cancel-event`, and `get-event-rsvps` Lambdas consume normalized caller context instead of parsing JWTs directly
 - reusable API Gateway logic belongs in modules while `envs/dev` stays composition-oriented
 
 Validation:
@@ -361,35 +378,48 @@ Validation:
   - `PATCH /events/{event_id}`
   - `POST /events/{event_id}/cancel`
   - `GET /events/{event_id}/rsvps`
-- confirmed JWT authorization is attached to the route
-- confirmed anonymous requests are rejected at the API edge
+  - `GET /events`
+  - `GET /events/mine`
+- confirmed JWT authorization is attached to the protected routes
+- confirmed anonymous requests are rejected at the API edge for JWT-protected routes
 - confirmed authenticated `create-event` invocation succeeds through API Gateway with JWT validation
+- confirmed admin-only creation behavior is enforced correctly by the Lambda through the routed path
+- confirmed event items are successfully written to DynamoDB through the routed path
 - confirmed authenticated owner `update-event` invocation succeeds through API Gateway with JWT validation
 - confirmed authenticated admin `update-event` invocation succeeds through API Gateway with JWT validation
 - confirmed authenticated non-owner `update-event` invocation returns `403`
 - confirmed cancelled-event `update-event` invocation returns `400`
+- confirmed immutable-field and malformed-body validation still work through the routed `update-event` path
+- confirmed event updates are successfully applied through the routed path
 - confirmed authenticated owner `cancel-event` invocation succeeds through API Gateway with JWT validation
 - confirmed authenticated admin `cancel-event` invocation succeeds through API Gateway with JWT validation
 - confirmed authenticated non-owner `cancel-event` invocation returns `403`
 - confirmed repeated routed `cancel-event` invocation remains idempotent and returns `200`
+- confirmed successful routed cancel removes public discovery helpers while keeping creator visibility helpers in storage
+- confirmed event cancellation is successfully applied through the routed path
 - confirmed authenticated creator `get-event-rsvps` invocation succeeds through API Gateway with JWT validation
 - confirmed authenticated admin `get-event-rsvps` invocation succeeds through API Gateway with JWT validation
 - confirmed authenticated non-owner `get-event-rsvps` invocation returns `403`
 - confirmed missing-event routed `get-event-rsvps` invocation returns `404`
 - confirmed empty-RSVP routed `get-event-rsvps` invocation returns `200` with an empty `items` array
-- confirmed normalized caller context is correctly resolved inside the Lambda from the JWT authorizer input
-- confirmed event items are successfully written to DynamoDB through the routed path
-- confirmed event updates are successfully applied through the routed path
-- confirmed event cancellation is successfully applied through the routed path
 - confirmed RSVP-read results are successfully returned through the routed path
-- confirmed admin-only creation behavior is enforced correctly by the Lambda through the routed path
-- confirmed immutable-field and malformed-body validation still work through the routed `update-event` path
-- confirmed successful routed cancel removes public discovery helpers while keeping creator visibility helpers in storage
 - confirmed routed `get-event-rsvps` responses expose the locked RSVP-read contract:
   - `event`
   - `items`
   - `stats`
   - `next_cursor`
+- confirmed `GET /events` is public and has no attached authorizer
+- confirmed unauthenticated `GET /events` succeeds through API Gateway with `200`
+- confirmed routed public `GET /events` responses filter cancelled events during the current temporary scan-based phase
+- confirmed due to the temporary scan-based access path, routed public `GET /events` responses may still include active non-public and past events in the current contract
+- confirmed unauthenticated `GET /events/mine` is rejected at the API edge with `401`
+- confirmed authenticated creator `GET /events/mine` succeeds through API Gateway with JWT validation
+- confirmed authenticated admin `GET /events/mine` succeeds through API Gateway with JWT validation and returns only the admin caller's own events
+- confirmed routed `GET /events/mine` responses include creator-owned cancelled events
+- confirmed routed `GET /events/mine` pagination works through:
+  - `limit`
+  - opaque `next_cursor`
+- confirmed normalized caller context is correctly resolved inside the Lambda from the JWT authorizer input
 - confirmed Terraform outputs match the deployed API ID, stage URL, authorizer ID, and route wiring
 - see evidence screenshots under `docs/assets/lambda_api/`
 
@@ -408,19 +438,20 @@ Implemented via:
 This environment currently wires in these deployed Lambda workloads:
 
 - `create-event`
-- `get-event`
 - `list-events`
+- `get-event`
 - `update-event`
 - `cancel-event`
 - `rsvp`
 - `get-event-rsvps`
+- `list-my-events`
 
 Why this module is wired now:
 
 - the platform now has the minimum supporting layers needed for real compute:
   - DynamoDB business tables
   - workload IAM roles
-- the platform can validate both synchronous write paths and multiple read paths end to end in AWS
+- the platform can now validate synchronous write paths and both public and authenticated read paths end to end in AWS
 - packaging stays outside Terraform, while deployment stays inside the reusable Lambda module
 
 Important design notes:
@@ -452,10 +483,17 @@ Current business behavior validated in this environment:
   - no caller context is required or consumed
   - returned items use the locked public event DTO and hide internal storage helper fields
   - broad listing excludes cancelled events during the current scan-based phase
+  - due to the temporary scan-based access path, active non-public and past events may still appear in the current contract
 - `list-my-events`
-  - is now the locked future direction for creator-scoped authenticated listing
-  - is not deployed in this environment yet
-  - will take over creator-scoped authenticated listing as a dedicated workload
+  - authenticated creator-scoped listing succeeds
+  - routed invocation via `GET /events/mine` is JWT-protected at API Gateway
+  - anonymous routed invocation is rejected at the API edge
+  - returned items use the same locked public event DTO as `list-events` and `get-event`
+  - creator-scoped listing includes cancelled and past creator-owned events
+  - pagination works through:
+    - `limit`
+    - opaque `next_cursor`
+  - the current read path uses the `creator-events` GSI
 - `get-event`
   - successful single-item lookup returns `200`
   - missing event returns `404`
@@ -553,12 +591,11 @@ Validation:
   - `create-event`
   - `get-event`
   - `list-events`
+  - `list-my-events`
   - `update-event`
   - `cancel-event`
   - `rsvp`
   - `get-event-rsvps`
-- note: `list-my-events` is part of the locked platform direction but is not yet
-  deployed in this environment
 - confirmed Terraform outputs match the created Lambda and log group identities
 - see evidence screenshots under `docs/assets/lambda/`
 

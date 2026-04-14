@@ -30,7 +30,11 @@ locals {
     }
 
     list-events = {
-      description = "Lists events from the canonical events table using the current platform query modes."
+      description = "Lists public events from the canonical events table using the current temporary broad scan path."
+    }
+
+    list-my-events = {
+      description = "Lists creator-scoped events from the canonical events table through the creator-events GSI."
     }
 
     update-event = {

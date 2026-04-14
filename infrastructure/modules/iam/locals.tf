@@ -63,6 +63,16 @@ locals {
       temporary_scan      = true
     }
 
+    # List-my-events uses the creator-events GSI for one authenticated
+    # creator-scoped read path and does not need table scan access.
+    list_my_events = {
+      dynamodb_table_arns = [var.events_table_arn]
+      sqs_queue_arns      = []
+      include_logs        = true
+      include_xray        = false
+      temporary_scan      = false
+    }
+
     # Update-event reads one canonical event, then performs a conditional
     # partial update on that same item.
     update_event = {

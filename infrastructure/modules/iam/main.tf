@@ -154,16 +154,12 @@ data "aws_iam_policy_document" "workload" {
       sid    = "ListEventsReadEventsTable"
       effect = "Allow"
 
-      actions = [
-        "dynamodb:GetItem",
-        "dynamodb:Query",
-        "dynamodb:Scan"
-      ]
+      actions = ["dynamodb:Scan"]
 
-      resources = [
-        var.events_table_arn,
-        "${var.events_table_arn}/index/*"
-      ]
+      # After the listing split, the public broad-list handler only uses a
+      # temporary base-table Scan path. Creator-scoped query access now belongs
+      # to the dedicated list-my-events workload.
+      resources = [var.events_table_arn]
     }
   }
 

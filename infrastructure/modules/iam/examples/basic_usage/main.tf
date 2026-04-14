@@ -114,12 +114,6 @@ module "iam" {
       enable_xray    = false
     }
 
-    list-my-events = {
-      access_profile = "list_my_events"
-      enable_logs    = true
-      enable_xray    = false
-    }
-
     update-event = {
       access_profile = "update_event"
       enable_logs    = true

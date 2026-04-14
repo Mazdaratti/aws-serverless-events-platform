@@ -24,14 +24,15 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Lambda identity normalization and API-edge preparation are the current implementation focus
+- Routed API completion and end-to-end AWS validation are the current implementation focus
 - Cognito identity infrastructure is now implemented, wired in `envs/dev`, and validated in AWS
+- public `GET /events` and JWT-protected `GET /events/mine` are now implemented, wired in `envs/dev`, and validated in AWS
 - the next steps are to:
-  - normalize caller identity handling across Lambda workloads
-  - split creator-scoped event listing into its own authenticated workload
+  - implement the routed `get-event` path
   - add the mixed-mode RSVP authorizer
-  - place authenticated and public HTTP routes in front of the validated Lambda layer
-- this shifts the platform from direct Lambda invocation assumptions toward routed API behavior and managed identity enforcement
+  - wire the mixed-mode routed `rsvp` path
+  - continue shifting the platform from direct Lambda invocation assumptions toward fully routed API behavior
+- this milestone already proves both public and JWT-protected routed event reads and correct API Gateway-enforced auth boundaries in AWS
 
 ### Completed milestones
 
@@ -59,9 +60,15 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - `list-events`
     - implementation
     - `envs/dev` wiring
-    - AWS validation and deployment evidence
+    - routed AWS validation and deployment evidence
     - now locked as the public broad-list workload
-    - creator-scoped listing is reserved for the future `list-my-events` split
+    - public `GET /events` route validated in AWS
+  - `list-my-events`
+    - implementation
+    - `envs/dev` wiring
+    - routed AWS validation and deployment evidence
+    - dedicated creator-scoped authenticated listing workload
+    - JWT-protected `GET /events/mine` route validated in AWS
   - `get-event`
     - implementation
     - `envs/dev` wiring
@@ -296,8 +303,8 @@ Planned implementation sequence:
    - `cancel-event` ✅
    - `rsvp` ✅
    - `get-event-rsvps` ✅
-   - note: workload implementations exist, but identity-normalization adoption
-     and routed API alignment are still being completed incrementally
+   - note: workload implementations are complete, and routed API rollout is now
+     being finished incrementally route by route
 7. Cognito authentication baseline (foundation) ✅
    - Cognito User Pool ✅
    - public app client ✅
@@ -311,7 +318,7 @@ Planned implementation sequence:
    - `cancel-event` normalization adoption ✅
    - `get-event-rsvps` normalization adoption ✅
    - `list-events` public-only cleanup ✅
-9. `list-my-events` workload split from `list-events`
+9. `list-my-events` workload split from `list-events` ✅
 10. Mixed-mode RSVP authorizer
 11. `rsvp` normalization for mixed-mode authorizer contract
 12. API Gateway routed validation and rollout
@@ -319,7 +326,10 @@ Planned implementation sequence:
    - incremental protected `update-event` route slice ✅ (end-to-end validated)
    - incremental protected `cancel-event` route slice ✅ (end-to-end validated)
    - incremental protected `get-event-rsvps` route slice ✅ (end-to-end validated)
-   - broader route rollout pending
+   - public `list-events` route slice ✅ (end-to-end validated)
+   - JWT-protected `list-my-events` route slice ✅ (end-to-end validated)
+   - next routed step: `get-event` route implementation
+   - remaining routed step after that: mixed-mode `rsvp`
 13. Frontend S3 hosting, CloudFront distribution, WAF protection
 14. EventBridge and SNS integration
 15. `notification-worker`

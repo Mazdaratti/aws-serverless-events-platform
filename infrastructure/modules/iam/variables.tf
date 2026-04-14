@@ -68,6 +68,7 @@ variable "workloads" {
     - create-event
     - get-event
     - list-events
+    - list-my-events
     - update-event
     - cancel-event
     - rsvp
@@ -93,6 +94,7 @@ variable "workloads" {
         "create-event",
         "get-event",
         "list-events",
+        "list-my-events",
         "update-event",
         "cancel-event",
         "rsvp",
@@ -100,7 +102,7 @@ variable "workloads" {
         "notification-worker"
       ], workload_key)
     ])
-    error_message = "workloads may only contain the supported keys: create-event, get-event, list-events, update-event, cancel-event, rsvp, get-event-rsvps, notification-worker."
+    error_message = "workloads may only contain the supported keys: create-event, get-event, list-events, list-my-events, update-event, cancel-event, rsvp, get-event-rsvps, notification-worker."
   }
 
   validation {
@@ -110,6 +112,7 @@ variable "workloads" {
         "create_event",
         "get_event",
         "list_events",
+        "list_my_events",
         "update_event",
         "cancel_event",
         "rsvp_transaction",
@@ -117,7 +120,7 @@ variable "workloads" {
         "notification_consume"
       ], workload.access_profile)
     ])
-    error_message = "Each workload must use one of the supported access profiles: create_event, get_event, list_events, update_event, cancel_event, rsvp_transaction, get_event_rsvps, notification_consume."
+    error_message = "Each workload must use one of the supported access profiles: create_event, get_event, list_events, list_my_events, update_event, cancel_event, rsvp_transaction, get_event_rsvps, notification_consume."
   }
 
   validation {
@@ -132,6 +135,9 @@ variable "workloads" {
         ) || (
         workload_key == "list-events" &&
         workload.access_profile == "list_events"
+        ) || (
+        workload_key == "list-my-events" &&
+        workload.access_profile == "list_my_events"
         ) || (
         workload_key == "update-event" &&
         workload.access_profile == "update_event"
@@ -151,6 +157,6 @@ variable "workloads" {
         workload.access_profile == "notification_consume"
       )
     ])
-    error_message = "Each workload key must use its matching access profile: create-event/create_event, get-event/get_event, list-events/list_events, update-event/update_event, cancel-event/cancel_event, rsvp/rsvp_transaction, get-event-rsvps/get_event_rsvps, notification-worker/notification_consume."
+    error_message = "Each workload key must use its matching access profile: create-event/create_event, get-event/get_event, list-events/list_events, list-my-events/list_my_events, update-event/update_event, cancel-event/cancel_event, rsvp/rsvp_transaction, get-event-rsvps/get_event_rsvps, notification-worker/notification_consume."
   }
 }

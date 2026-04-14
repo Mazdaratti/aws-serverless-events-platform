@@ -168,6 +168,21 @@ data "aws_iam_policy_document" "workload" {
   }
 
   dynamic "statement" {
+    for_each = each.value.access_profile == "list_my_events" ? [1] : []
+
+    content {
+      sid    = "ListMyEventsQueryCreatorEventsIndex"
+      effect = "Allow"
+
+      actions = ["dynamodb:Query"]
+
+      # This handler reads creator-scoped event pages from the creator-events
+      # GSI and does not need table scan access.
+      resources = ["${var.events_table_arn}/index/creator-events"]
+    }
+  }
+
+  dynamic "statement" {
     for_each = each.value.access_profile == "rsvp_transaction" ? [1] : []
 
     content {

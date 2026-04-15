@@ -315,6 +315,10 @@ relevant Cognito action.
 
 ### `create-event`
 
+Routed API shape:
+
+- `POST /events`
+
 #### Access rule
 
 - authenticated users may create public events
@@ -339,6 +343,10 @@ The deployed `create-event` Lambda now enforces the locked creation contract:
 - returned event DTO must include `status`
 
 ### `list-events`
+
+Routed API shape:
+
+- `GET /events`
 
 #### Access rule
 
@@ -456,8 +464,6 @@ contract in `dev`:
 - request validation is intentionally limited to:
   - `limit`
   - `next_cursor`
-- the public routed path is:
-  - `GET /events`
 - the current broad public route filters cancelled events
 - due to the temporary scan-based access path, non-public and past events may still appear in this phase
 
@@ -470,6 +476,10 @@ Lifecycle note:
 - `list-events` must expose `status` in the public DTO
 
 ### `list-my-events`
+
+Routed API shape:
+
+- `GET /events/mine`
 
 #### Access rule
 
@@ -546,8 +556,6 @@ that rule.
 The deployed `list-my-events` Lambda now validates the currently locked
 creator-scoped read contract in `dev`:
 
-- the authenticated routed path is:
-  - `GET /events/mine`
 - anonymous requests are rejected at the API edge for this route
 - authenticated creator-scoped listing succeeds through the dedicated routed path
 - returned items use the same locked public event DTO as:
@@ -563,6 +571,10 @@ creator-scoped read contract in `dev`:
   - past events
 
 ### `get-event`
+
+Routed API shape:
+
+- `GET /events/{event_id}`
 
 #### Access rule
 
@@ -643,6 +655,7 @@ The deployed `get-event` Lambda now validates the currently locked single-item
 read contract in `dev`:
 
 - direct single-item reads succeed without caller context
+- API Gateway-routed public single-item reads now succeed in `dev`
 - API Gateway-style `pathParameters.event_id` is supported
 - missing items return `404`
 - returned items use the locked public event DTO under `item`
@@ -650,9 +663,14 @@ read contract in `dev`:
 Lifecycle note:
 
 - `get-event` still returns cancelled events by ID
+- `get-event` still returns non-public events by ID
 - returned items must expose `status` in the public DTO
 
 ### `update-event`
+
+Routed API shape:
+
+- `PATCH /events/{event_id}`
 
 #### Access rule
 
@@ -1349,6 +1367,10 @@ The deployed `rsvp` Lambda now validates the locked RSVP write contract in
   - `operation`
 
 ### `get-event-rsvps`
+
+Routed API shape:
+
+- `GET /events/{event_id}/rsvps`
 
 The old monolith/OpenAPI contract exposed this broadly, but the current
 platform deliberately narrows RSVP-read visibility to the operational users who

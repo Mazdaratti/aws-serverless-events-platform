@@ -27,8 +27,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - Routed API completion and end-to-end AWS validation are the current implementation focus
 - Cognito identity infrastructure is now implemented, wired in `envs/dev`, and validated in AWS
 - public `GET /events` and JWT-protected `GET /events/mine` are now implemented, wired in `envs/dev`, and validated in AWS
+- public `GET /events/{event_id}` is now implemented, wired in `envs/dev`, and validated in AWS
 - the next steps are to:
-  - implement the routed `get-event` path
   - add the mixed-mode RSVP authorizer
   - wire the mixed-mode routed `rsvp` path
   - continue shifting the platform from direct Lambda invocation assumptions toward fully routed API behavior
@@ -72,7 +72,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - `get-event`
     - implementation
     - `envs/dev` wiring
-    - AWS validation and deployment evidence
+    - routed AWS validation and deployment evidence
+    - public `GET /events/{event_id}` route validated in AWS
   - `update-event`
     - implementation
     - `envs/dev` wiring
@@ -328,8 +329,8 @@ Planned implementation sequence:
    - incremental protected `get-event-rsvps` route slice ✅ (end-to-end validated)
    - public `list-events` route slice ✅ (end-to-end validated)
    - JWT-protected `list-my-events` route slice ✅ (end-to-end validated)
-   - next routed step: `get-event` route implementation
-   - remaining routed step after that: mixed-mode `rsvp`
+   - public `get-event` route slice ✅ (end-to-end validated)
+   - next routed step: mixed-mode `rsvp`
 13. Frontend S3 hosting, CloudFront distribution, WAF protection
 14. EventBridge and SNS integration
 15. `notification-worker`

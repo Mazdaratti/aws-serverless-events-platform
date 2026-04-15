@@ -173,12 +173,16 @@ module "cognito" {
 }
 
 ############################################
-# API Gateway protected routed slice
+# API Gateway incremental routed slice
 ############################################
 
 # This environment wires in a deliberately incremental HTTP API slice so the
-# platform can validate one ordinary JWT-protected handler at a time before
-# broadening API Gateway coverage across the remaining Lambda workloads.
+# platform can validate one real routed path at a time before broadening API
+# Gateway coverage across the remaining Lambda workloads.
+#
+# The current routed slice now includes both:
+# - public routes
+# - ordinary JWT-protected routes
 module "api_gateway" {
   source = "../../modules/api_gateway"
 
@@ -190,6 +194,13 @@ module "api_gateway" {
   jwt_audience = [module.cognito.user_pool_client_id]
 
   routes = {
+    get-event = {
+      route_key            = "GET /events/{event_id}"
+      lambda_invoke_arn    = module.lambda.invoke_arns["get-event"]
+      lambda_function_name = module.lambda.function_names["get-event"]
+      authorization_type   = "NONE"
+    }
+
     list-events = {
       route_key            = "GET /events"
       lambda_invoke_arn    = module.lambda.invoke_arns["list-events"]

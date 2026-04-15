@@ -327,34 +327,36 @@ This environment currently wires in:
 - one HTTP API
 - one stage
 - one JWT authorizer (Cognito-based)
-- six routed API endpoints:
+- seven routed API endpoints:
   - `POST /events`
   - `PATCH /events/{event_id}`
   - `POST /events/{event_id}/cancel`
   - `GET /events/{event_id}/rsvps`
   - `GET /events`
   - `GET /events/mine`
-- six Lambda integrations:
+  - `GET /events/{event_id}`
+- seven Lambda integrations:
   - `create-event`
   - `update-event`
   - `cancel-event`
   - `get-event-rsvps`
   - `list-events`
   - `list-my-events`
+  - `get-event`
 
 Why this module is wired now:
 
 - the platform needed to validate public and JWT-protected Lambda handlers end to end through API Gateway
 - the routed API rollout was implemented incrementally, adding and validating one path per Lambda
 - currently implemented and validated routes are:
-  - `GET /events`
-  - `GET /events/mine`
   - `POST /events`
   - `PATCH /events/{event_id}`
   - `POST /events/{event_id}/cancel`
   - `GET /events/{event_id}/rsvps`
-- still to implement in this routed API line are:
+  - `GET /events`
+  - `GET /events/mine`
   - `GET /events/{event_id}`
+- still to implement in this routed API line are:
   - `POST /events/{event_id}/rsvp`
 
 Important design notes:
@@ -380,6 +382,7 @@ Validation:
   - `GET /events/{event_id}/rsvps`
   - `GET /events`
   - `GET /events/mine`
+  - `GET /events/{event_id}`
 - confirmed JWT authorization is attached to the protected routes
 - confirmed anonymous requests are rejected at the API edge for JWT-protected routes
 - confirmed authenticated `create-event` invocation succeeds through API Gateway with JWT validation
@@ -415,6 +418,11 @@ Validation:
 - confirmed unauthenticated `GET /events/mine` is rejected at the API edge with `401`
 - confirmed authenticated creator `GET /events/mine` succeeds through API Gateway with JWT validation
 - confirmed authenticated admin `GET /events/mine` succeeds through API Gateway with JWT validation and returns only the admin caller's own events
+- confirmed `GET /events/{event_id}` is public and has no attached authorizer
+- confirmed unauthenticated `GET /events/{event_id}` succeeds through API Gateway with `200`
+- confirmed routed `GET /events/{event_id}` still returns cancelled events by ID
+- confirmed routed `GET /events/{event_id}` still returns non-public events by ID
+- confirmed missing-event routed `get-event` invocation returns `404`
 - confirmed routed `GET /events/mine` responses include creator-owned cancelled events
 - confirmed routed `GET /events/mine` pagination works through:
   - `limit`
@@ -495,11 +503,14 @@ Current business behavior validated in this environment:
     - opaque `next_cursor`
   - the current read path uses the `creator-events` GSI
 - `get-event`
+  - public routed invocation via `GET /events/{event_id}` succeeds without authentication
   - successful single-item lookup returns `200`
   - missing event returns `404`
   - single-item reads do not require caller context
   - returned items use the locked public event DTO under `item`
   - direct DynamoDB `GetItem` lookup is used by canonical `event_pk`
+  - cancelled events remain readable by ID
+  - non-public events remain readable by ID
 - `update-event`
   - protected routed invocation via `PATCH /events/{event_id}` succeeds for authenticated owners
   - protected routed invocation via `PATCH /events/{event_id}` succeeds for authenticated admins

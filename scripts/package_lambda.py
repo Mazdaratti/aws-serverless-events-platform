@@ -172,8 +172,15 @@ def collect_files_to_package(
     packaged_files: list[tuple[Path, str]] = []
     seen_archive_names: set[str] = set()
 
-    def add_directory(directory: Path, *, archive_base: Path) -> None:
+    def add_directory(
+        directory: Path,
+        *,
+        archive_base: Path,
+        skipped_roots: tuple[Path, ...] = (),
+    ) -> None:
         for file_path in sorted(directory.rglob("*")):
+            if any(file_path.is_relative_to(skipped_root) for skipped_root in skipped_roots):
+                continue
             if not file_path.is_file():
                 continue
             if is_excluded(path=file_path, source_dir=directory):
@@ -186,7 +193,11 @@ def collect_files_to_package(
             packaged_files.append((file_path, archive_name))
             seen_archive_names.add(archive_name)
 
-    add_directory(source_dir, archive_base=source_dir)
+    add_directory(
+        source_dir,
+        archive_base=source_dir,
+        skipped_roots=(vendor_dir,) if vendor_dir is not None else (),
+    )
     add_directory(shared_dir, archive_base=shared_dir.parent)
     if vendor_dir is not None:
         add_directory(vendor_dir, archive_base=vendor_dir)

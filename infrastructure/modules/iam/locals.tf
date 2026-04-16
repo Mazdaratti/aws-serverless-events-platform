@@ -93,6 +93,16 @@ locals {
       temporary_scan      = false
     }
 
+    # The RSVP Lambda authorizer validates mixed-mode caller identity and does
+    # not access business tables or queues. It needs only CloudWatch logging.
+    authorizer_logs_only = {
+      dynamodb_table_arns = []
+      sqs_queue_arns      = []
+      include_logs        = true
+      include_xray        = false
+      temporary_scan      = false
+    }
+
     # RSVP is the first transactional cross-table write path, so it spans both
     # business tables and keeps helper counters consistent.
     rsvp_transaction = {

@@ -90,3 +90,4 @@ notes/
 ############################################
 .aws-sam/
 .aws/
+lambdas/rsvp_authorizer/vendor/

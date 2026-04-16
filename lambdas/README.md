@@ -94,10 +94,28 @@ platform-specific files do not get mixed together.
 Remove-Item -Recurse -Force lambdas/rsvp_authorizer/vendor
 ```
 
-The preferred deployment build approach uses the workload-local Docker build
-file:
+The preferred deployment build approach uses the helper script:
+
+- `scripts/build_rsvp_authorizer_vendor.py`
+
+Run:
+
+```powershell
+python scripts/build_rsvp_authorizer_vendor.py
+```
+
+This script:
+
+- removes any existing generated `vendor/` directory
+- builds the workload-local Docker image
+- rebuilds the vendor tree in a Lambda-compatible container
+
+Under the hood it uses the workload-local Docker build file:
 
 - `lambdas/rsvp_authorizer/Dockerfile.vendor`
+
+If you need to debug the lower-level Docker flow directly, the equivalent steps
+are:
 
 Build the vendor image:
 

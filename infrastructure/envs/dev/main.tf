@@ -103,6 +103,10 @@ module "iam" {
       access_profile = "cancel_event"
     }
 
+    rsvp-authorizer = {
+      access_profile = "authorizer_logs_only"
+    }
+
     rsvp = {
       access_profile = "rsvp_transaction"
     }

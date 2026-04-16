@@ -10,4 +10,6 @@ COPY requirements.txt .
 
 # Install directly into the mounted output directory so the repo keeps one
 # workload-local vendor tree that can be packaged with the function ZIP.
-CMD ["sh", "-c", "pip install --requirement requirements.txt --target /output/vendor"]
+# After install, remove obvious generated cache and packaging bookkeeping files
+# that are not needed at Lambda runtime.
+CMD ["sh", "-c", "pip install --requirement requirements.txt --target /output/vendor && find /output/vendor -type d -name '__pycache__' -prune -exec rm -rf {} + && find /output/vendor -type f \\( -name '*.pyc' -o -name '*.pyo' -o -name 'RECORD' -o -name 'INSTALLER' -o -name 'REQUESTED' \\) -delete"]

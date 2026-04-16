@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
 """
-Create a deterministic Lambda ZIP artifact from a source directory.
+Create a deterministic Lambda ZIP artifact for one Lambda workload.
 
-This script intentionally stays small and standard-library-only so the same
-packaging command can be reused locally and later in CI/CD without introducing
-platform-specific shell logic or extra build tooling.
+What this script packages:
+- the selected Lambda source directory
+- the shared Lambda helpers under `lambdas/shared`
+- optionally, one vendored dependency directory
+
+Why this script exists:
+- Lambda deployments in this repo use ZIP artifacts
+- we want the packaging step to behave the same locally and later in CI/CD
+- we want the ZIP contents to be deterministic so repeated packaging does not
+  produce noisy differences when the inputs have not changed
+
+This script intentionally stays small and uses only the Python standard library
+so it does not introduce extra build tooling or platform-specific shell logic.
 """
 
 from __future__ import annotations
@@ -38,20 +48,25 @@ EXCLUDED_FILE_NAMES = {
 
 
 def main() -> int:
+    # Resolve the requested inputs once up front so the rest of the script can
+    # work with absolute paths and validated directories only.
     args = parse_args()
 
-    repo_root = Path(__file__).resolve().parent.parent
     source_dir = args.source_dir.resolve()
     output_path = args.output_path.resolve()
-    shared_dir = resolve_shared_dir(repo_root=repo_root)
+    shared_dir = resolve_shared_dir()
+    vendor_dir = args.vendor_dir.resolve() if args.vendor_dir is not None else None
 
     validate_source_dir(source_dir)
     validate_shared_dir(shared_dir)
+    if vendor_dir is not None:
+        validate_vendor_dir(vendor_dir)
+
     package_lambda(
         source_dir=source_dir,
         shared_dir=shared_dir,
+        vendor_dir=vendor_dir,
         output_path=output_path,
-        repo_root=repo_root,
     )
 
     print(f"Packaged {source_dir} -> {output_path}")
@@ -72,6 +87,16 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Path where the ZIP artifact should be written.",
     )
+    parser.add_argument(
+        "--vendor-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Optional path to one vendored dependency directory whose contents "
+            "should be packaged at the ZIP archive root so vendored modules "
+            "can be imported directly."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -83,8 +108,8 @@ def validate_source_dir(source_dir: Path) -> None:
         raise SystemExit(f"Source path is not a directory: {source_dir}")
 
 
-def resolve_shared_dir(*, repo_root: Path) -> Path:
-    return repo_root / "lambdas" / "shared"
+def resolve_shared_dir() -> Path:
+    return Path(__file__).resolve().parent.parent / "lambdas" / "shared"
 
 
 def validate_shared_dir(shared_dir: Path) -> None:
@@ -95,13 +120,29 @@ def validate_shared_dir(shared_dir: Path) -> None:
         raise SystemExit(f"Shared Lambda path is not a directory: {shared_dir}")
 
 
-def package_lambda(*, source_dir: Path, shared_dir: Path, output_path: Path, repo_root: Path) -> None:
+def validate_vendor_dir(vendor_dir: Path) -> None:
+    if not vendor_dir.exists():
+        raise SystemExit(f"Vendor directory does not exist: {vendor_dir}")
+
+    if not vendor_dir.is_dir():
+        raise SystemExit(f"Vendor path is not a directory: {vendor_dir}")
+
+
+def package_lambda(
+    *,
+    source_dir: Path,
+    shared_dir: Path,
+    vendor_dir: Path | None,
+    output_path: Path,
+) -> None:
+    # Build one deterministic ZIP file from the normalized input directories.
+    # The output is replaced on each run so repeated packaging starts cleanly.
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     files_to_package = collect_files_to_package(
         source_dir=source_dir,
         shared_dir=shared_dir,
-        repo_root=repo_root,
+        vendor_dir=vendor_dir,
     )
 
     if not files_to_package:
@@ -123,8 +164,11 @@ def collect_files_to_package(
     *,
     source_dir: Path,
     shared_dir: Path,
-    repo_root: Path,
+    vendor_dir: Path | None,
 ) -> list[tuple[Path, str]]:
+    # Collect every file once and compute the exact archive path it will have
+    # inside the ZIP. Tracking archive names here lets us fail early if two
+    # different inputs would collide at the same ZIP path.
     packaged_files: list[tuple[Path, str]] = []
     seen_archive_names: set[str] = set()
 
@@ -144,11 +188,15 @@ def collect_files_to_package(
 
     add_directory(source_dir, archive_base=source_dir)
     add_directory(shared_dir, archive_base=shared_dir.parent)
+    if vendor_dir is not None:
+        add_directory(vendor_dir, archive_base=vendor_dir)
 
     return packaged_files
 
 
 def is_excluded(*, path: Path, source_dir: Path) -> bool:
+    # Apply the same exclusion rules regardless of whether the file comes from
+    # the Lambda source, shared helpers, or an optional vendor directory.
     relative_parts = path.relative_to(source_dir).parts
 
     if any(part in EXCLUDED_DIRECTORY_NAMES for part in relative_parts[:-1]):

@@ -378,8 +378,27 @@ Detailed architecture description:
 
 - `docs/architecture.md`
 - `docs/platform-behavior.md`
+- `docs/local-setup.md`
 - `infrastructure/envs/dev/README.md`
 - each module also contains its own `README.md` in the module root directory
+
+---
+
+## Developer Tooling
+
+The current local backend and infrastructure workflow expects:
+
+- Python
+- Docker
+- Terraform
+- `tflint`
+
+Frontend tooling is not yet a hard project baseline, but Node.js and npm are
+expected to be added once frontend implementation becomes an active track.
+
+See:
+
+- `docs/local-setup.md`
 
 ---
 

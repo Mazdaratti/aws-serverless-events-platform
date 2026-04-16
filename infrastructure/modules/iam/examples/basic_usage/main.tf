@@ -126,6 +126,14 @@ module "iam" {
       enable_xray    = false
     }
 
+    # The dedicated mixed-mode Lambda authorizer validates caller identity
+    # only, so the example uses the logs-only authorizer profile.
+    rsvp-authorizer = {
+      access_profile = "authorizer_logs_only"
+      enable_logs    = true
+      enable_xray    = false
+    }
+
     rsvp = {
       access_profile = "rsvp_transaction"
       enable_logs    = true

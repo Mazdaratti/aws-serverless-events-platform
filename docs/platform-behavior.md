@@ -1042,6 +1042,39 @@ Locked v1 projected authorizer context fields are:
 - `is_authenticated`
 - `is_admin`
 
+#### Vendored dependency direction for the mixed-mode authorizer
+
+The dedicated `rsvp` Lambda authorizer uses a vendored JWT verification stack.
+
+Locked v1 dependency direction:
+
+- `PyJWT`
+- `cryptography`
+
+Vendored dependencies live under:
+
+- `lambdas/rsvp_authorizer/vendor/`
+
+Packaging direction:
+
+- `scripts/package_lambda.py --vendor-dir ...`
+- vendored dependency contents must land at the ZIP archive root so the
+  authorizer can import them directly
+
+Build target direction:
+
+- the vendor tree must be built for the deployed Lambda runtime and
+  architecture
+- current locked build target:
+  - Python `3.13`
+  - `x86_64`
+
+Repository-scoping rule:
+
+- the vendor tree is workload-local to `rsvp_authorizer`
+- it must not become a shared repo-wide dependency bucket
+- this step does not introduce a Lambda layer
+
 #### Anonymous subject strategy
 
 Anonymous RSVP is supported only for public events.

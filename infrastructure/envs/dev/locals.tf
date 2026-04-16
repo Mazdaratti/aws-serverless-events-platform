@@ -45,6 +45,10 @@ locals {
       description = "Soft-deletes a canonical event record by setting status to CANCELLED and removing public discovery helpers."
     }
 
+    rsvp-authorizer = {
+      description = "Validates mixed-mode RSVP caller identity and projects a flat authorizer context for downstream Lambda use."
+    }
+
     rsvp = {
       description = "Writes transactional RSVP state for one event and subject while keeping helper counters correct."
     }

@@ -15,9 +15,10 @@ This module currently creates one IAM role and one customer-managed IAM policy p
 - `create-event`
 - `get-event`
 - `list-events`
- - `list-my-events`
+- `list-my-events`
 - `update-event`
 - `cancel-event`
+- `rsvp-authorizer`
 - `rsvp`
 - `get-event-rsvps`
 - `notification-worker`
@@ -61,9 +62,10 @@ The current workload set is aligned to the repository's architecture and placeho
 - `create-event`
 - `get-event`
 - `list-events`
- - `list-my-events`
+- `list-my-events`
 - `update-event`
 - `cancel-event`
+- `rsvp-authorizer`
 - `rsvp`
 - `get-event-rsvps`
 - `notification-worker`
@@ -147,6 +149,29 @@ It does not currently need:
 - GSI access
 - RSVP table access
 - SQS access
+
+### `rsvp-authorizer`
+
+This role is intended for the dedicated mixed-mode Lambda authorizer that
+supports anonymous and authenticated RSVP access on the same route.
+
+It currently receives:
+
+- CloudWatch Logs write permissions
+- optional X-Ray write permissions
+
+This role intentionally stays logs-only.
+
+It does not currently need:
+
+- DynamoDB access
+- SQS access
+- Cognito read permissions
+- EventBridge access
+
+The authorizer validates Cognito-issued JWTs from the presented bearer token
+using token claims plus Cognito verification material. It does not call Cognito
+read APIs as part of this v1 IAM shape.
 
 ### `cancel-event`
 
@@ -293,7 +318,8 @@ The example shows how to:
 - build the shared `name_prefix`
 - define the baseline tag map
 - create minimal DynamoDB and SQS supporting resources
-- call the module with all supported workload roles
+- call the module with all supported workload roles, including the logs-only
+  `rsvp-authorizer` workload
 - inspect the resulting role names and ARNs
 
 ---

@@ -104,7 +104,7 @@ Run:
 python scripts/build_rsvp_authorizer_vendor.py
 ```
 
-This script:
+The helper script:
 
 - removes any existing generated `vendor/` directory
 - builds the workload-local Docker image

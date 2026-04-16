@@ -94,17 +94,30 @@ platform-specific files do not get mixed together.
 Remove-Item -Recurse -Force lambdas/rsvp_authorizer/vendor
 ```
 
-Preferred first deployment build approach:
+The preferred deployment build approach uses the workload-local Docker build
+file:
+
+- `lambdas/rsvp_authorizer/Dockerfile.vendor`
+
+Build the vendor image:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install `
-  --target lambdas/rsvp_authorizer/vendor `
-  --requirement lambdas/rsvp_authorizer/requirements.txt `
-  --platform manylinux2014_x86_64 `
-  --implementation cp `
-  --python-version 3.13 `
-  --only-binary=:all:
+docker build `
+  -f lambdas/rsvp_authorizer/Dockerfile.vendor `
+  -t rsvp-authorizer-vendor `
+  lambdas/rsvp_authorizer
 ```
+
+Rebuild the workload-local vendor directory in a Lambda-compatible container:
+
+```powershell
+docker run --rm `
+  -v "${PWD}\lambdas\rsvp_authorizer:/output" `
+  rsvp-authorizer-vendor
+```
+
+The container installs the pinned dependencies into `/output/vendor` using a
+Linux Python 3.13 environment aligned with the deployed Lambda target.
 
 Why this differs from the local test install:
 
@@ -114,13 +127,9 @@ Why this differs from the local test install:
   - Python `3.13`
   - `x86_64`
 
-If this wheel-based build cannot resolve compatible artifacts for the pinned
-dependencies, the fallback is to build the vendor tree in a Linux environment
-that matches the Lambda target more closely.
-
 Native dependencies such as `cryptography` and `cffi` must match the Lambda
-runtime target. A vendor tree built only for local Windows use may package
-successfully but still fail at runtime in Lambda.
+runtime target. The Docker-based vendor build was added specifically to avoid
+shipping local Windows-built binaries into the Lambda ZIP.
 
 ## Authorizer Packaging Command
 

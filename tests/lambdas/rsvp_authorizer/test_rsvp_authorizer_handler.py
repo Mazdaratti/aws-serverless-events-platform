@@ -1,6 +1,13 @@
+from pathlib import Path
+import sys
 from urllib.error import URLError
 
 import pytest
+
+VENDOR_PATH = Path(__file__).resolve().parents[3] / "lambdas" / "rsvp_authorizer" / "vendor"
+if str(VENDOR_PATH) not in sys.path:
+    sys.path.insert(0, str(VENDOR_PATH))
+
 from jwt import InvalidTokenError
 
 from lambdas.rsvp_authorizer import handler

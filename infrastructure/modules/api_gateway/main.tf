@@ -84,6 +84,16 @@ resource "aws_apigatewayv2_route" "route" {
 # Lambda invoke permissions
 ############################################
 
+resource "aws_lambda_permission" "authorizer_invoke" {
+  for_each = var.request_authorizers
+
+  statement_id  = "AllowExecutionFromApiGatewayAuthorizer-${replace(replace(each.key, "-", "_"), " ", "_")}"
+  action        = "lambda:InvokeFunction"
+  function_name = each.value.lambda_function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.this.execution_arn}/authorizers/${aws_apigatewayv2_authorizer.request[each.key].id}"
+}
+
 resource "aws_lambda_permission" "api_gateway_invoke" {
   for_each = local.routes
 

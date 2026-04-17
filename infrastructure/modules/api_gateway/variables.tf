@@ -65,7 +65,7 @@ variable "request_authorizers" {
   type = map(object({
     authorizer_uri                    = string
     lambda_function_name              = string
-    identity_sources                  = list(string)
+    identity_sources                  = optional(list(string))
     authorizer_credentials_arn        = optional(string)
     name                              = optional(string)
     authorizer_payload_format_version = optional(string, "2.0")
@@ -93,12 +93,14 @@ variable "request_authorizers" {
   validation {
     condition = alltrue([
       for authorizer in values(var.request_authorizers) :
-      length(authorizer.identity_sources) > 0 && alltrue([
-        for identity_source in authorizer.identity_sources :
-        trimspace(identity_source) != ""
-      ])
+      try(authorizer.identity_sources == null, true) || (
+        length(authorizer.identity_sources) > 0 && alltrue([
+          for identity_source in authorizer.identity_sources :
+          trimspace(identity_source) != ""
+        ])
+      )
     ])
-    error_message = "Each request authorizer must provide at least one non-empty identity source."
+    error_message = "Each request authorizer identity_sources value must be omitted or contain at least one non-empty identity source."
   }
 
   validation {

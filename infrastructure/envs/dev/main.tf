@@ -202,6 +202,14 @@ module "api_gateway" {
   jwt_issuer   = module.cognito.issuer
   jwt_audience = [module.cognito.user_pool_client_id]
 
+  request_authorizers = {
+    rsvp-mixed-mode = {
+      authorizer_uri       = module.lambda.invoke_arns["rsvp-authorizer"]
+      lambda_function_name = module.lambda.function_names["rsvp-authorizer"]
+      identity_sources     = ["$request.header.Authorization"]
+    }
+  }
+
   routes = {
     get-event = {
       route_key            = "GET /events/{event_id}"
@@ -250,6 +258,14 @@ module "api_gateway" {
       lambda_invoke_arn    = module.lambda.invoke_arns["get-event-rsvps"]
       lambda_function_name = module.lambda.function_names["get-event-rsvps"]
       authorization_type   = "JWT"
+    }
+
+    rsvp-authorizer-probe = {
+      route_key            = "GET /internal/rsvp-authorizer-probe"
+      lambda_invoke_arn    = module.lambda.invoke_arns["rsvp-authorizer-probe"]
+      lambda_function_name = module.lambda.function_names["rsvp-authorizer-probe"]
+      authorization_type   = "CUSTOM"
+      authorizer_key       = "rsvp-mixed-mode"
     }
   }
 }

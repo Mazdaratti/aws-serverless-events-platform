@@ -89,6 +89,11 @@ including:
 - native JWT authorizer context
 - custom Lambda authorizer context
 
+For the mixed-mode RSVP route, the real routed HTTP API simple-response Lambda
+authorizer shape observed in AWS is:
+
+- `requestContext.authorizer.lambda`
+
 Business Lambdas must not depend directly on those raw shapes. They must
 consume normalized caller context produced by shared request/auth parsing
 logic.
@@ -278,6 +283,18 @@ Rules:
 - initial implementation should prefer correctness over caching complexity
 - any future caching strategy must preserve mixed anonymous/authenticated route
   behavior
+
+Current locked implementation rule for this mixed-mode route:
+
+- request authorizer `identity_sources` must be omitted
+- request authorizer result TTL must be `0`
+
+This preserves the required mixed-mode behavior:
+
+- no header -> anonymous allowed path can still reach the Lambda authorizer
+- valid header -> authenticated path is preserved
+- malformed or invalid presented auth is denied instead of silently downgraded
+  to anonymous
 
 ---
 
@@ -1032,15 +1049,37 @@ Rules:
   - project authenticated caller context
 - if a malformed or invalid token is present:
   - deny the request at the API edge
-  - the expected result is `401`
+  - the observed result is `403`
   - the business `rsvp` Lambda must not run
-- the projected authorizer context should stay flat and minimal
+- the projected authorizer context is observed downstream under:
+  - `requestContext.authorizer.lambda`
 
-Locked v1 projected authorizer context fields are:
+Locked v1 projected caller fields are:
 
 - `user_id`
 - `is_authenticated`
 - `is_admin`
+
+Observed downstream shape for successful mixed-mode requests:
+
+- anonymous:
+  - `requestContext.authorizer.lambda.user_id = null`
+  - `requestContext.authorizer.lambda.is_authenticated = false`
+  - `requestContext.authorizer.lambda.is_admin = false`
+- authenticated non-admin:
+  - `requestContext.authorizer.lambda.user_id = <Cognito sub>`
+  - `requestContext.authorizer.lambda.is_authenticated = true`
+  - `requestContext.authorizer.lambda.is_admin = false`
+- authenticated admin:
+  - `requestContext.authorizer.lambda.user_id = <Cognito sub>`
+  - `requestContext.authorizer.lambda.is_authenticated = true`
+  - `requestContext.authorizer.lambda.is_admin = true`
+
+Observed typing:
+
+- `is_authenticated` arrives as a real boolean
+- `is_admin` arrives as a real boolean
+- anonymous `user_id` arrives as `null`
 
 #### Vendored dependency direction for the mixed-mode authorizer
 
@@ -1696,7 +1735,6 @@ The following behaviors are intentionally not fully locked yet:
 
 - exact account-deletion cleanup semantics
 - exact ordinary-route JWT authorizer implementation details
-- exact mixed-mode `rsvp` custom Lambda authorizer implementation details
 
 These should be decided in the implementation steps where they become
 immediately relevant.

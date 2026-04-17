@@ -48,6 +48,7 @@ resource "aws_apigatewayv2_authorizer" "request" {
 
   authorizer_credentials_arn        = try(each.value.authorizer_credentials_arn, null)
   authorizer_payload_format_version = each.value.authorizer_payload_format_version
+  authorizer_result_ttl_in_seconds  = each.value.authorizer_result_ttl_in_seconds
   enable_simple_responses           = each.value.enable_simple_responses
 }
 

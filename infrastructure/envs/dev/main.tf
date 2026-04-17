@@ -107,6 +107,10 @@ module "iam" {
       access_profile = "authorizer_logs_only"
     }
 
+    rsvp-authorizer-probe = {
+      access_profile = "authorizer_logs_only"
+    }
+
     rsvp = {
       access_profile = "rsvp_transaction"
     }

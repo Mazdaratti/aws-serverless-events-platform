@@ -45,6 +45,14 @@ output "jwt_authorizer_id" {
   value       = aws_apigatewayv2_authorizer.jwt.id
 }
 
+output "request_authorizer_ids" {
+  description = "Map of logical Lambda request authorizer name to HTTP API authorizer ID."
+  value = {
+    for authorizer_name, authorizer in aws_apigatewayv2_authorizer.request :
+    authorizer_name => authorizer.id
+  }
+}
+
 ############################################
 # Route outputs
 ############################################

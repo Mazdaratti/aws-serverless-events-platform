@@ -21,8 +21,9 @@ def resolve_optional_caller(event: dict[str, Any]) -> CallerContext:
     # Keep the supported edge shapes explicit:
     # 1. synthetic test input under top-level "caller"
     # 2. API Gateway JWT authorizer shape
-    # 3. flat custom-authorizer shape
-    # 4. no caller context at all -> anonymous
+    # 3. HTTP API simple-response Lambda authorizer shape under "lambda"
+    # 4. flat custom-authorizer shape
+    # 5. no caller context at all -> anonymous
     if not isinstance(event, dict):
         raise ValueError("Event payload must be a JSON object.")
 
@@ -45,6 +46,10 @@ def resolve_optional_caller(event: dict[str, Any]) -> CallerContext:
     jwt_context = authorizer.get("jwt")
     if jwt_context is not None:
         return _normalize_jwt_authorizer_context(jwt_context)
+
+    lambda_context = authorizer.get("lambda")
+    if lambda_context is not None:
+        return _normalize_lambda_authorizer_context(lambda_context)
 
     return _normalize_flat_authorizer_context(authorizer)
 
@@ -142,6 +147,34 @@ def _normalize_flat_authorizer_context(value: dict[str, Any]) -> CallerContext:
         is_authenticated=is_authenticated,
         is_admin=is_admin,
         source="requestContext.authorizer",
+    )
+
+
+def _normalize_lambda_authorizer_context(value: Any) -> CallerContext:
+    # This path matches the real HTTP API simple-response Lambda authorizer
+    # shape observed in AWS, where the custom context is nested under
+    # requestContext.authorizer.lambda.
+    if not isinstance(value, dict):
+        raise ValueError("requestContext.authorizer.lambda must be an object when provided.")
+
+    is_authenticated = _coerce_bool(
+        value.get("is_authenticated", False),
+        field_name="requestContext.authorizer.lambda.is_authenticated",
+    )
+    is_admin = _coerce_bool(
+        value.get("is_admin", False),
+        field_name="requestContext.authorizer.lambda.is_admin",
+    )
+    user_id = _normalize_optional_string(
+        value.get("user_id"),
+        field_name="requestContext.authorizer.lambda.user_id",
+    )
+
+    return _build_caller_context(
+        user_id=user_id,
+        is_authenticated=is_authenticated,
+        is_admin=is_admin,
+        source="requestContext.authorizer.lambda",
     )
 
 

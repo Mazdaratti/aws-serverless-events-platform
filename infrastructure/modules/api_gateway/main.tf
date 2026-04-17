@@ -44,7 +44,7 @@ resource "aws_apigatewayv2_authorizer" "request" {
   name             = coalesce(try(each.value.name, null), "${var.name_prefix}-${each.key}")
   authorizer_type  = "REQUEST"
   authorizer_uri   = each.value.authorizer_uri
-  identity_sources = each.value.identity_sources
+  identity_sources = try(each.value.identity_sources, null)
 
   authorizer_credentials_arn        = try(each.value.authorizer_credentials_arn, null)
   authorizer_payload_format_version = each.value.authorizer_payload_format_version

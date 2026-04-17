@@ -70,6 +70,7 @@ variable "request_authorizers" {
     name                              = optional(string)
     authorizer_payload_format_version = optional(string, "2.0")
     enable_simple_responses           = optional(bool, true)
+    authorizer_result_ttl_in_seconds  = optional(number, 0)
   }))
 
   default = {}
@@ -109,6 +110,22 @@ variable "request_authorizers" {
       authorizer.authorizer_payload_format_version == "2.0"
     ])
     error_message = "Each request authorizer must use payload format version \"2.0\"."
+  }
+
+  validation {
+    condition = alltrue([
+      for authorizer in values(var.request_authorizers) :
+      authorizer.authorizer_result_ttl_in_seconds >= 0
+    ])
+    error_message = "Each request authorizer authorizer_result_ttl_in_seconds must be zero or greater."
+  }
+
+  validation {
+    condition = alltrue([
+      for authorizer in values(var.request_authorizers) :
+      try(authorizer.identity_sources != null, false) || authorizer.authorizer_result_ttl_in_seconds == 0
+    ])
+    error_message = "Each request authorizer without identity_sources must set authorizer_result_ttl_in_seconds to 0."
   }
 }
 

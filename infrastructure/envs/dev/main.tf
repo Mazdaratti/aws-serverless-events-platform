@@ -210,7 +210,6 @@ module "api_gateway" {
     rsvp-mixed-mode = {
       authorizer_uri       = module.lambda.invoke_arns["rsvp-authorizer"]
       lambda_function_name = module.lambda.function_names["rsvp-authorizer"]
-      identity_sources     = ["$request.header.Authorization"]
     }
   }
 

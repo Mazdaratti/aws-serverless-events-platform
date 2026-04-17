@@ -18,7 +18,7 @@ resource "aws_apigatewayv2_stage" "this" {
 }
 
 ############################################
-# JWT authorizer
+# Built-in JWT authorizer
 ############################################
 
 resource "aws_apigatewayv2_authorizer" "jwt" {
@@ -31,6 +31,24 @@ resource "aws_apigatewayv2_authorizer" "jwt" {
     issuer   = var.jwt_issuer
     audience = var.jwt_audience
   }
+}
+
+############################################
+# Lambda request authorizers
+############################################
+
+resource "aws_apigatewayv2_authorizer" "request" {
+  for_each = var.request_authorizers
+
+  api_id           = aws_apigatewayv2_api.this.id
+  name             = coalesce(try(each.value.name, null), "${var.name_prefix}-${each.key}")
+  authorizer_type  = "REQUEST"
+  authorizer_uri   = each.value.authorizer_uri
+  identity_sources = each.value.identity_sources
+
+  authorizer_credentials_arn        = try(each.value.authorizer_credentials_arn, null)
+  authorizer_payload_format_version = each.value.authorizer_payload_format_version
+  enable_simple_responses           = each.value.enable_simple_responses
 }
 
 ############################################
@@ -55,7 +73,11 @@ resource "aws_apigatewayv2_route" "route" {
   target    = "integrations/${aws_apigatewayv2_integration.route[each.key].id}"
 
   authorization_type = each.value.authorization_type
-  authorizer_id      = each.value.authorization_type == "JWT" ? aws_apigatewayv2_authorizer.jwt.id : null
+  authorizer_id = (
+    each.value.authorization_type == "JWT" ? aws_apigatewayv2_authorizer.jwt.id :
+    each.value.authorization_type == "CUSTOM" ? aws_apigatewayv2_authorizer.request[each.value.authorizer_key].id :
+    null
+  )
 }
 
 ############################################

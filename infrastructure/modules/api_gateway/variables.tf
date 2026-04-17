@@ -64,6 +64,7 @@ variable "request_authorizers" {
 
   type = map(object({
     authorizer_uri                    = string
+    lambda_function_name              = string
     identity_sources                  = list(string)
     authorizer_credentials_arn        = optional(string)
     name                              = optional(string)
@@ -79,6 +80,14 @@ variable "request_authorizers" {
       trimspace(authorizer.authorizer_uri) != ""
     ])
     error_message = "Each request authorizer authorizer_uri must be a non-empty string."
+  }
+
+  validation {
+    condition = alltrue([
+      for authorizer in values(var.request_authorizers) :
+      trimspace(authorizer.lambda_function_name) != ""
+    ])
+    error_message = "Each request authorizer lambda_function_name must be a non-empty string."
   }
 
   validation {

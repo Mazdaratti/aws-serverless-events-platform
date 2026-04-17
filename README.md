@@ -28,11 +28,16 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - Cognito identity infrastructure is now implemented, wired in `envs/dev`, and validated in AWS
 - public `GET /events` and JWT-protected `GET /events/mine` are now implemented, wired in `envs/dev`, and validated in AWS
 - public `GET /events/{event_id}` is now implemented, wired in `envs/dev`, and validated in AWS
+- the mixed-mode RSVP authorizer contract is now implemented and validated in AWS
 - the next steps are to:
-  - add the mixed-mode RSVP authorizer
-  - wire the mixed-mode routed `rsvp` path
+  - wire the real mixed-mode routed `rsvp` path
+  - remove the temporary authorizer probe validation slice after the milestone is fully documented and merged
   - continue shifting the platform from direct Lambda invocation assumptions toward fully routed API behavior
-- this milestone already proves both public and JWT-protected routed event reads and correct API Gateway-enforced auth boundaries in AWS
+- this milestone already proves:
+  - public routed event reads
+  - JWT-protected routed event reads
+  - correct API Gateway-enforced auth boundaries in AWS
+  - the mixed anonymous/authenticated authorizer contract required for the future RSVP route
 
 ### Completed milestones
 
@@ -237,6 +242,7 @@ aws-serverless-events-platform/
 |-- docs/
 |   |-- assets/
 |   |-- architecture.md
+|   |-- local-setup.md
 |   `-- platform-behavior.md
 |
 |-- frontend/
@@ -273,6 +279,9 @@ aws-serverless-events-platform/
 |
 |-- lambdas/
 |   `-- Python Lambda workload source folders and shared placeholder structure
+|
+|-- scripts/
+|   `-- Python helper scripts for packaging and local build workflows
 |
 |-- tests/
 |   `-- Focused automated tests for implemented Lambda handlers and future application code
@@ -320,7 +329,7 @@ Planned implementation sequence:
    - `get-event-rsvps` normalization adoption ✅
    - `list-events` public-only cleanup ✅
 9. `list-my-events` workload split from `list-events` ✅
-10. Mixed-mode RSVP authorizer
+10. Mixed-mode RSVP lambda authorizer ✅
 11. `rsvp` normalization for mixed-mode authorizer contract
 12. API Gateway routed validation and rollout
    - narrow protected `create-event` route slice ✅ (end-to-end validated)
@@ -330,7 +339,8 @@ Planned implementation sequence:
    - public `list-events` route slice ✅ (end-to-end validated)
    - JWT-protected `list-my-events` route slice ✅ (end-to-end validated)
    - public `get-event` route slice ✅ (end-to-end validated)
-   - next routed step: mixed-mode `rsvp`
+   - mixed-mode authorizer probe slice ✅ (end-to-end validated)
+   - next routed step: real mixed-mode `rsvp`
 13. Frontend S3 hosting, CloudFront distribution, WAF protection
 14. EventBridge and SNS integration
 15. `notification-worker`

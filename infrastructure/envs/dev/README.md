@@ -396,6 +396,7 @@ Validation:
   - `GET /events`
   - `GET /events/mine`
   - `GET /events/{event_id}`
+  - `GET /internal/rsvp-authorizer-probe`
 - confirmed JWT authorization is attached to the protected routes
 - confirmed anonymous requests are rejected at the API edge for JWT-protected routes
 - confirmed authenticated `create-event` invocation succeeds through API Gateway with JWT validation

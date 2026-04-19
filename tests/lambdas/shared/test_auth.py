@@ -96,6 +96,50 @@ def test_resolve_optional_caller_accepts_custom_authorizer_shape():
     }
 
 
+def test_resolve_optional_caller_accepts_http_api_lambda_authorizer_shape():
+    caller = resolve_optional_caller(
+        {
+            "requestContext": {
+                "authorizer": {
+                    "lambda": {
+                        "user_id": "alice",
+                        "is_authenticated": True,
+                        "is_admin": False,
+                    }
+                }
+            }
+        }
+    )
+
+    assert caller == {
+        "user_id": "alice",
+        "is_authenticated": True,
+        "is_admin": False,
+    }
+
+
+def test_resolve_optional_caller_accepts_http_api_lambda_anonymous_shape():
+    caller = resolve_optional_caller(
+        {
+            "requestContext": {
+                "authorizer": {
+                    "lambda": {
+                        "user_id": None,
+                        "is_authenticated": False,
+                        "is_admin": False,
+                    }
+                }
+            }
+        }
+    )
+
+    assert caller == {
+        "user_id": None,
+        "is_authenticated": False,
+        "is_admin": False,
+    }
+
+
 def test_resolve_optional_caller_returns_anonymous_when_authorizer_is_missing():
     caller = resolve_optional_caller({"requestContext": {}})
 
@@ -228,6 +272,22 @@ def test_resolve_optional_caller_raises_for_invalid_jwt_groups_shape():
                                 "cognito:groups": {"admin": True},
                             }
                         }
+                    }
+                }
+            }
+        )
+
+
+def test_resolve_optional_caller_raises_for_invalid_lambda_authorizer_shape():
+    with pytest.raises(
+        ValueError,
+        match=r"requestContext\.authorizer\.lambda must be an object when provided\.",
+    ):
+        resolve_optional_caller(
+            {
+                "requestContext": {
+                    "authorizer": {
+                        "lambda": "not-an-object",
                     }
                 }
             }

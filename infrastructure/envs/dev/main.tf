@@ -103,6 +103,14 @@ module "iam" {
       access_profile = "cancel_event"
     }
 
+    rsvp-authorizer = {
+      access_profile = "authorizer_logs_only"
+    }
+
+    rsvp-authorizer-probe = {
+      access_profile = "authorizer_logs_only"
+    }
+
     rsvp = {
       access_profile = "rsvp_transaction"
     }
@@ -141,9 +149,14 @@ module "lambda" {
       memory_size  = 256
       timeout      = 10
       environment_variables = merge(
-        {
+        contains(["create-event", "get-event", "list-events", "list-my-events", "update-event", "cancel-event", "rsvp", "get-event-rsvps"], function_key) ? {
           EVENTS_TABLE_NAME = module.dynamodb_data_layer.events_table_name
-        },
+        } : {},
+        function_key == "rsvp-authorizer" ? {
+          COGNITO_ISSUER           = module.cognito.issuer
+          COGNITO_APP_CLIENT_ID    = module.cognito.user_pool_client_id
+          COGNITO_ADMIN_GROUP_NAME = module.cognito.admin_group_name
+        } : {},
         contains(["rsvp", "get-event-rsvps"], function_key) ? {
           RSVPS_TABLE_NAME = module.dynamodb_data_layer.rsvps_table_name
         } : {}
@@ -193,6 +206,13 @@ module "api_gateway" {
   jwt_issuer   = module.cognito.issuer
   jwt_audience = [module.cognito.user_pool_client_id]
 
+  request_authorizers = {
+    rsvp-mixed-mode = {
+      authorizer_uri       = module.lambda.invoke_arns["rsvp-authorizer"]
+      lambda_function_name = module.lambda.function_names["rsvp-authorizer"]
+    }
+  }
+
   routes = {
     get-event = {
       route_key            = "GET /events/{event_id}"
@@ -241,6 +261,14 @@ module "api_gateway" {
       lambda_invoke_arn    = module.lambda.invoke_arns["get-event-rsvps"]
       lambda_function_name = module.lambda.function_names["get-event-rsvps"]
       authorization_type   = "JWT"
+    }
+
+    rsvp-authorizer-probe = {
+      route_key            = "GET /internal/rsvp-authorizer-probe"
+      lambda_invoke_arn    = module.lambda.invoke_arns["rsvp-authorizer-probe"]
+      lambda_function_name = module.lambda.function_names["rsvp-authorizer-probe"]
+      authorization_type   = "CUSTOM"
+      authorizer_key       = "rsvp-mixed-mode"
     }
   }
 }

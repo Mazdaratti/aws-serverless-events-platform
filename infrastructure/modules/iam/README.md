@@ -15,9 +15,10 @@ This module currently creates one IAM role and one customer-managed IAM policy p
 - `create-event`
 - `get-event`
 - `list-events`
- - `list-my-events`
+- `list-my-events`
 - `update-event`
 - `cancel-event`
+- `rsvp-authorizer`
 - `rsvp`
 - `get-event-rsvps`
 - `notification-worker`
@@ -61,9 +62,10 @@ The current workload set is aligned to the repository's architecture and placeho
 - `create-event`
 - `get-event`
 - `list-events`
- - `list-my-events`
+- `list-my-events`
 - `update-event`
 - `cancel-event`
+- `rsvp-authorizer`
 - `rsvp`
 - `get-event-rsvps`
 - `notification-worker`
@@ -147,6 +149,29 @@ It does not currently need:
 - GSI access
 - RSVP table access
 - SQS access
+
+### `rsvp-authorizer`
+
+This role is intended for the dedicated mixed-mode Lambda authorizer that
+supports anonymous and authenticated RSVP access on the same route.
+
+It currently receives:
+
+- CloudWatch Logs write permissions
+- optional X-Ray write permissions
+
+This role intentionally stays logs-only.
+
+It does not currently need:
+
+- DynamoDB access
+- SQS access
+- Cognito read permissions
+- EventBridge access
+
+The authorizer validates Cognito-issued JWTs from the presented bearer token
+using token claims plus Cognito verification material. It does not call Cognito
+read APIs as part of this v1 IAM shape.
 
 ### `cancel-event`
 
@@ -293,7 +318,8 @@ The example shows how to:
 - build the shared `name_prefix`
 - define the baseline tag map
 - create minimal DynamoDB and SQS supporting resources
-- call the module with all supported workload roles
+- call the module with all supported workload roles, including the logs-only
+  `rsvp-authorizer` workload
 - inspect the resulting role names and ARNs
 
 ---
@@ -310,7 +336,7 @@ The example shows how to:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.40.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
 
 ## Modules
 
@@ -338,7 +364,7 @@ No modules.
 | <a name="input_notification_dispatch_queue_arn"></a> [notification\_dispatch\_queue\_arn](#input\_notification\_dispatch\_queue\_arn) | ARN of the notification-dispatch SQS queue used by the notification worker IAM policy. | `string` | n/a | yes |
 | <a name="input_rsvps_table_arn"></a> [rsvps\_table\_arn](#input\_rsvps\_table\_arn) | ARN of the DynamoDB RSVP table used by workload-specific IAM policies. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
-| <a name="input_workloads"></a> [workloads](#input\_workloads) | Map of Lambda workload role definitions keyed by logical workload name.<br/><br/>Supported workload keys in v1:<br/>- create-event<br/>- get-event<br/>- list-events<br/>- list-my-events<br/>- update-event<br/>- cancel-event<br/>- rsvp<br/>- get-event-rsvps<br/>- notification-worker | <pre>map(object({<br/>    access_profile = string<br/>    enable_logs    = optional(bool)<br/>    enable_xray    = optional(bool)<br/>  }))</pre> | n/a | yes |
+| <a name="input_workloads"></a> [workloads](#input\_workloads) | Map of Lambda workload role definitions keyed by logical workload name.<br/><br/>Supported workload keys in v1:<br/>- create-event<br/>- get-event<br/>- list-events<br/>- list-my-events<br/>- update-event<br/>- cancel-event<br/>- rsvp-authorizer<br/>- rsvp<br/>- get-event-rsvps<br/>- notification-worker | <pre>map(object({<br/>    access_profile = string<br/>    enable_logs    = optional(bool)<br/>    enable_xray    = optional(bool)<br/>  }))</pre> | n/a | yes |
 
 ## Outputs
 

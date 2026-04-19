@@ -49,8 +49,23 @@ jobs:
       - name: Install Lambda test dependencies
         run: python -m pip install --upgrade pip pytest boto3
 
+      - name: Rebuild RSVP authorizer vendor tree
+        run: python scripts/build_rsvp_authorizer_vendor.py
+
       - name: Compile Lambda source tree
-        run: python -m compileall lambdas
+        run: >-
+          python -m compileall
+          lambdas/shared
+          lambdas/create_event
+          lambdas/list_events
+          lambdas/list_my_events
+          lambdas/get_event
+          lambdas/update_event
+          lambdas/cancel_event
+          lambdas/rsvp
+          lambdas/get_event_rsvps
+          lambdas/rsvp_authorizer/handler.py
+          lambdas/rsvp_authorizer_probe
 
       - name: Run Lambda handler tests
         run: python -m pytest tests/lambdas

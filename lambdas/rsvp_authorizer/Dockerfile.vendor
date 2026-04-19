@@ -1,0 +1,15 @@
+# Build a Lambda-compatible vendor tree for the RSVP authorizer.
+#
+# This uses the AWS SAM Python 3.13 x86_64 build image so native dependencies
+# such as cryptography/cffi are built in a Lambda-compatible environment.
+FROM public.ecr.aws/sam/build-python3.13:1.136.0
+
+WORKDIR /build
+
+COPY requirements.txt .
+
+# Install directly into the mounted output directory so the repo keeps one
+# workload-local vendor tree that can be packaged with the function ZIP.
+# After install, remove obvious generated cache and packaging bookkeeping files
+# that are not needed at Lambda runtime.
+CMD ["sh", "-c", "pip install --requirement requirements.txt --target /output/vendor && find /output/vendor -type d -name '__pycache__' -prune -exec rm -rf {} + && find /output/vendor -type f \\( -name '*.pyc' -o -name '*.pyo' -o -name 'RECORD' -o -name 'INSTALLER' -o -name 'REQUESTED' \\) -delete"]

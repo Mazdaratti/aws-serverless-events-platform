@@ -670,6 +670,7 @@ Validation:
 | <a name="output_api_gateway_api_id"></a> [api\_gateway\_api\_id](#output\_api\_gateway\_api\_id) | ID of the HTTP API created for the dev environment routed slice. |
 | <a name="output_api_gateway_execution_arn"></a> [api\_gateway\_execution\_arn](#output\_api\_gateway\_execution\_arn) | Execution ARN of the HTTP API created for the dev environment routed slice. |
 | <a name="output_api_gateway_jwt_authorizer_id"></a> [api\_gateway\_jwt\_authorizer\_id](#output\_api\_gateway\_jwt\_authorizer\_id) | JWT authorizer ID of the HTTP API created for the dev environment routed slice. |
+| <a name="output_api_gateway_request_authorizer_ids"></a> [api\_gateway\_request\_authorizer\_ids](#output\_api\_gateway\_request\_authorizer\_ids) | Map of logical Lambda request authorizer name to HTTP API authorizer ID for the dev environment routed slice. |
 | <a name="output_api_gateway_route_ids"></a> [api\_gateway\_route\_ids](#output\_api\_gateway\_route\_ids) | Map of logical route name to route ID for the dev environment routed slice. |
 | <a name="output_api_gateway_route_keys"></a> [api\_gateway\_route\_keys](#output\_api\_gateway\_route\_keys) | Map of logical route name to route key for the dev environment routed slice. |
 | <a name="output_api_gateway_stage_invoke_url"></a> [api\_gateway\_stage\_invoke\_url](#output\_api\_gateway\_stage\_invoke\_url) | Stage-qualified invoke URL of the HTTP API created for the dev environment routed slice. |

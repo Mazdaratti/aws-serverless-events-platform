@@ -72,7 +72,6 @@ variable "workloads" {
     - update-event
     - cancel-event
     - rsvp-authorizer
-    - rsvp-authorizer-probe
     - rsvp
     - get-event-rsvps
     - notification-worker
@@ -100,13 +99,12 @@ variable "workloads" {
         "update-event",
         "cancel-event",
         "rsvp-authorizer",
-        "rsvp-authorizer-probe",
         "rsvp",
         "get-event-rsvps",
         "notification-worker"
       ], workload_key)
     ])
-    error_message = "workloads may only contain the supported keys: create-event, get-event, list-events, list-my-events, update-event, cancel-event, rsvp-authorizer, rsvp-authorizer-probe, rsvp, get-event-rsvps, notification-worker."
+    error_message = "workloads may only contain the supported keys: create-event, get-event, list-events, list-my-events, update-event, cancel-event, rsvp-authorizer, rsvp, get-event-rsvps, notification-worker."
   }
 
   validation {
@@ -153,9 +151,6 @@ variable "workloads" {
         workload_key == "rsvp-authorizer" &&
         workload.access_profile == "authorizer_logs_only"
         ) || (
-        workload_key == "rsvp-authorizer-probe" &&
-        workload.access_profile == "authorizer_logs_only"
-        ) || (
         workload_key == "rsvp" &&
         workload.access_profile == "rsvp_transaction"
         ) || (
@@ -168,6 +163,6 @@ variable "workloads" {
         workload.access_profile == "notification_consume"
       )
     ])
-    error_message = "Each workload key must use its matching access profile: create-event/create_event, get-event/get_event, list-events/list_events, list-my-events/list_my_events, update-event/update_event, cancel-event/cancel_event, rsvp-authorizer/authorizer_logs_only, rsvp-authorizer-probe/authorizer_logs_only, rsvp/rsvp_transaction, get-event-rsvps/get_event_rsvps, notification-worker/notification_consume."
+    error_message = "Each workload key must use its matching access profile: create-event/create_event, get-event/get_event, list-events/list_events, list-my-events/list_my_events, update-event/update_event, cancel-event/cancel_event, rsvp-authorizer/authorizer_logs_only, rsvp/rsvp_transaction, get-event-rsvps/get_event_rsvps, notification-worker/notification_consume."
   }
 }

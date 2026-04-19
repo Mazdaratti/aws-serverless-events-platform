@@ -199,7 +199,6 @@ This environment currently wires in:
 - one execution role for `update-event`
 - one execution role for `cancel-event`
 - one execution role for `rsvp-authorizer`
-- one execution role for `rsvp-authorizer-probe`
 - one execution role for `rsvp`
 - one execution role for `get-event-rsvps`
 - one execution role for `notification-worker`
@@ -217,7 +216,6 @@ Important design notes:
 - `update-event` receives narrow `GetItem` + `UpdateItem` access for the events table
 - `cancel-event` receives narrow `GetItem` + `UpdateItem` access for the events table
 - `rsvp-authorizer` uses the logs-only execution profile because JWT verification happens against Cognito/JWKS at runtime and does not require DynamoDB or SQS permissions
-- `rsvp-authorizer-probe` also currently uses the logs-only execution profile because it is temporary validation infrastructure and is not a business-data workload
 - `rsvp` is the special transactional role spanning both DynamoDB business tables
 - `get-event-rsvps` is the read-only RSVP visibility role and receives:
   - `GetItem` on the `events` table
@@ -243,7 +241,6 @@ Validation:
 - confirmed `update-event` has narrow read/write access for the events table
 - confirmed `cancel-event` has narrow read/write access for the events table
 - confirmed `rsvp-authorizer` has the logs-only execution profile and no DynamoDB or SQS permissions
-- confirmed `rsvp-authorizer-probe` has the logs-only execution profile and no DynamoDB or SQS permissions
 - confirmed the RSVP policy includes transactional DynamoDB access across both business tables
 - confirmed `get-event-rsvps` has read-only DynamoDB access across the two business tables:
   - `GetItem` on `events`
@@ -333,25 +330,25 @@ This environment currently wires in:
 - one HTTP API
 - one stage
 - one JWT authorizer (Cognito-based)
-- one Lambda request authorizer for the mixed-mode RSVP validation slice
+- one Lambda request authorizer for the mixed-mode RSVP route
 - eight routed API endpoints:
   - `POST /events`
   - `PATCH /events/{event_id}`
   - `POST /events/{event_id}/cancel`
+  - `POST /events/{event_id}/rsvp`
   - `GET /events/{event_id}/rsvps`
   - `GET /events`
   - `GET /events/mine`
   - `GET /events/{event_id}`
-  - `GET /internal/rsvp-authorizer-probe`
 - eight Lambda integrations:
   - `create-event`
   - `update-event`
   - `cancel-event`
+  - `rsvp`
   - `get-event-rsvps`
   - `list-events`
   - `list-my-events`
   - `get-event`
-  - `rsvp-authorizer-probe`
 
 Why this module is wired now:
 
@@ -365,10 +362,8 @@ Why this module is wired now:
   - `GET /events`
   - `GET /events/mine`
   - `GET /events/{event_id}`
-  - `GET /internal/rsvp-authorizer-probe`
-- the mixed-mode RSVP authorizer contract is now also validated through the temporary probe route
-- still to implement in this routed API line is:
-  - the real mixed-mode `POST /events/{event_id}/rsvp` business route
+- `POST /events/{event_id}/rsvp` is now wired as the real mixed-mode business route
+- the remaining routed API step for this slice is end-to-end AWS validation of the real RSVP route
 
 Important design notes:
 
@@ -377,9 +372,9 @@ Important design notes:
 - ordinary protected routes use native JWT authorization at API Gateway
 - `GET /events/mine` is intentionally JWT-protected so API Gateway enforces the creator-route authentication boundary
 - the mixed-mode RSVP authorizer is now implemented as a Lambda request authorizer
-- the temporary probe route exists only to validate the mixed anonymous/authenticated auth boundary in real AWS
-- the real mixed-mode `rsvp` business route is still intentionally deferred to the next PR
+- the real mixed-mode `rsvp` business route is now wired through API Gateway using that authorizer
 - the business `create-event`, `list-my-events`, `update-event`, `cancel-event`, and `get-event-rsvps` Lambdas consume normalized caller context instead of parsing JWTs directly
+- the business `rsvp` Lambda now also consumes normalized caller context instead of parsing raw authorizer payloads directly
 - reusable API Gateway logic belongs in modules while `envs/dev` stays composition-oriented
 
 Validation:
@@ -392,11 +387,11 @@ Validation:
   - `POST /events`
   - `PATCH /events/{event_id}`
   - `POST /events/{event_id}/cancel`
+  - `POST /events/{event_id}/rsvp`
   - `GET /events/{event_id}/rsvps`
   - `GET /events`
   - `GET /events/mine`
   - `GET /events/{event_id}`
-  - `GET /internal/rsvp-authorizer-probe`
 - confirmed JWT authorization is attached to the protected routes
 - confirmed anonymous requests are rejected at the API edge for JWT-protected routes
 - confirmed authenticated `create-event` invocation succeeds through API Gateway with JWT validation
@@ -442,13 +437,8 @@ Validation:
   - `limit`
   - opaque `next_cursor`
 - confirmed normalized caller context is correctly resolved inside the Lambda from the JWT authorizer input
-- confirmed the mixed-mode Lambda request authorizer now allows:
-  - anonymous callers with no `Authorization` header
-  - authenticated non-admin callers
-  - authenticated admin callers
-- confirmed malformed or invalid presented auth for the probe route is denied at the API edge with `403`
-- confirmed the real downstream HTTP API simple-response authorizer shape is:
-  - `requestContext.authorizer.lambda`
+- the mixed-mode RSVP authorizer contract is now validated
+- the real routed RSVP path is now wired and ready for end-to-end AWS validation
 - confirmed Terraform outputs match the deployed API ID, stage URL, authorizer ID, and route wiring
 - see evidence screenshots under `docs/assets/lambda_api/`
 
@@ -475,7 +465,6 @@ This environment currently wires in these deployed Lambda workloads:
 - `get-event-rsvps`
 - `list-my-events`
 - `rsvp-authorizer`
-- `rsvp-authorizer-probe`
 
 Why this module is wired now:
 
@@ -497,8 +486,6 @@ Important design notes:
   - `COGNITO_ISSUER`
   - `COGNITO_APP_CLIENT_ID`
   - `COGNITO_ADMIN_GROUP_NAME`
-- `rsvp-authorizer-probe` is temporary validation infrastructure and intentionally has no DynamoDB, SQS, or Cognito-specific business environment wiring
-- the temporary probe Lambda exists only to expose the real downstream authorizer payload shape in AWS and is not product behavior
 - all deployed functions return an API Gateway-style wrapped response even before API Gateway is wired
 - reusable AWS resource logic belongs in modules
 - packaging is prepared before Terraform
@@ -637,7 +624,6 @@ Validation:
   - `rsvp`
   - `get-event-rsvps`
   - `rsvp-authorizer`
-  - `rsvp-authorizer-probe`
 - confirmed Terraform outputs match the created Lambda and log group identities
 - see evidence screenshots under `docs/assets/lambda/`
 

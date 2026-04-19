@@ -593,7 +593,7 @@ def test_lambda_handler_allows_protected_event_authenticated_caller(fake_client)
 
 
 def test_lambda_handler_treats_blank_user_id_as_unauthenticated_for_protected_event(fake_client):
-    """Blank user IDs should collapse to anonymous caller behavior after trimming."""
+    """Blank user IDs normalize to anonymous only when the flat caller is explicitly unauthenticated."""
     fake_client.queue_get_item(
         "example-events",
         build_event_key(),

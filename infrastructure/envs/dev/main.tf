@@ -107,10 +107,6 @@ module "iam" {
       access_profile = "authorizer_logs_only"
     }
 
-    rsvp-authorizer-probe = {
-      access_profile = "authorizer_logs_only"
-    }
-
     rsvp = {
       access_profile = "rsvp_transaction"
     }
@@ -263,10 +259,10 @@ module "api_gateway" {
       authorization_type   = "JWT"
     }
 
-    rsvp-authorizer-probe = {
-      route_key            = "GET /internal/rsvp-authorizer-probe"
-      lambda_invoke_arn    = module.lambda.invoke_arns["rsvp-authorizer-probe"]
-      lambda_function_name = module.lambda.function_names["rsvp-authorizer-probe"]
+    rsvp = {
+      route_key            = "POST /events/{event_id}/rsvp"
+      lambda_invoke_arn    = module.lambda.invoke_arns["rsvp"]
+      lambda_function_name = module.lambda.function_names["rsvp"]
       authorization_type   = "CUSTOM"
       authorizer_key       = "rsvp-mixed-mode"
     }

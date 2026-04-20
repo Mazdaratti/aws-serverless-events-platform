@@ -8,6 +8,8 @@ from typing import Any
 import boto3
 from botocore.exceptions import ClientError
 
+from shared.auth import resolve_optional_caller
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -275,37 +277,14 @@ def _resolve_attending(payload: dict[str, Any]) -> bool:
 
 
 def _resolve_caller_context(event: dict[str, Any]) -> dict[str, Any]:
-    # RSVP is unusual in this repo because anonymous access is allowed for
-    # public events. So unlike create/update/cancel, the absence of caller
-    # context is not automatically an error here.
-    request_context = event.get("requestContext")
-    if request_context is None:
-        return {"authenticated": False, "user_id": None, "is_admin": False}
-    if not isinstance(request_context, dict):
-        raise ValueError("requestContext must be an object when provided.")
-
-    authorizer = request_context.get("authorizer")
-    if authorizer is None:
-        return {"authenticated": False, "user_id": None, "is_admin": False}
-    if not isinstance(authorizer, dict):
-        raise ValueError("requestContext.authorizer must be an object when provided.")
-
-    raw_user_id = authorizer.get("user_id")
-    is_admin = _coerce_admin_flag(authorizer.get("is_admin"))
-
-    if raw_user_id is None:
-        return {"authenticated": False, "user_id": None, "is_admin": is_admin}
-    if not isinstance(raw_user_id, str):
-        raise ValueError("requestContext.authorizer.user_id must be a string when provided.")
-
-    user_id = raw_user_id.strip()
-    if not user_id:
-        return {"authenticated": False, "user_id": None, "is_admin": is_admin}
+    # Keep RSVP on the shared normalized caller contract so the routed
+    # business Lambda does not parse raw authorizer shapes itself.
+    caller = resolve_optional_caller(event)
 
     return {
-        "authenticated": True,
-        "user_id": user_id,
-        "is_admin": is_admin,
+        "authenticated": caller["is_authenticated"],
+        "user_id": caller["user_id"],
+        "is_admin": caller["is_admin"],
     }
 
 
@@ -809,20 +788,6 @@ def _deserialize_event_optional_number(attribute_value: Any, *, field_name: str)
     if attribute_value.get("NULL") is True:
         return None
     return _deserialize_event_number(attribute_value, field_name=field_name)
-
-
-def _coerce_admin_flag(value: Any) -> bool:
-    if value is None:
-        return False
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {"true", "1"}:
-            return True
-        if normalized in {"false", "0", ""}:
-            return False
-    raise ValueError("requestContext.authorizer.is_admin must be a boolean-like value when provided.")
 
 
 def _to_iso_utc(value: datetime) -> str:

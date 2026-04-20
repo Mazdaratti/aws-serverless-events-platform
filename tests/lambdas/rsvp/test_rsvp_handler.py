@@ -15,11 +15,38 @@ EVENT_DATE_EQUALS_NOW = "2026-04-08T12:00:00Z"
 EVENT_ID = "11111111-1111-1111-1111-111111111111"
 
 
-def build_authorizer(*, user_id: object = "alice", is_admin: object = False) -> dict[str, object]:
-    """Build the minimal authorizer shape that the RSVP handler expects."""
+def build_authorizer(
+    *,
+    user_id: object = "alice",
+    is_authenticated: object = True,
+    is_admin: object = False,
+) -> dict[str, object]:
+    """Build the flat custom-authorizer shape supported by shared auth normalization."""
     return {
         "user_id": user_id,
+        "is_authenticated": is_authenticated,
         "is_admin": is_admin,
+    }
+
+
+def build_lambda_authorizer(
+    *,
+    user_id: object = "alice",
+    is_authenticated: bool | None = None,
+    is_admin: object = False,
+) -> dict[str, object]:
+    """Build the real routed HTTP API simple-response Lambda authorizer shape."""
+    if is_authenticated is None:
+        is_authenticated = user_id is not None and (
+            not isinstance(user_id, str) or bool(user_id.strip())
+        )
+
+    return {
+        "lambda": {
+            "user_id": user_id,
+            "is_authenticated": is_authenticated,
+            "is_admin": is_admin,
+        }
     }
 
 
@@ -356,7 +383,7 @@ def test_lambda_handler_returns_400_for_invalid_authorizer_shape(fake_client):
     )
 
 
-def test_lambda_handler_returns_400_for_invalid_authorizer_user_id_type(fake_client):
+def test_lambda_handler_returns_400_for_invalid_flat_authorizer_user_id_type(fake_client):
     response = handler.lambda_handler(
         build_direct_event(authorizer=build_authorizer(user_id=123)),
         None,
@@ -369,7 +396,7 @@ def test_lambda_handler_returns_400_for_invalid_authorizer_user_id_type(fake_cli
     )
 
 
-def test_lambda_handler_returns_400_for_invalid_authorizer_is_admin_type(fake_client):
+def test_lambda_handler_returns_400_for_invalid_flat_authorizer_is_admin_type(fake_client):
     response = handler.lambda_handler(
         build_direct_event(authorizer=build_authorizer(user_id="alice", is_admin={"bad": True})),
         None,
@@ -378,7 +405,33 @@ def test_lambda_handler_returns_400_for_invalid_authorizer_is_admin_type(fake_cl
     assert_error_response(
         response,
         status_code=400,
-        message="requestContext.authorizer.is_admin must be a boolean-like value when provided.",
+        message="requestContext.authorizer.is_admin must be a boolean when provided.",
+    )
+
+
+def test_lambda_handler_returns_400_for_invalid_lambda_authorizer_shape(fake_client):
+    response = handler.lambda_handler(
+        build_direct_event(authorizer={"lambda": "not-an-object"}),
+        None,
+    )
+
+    assert_error_response(
+        response,
+        status_code=400,
+        message="requestContext.authorizer.lambda must be an object when provided.",
+    )
+
+
+def test_lambda_handler_returns_400_for_invalid_lambda_authorizer_is_admin_type(fake_client):
+    response = handler.lambda_handler(
+        build_direct_event(authorizer=build_lambda_authorizer(user_id="alice", is_admin="yes")),
+        None,
+    )
+
+    assert_error_response(
+        response,
+        status_code=400,
+        message="requestContext.authorizer.lambda.is_admin must be a boolean when provided.",
     )
 
 
@@ -417,6 +470,62 @@ def test_lambda_handler_allows_public_event_authenticated_rsvp(fake_client):
 
     response = handler.lambda_handler(
         build_direct_event(authorizer=build_authorizer(user_id="alice")),
+        None,
+    )
+
+    body = decode_body(response)
+    assert response["statusCode"] == 201
+    assert body["item"]["subject"] == {
+        "type": "USER",
+        "user_id": "alice",
+        "anonymous": False,
+    }
+
+
+def test_lambda_handler_allows_public_event_anonymous_rsvp_from_lambda_authorizer_shape(fake_client):
+    fake_client.queue_get_item("example-events", build_event_key(), {"Item": build_event_item(is_public=True)})
+    fake_client.queue_get_item(
+        "example-rsvps",
+        build_rsvp_key(subject_sk="ANON#browser-token"),
+        {},
+    )
+
+    response = handler.lambda_handler(
+        build_direct_event(
+            authorizer=build_lambda_authorizer(
+                user_id=None,
+                is_authenticated=False,
+                is_admin=False,
+            ),
+            anonymous_token=" browser-token ",
+        ),
+        None,
+    )
+
+    body = decode_body(response)
+    transact_items = fake_client.transact_calls[0]["TransactItems"]
+    put_item = transact_items[0]["Put"]["Item"]
+
+    assert response["statusCode"] == 201
+    assert body["item"]["subject"] == {
+        "type": "ANON",
+        "user_id": None,
+        "anonymous": True,
+    }
+    assert put_item["subject_sk"] == {"S": "ANON#browser-token"}
+    assert put_item["anonymous_token"] == {"S": "browser-token"}
+
+
+def test_lambda_handler_allows_public_event_authenticated_rsvp_from_lambda_authorizer_shape(fake_client):
+    fake_client.queue_get_item("example-events", build_event_key(), {"Item": build_event_item(is_public=True)})
+    fake_client.queue_get_item(
+        "example-rsvps",
+        build_rsvp_key(subject_sk="USER#alice"),
+        {},
+    )
+
+    response = handler.lambda_handler(
+        build_direct_event(authorizer=build_lambda_authorizer(user_id="alice")),
         None,
     )
 
@@ -484,7 +593,7 @@ def test_lambda_handler_allows_protected_event_authenticated_caller(fake_client)
 
 
 def test_lambda_handler_treats_blank_user_id_as_unauthenticated_for_protected_event(fake_client):
-    """Blank user IDs should collapse to anonymous caller behavior after trimming."""
+    """Blank user IDs normalize to anonymous only when the flat caller is explicitly unauthenticated."""
     fake_client.queue_get_item(
         "example-events",
         build_event_key(),
@@ -492,7 +601,7 @@ def test_lambda_handler_treats_blank_user_id_as_unauthenticated_for_protected_ev
     )
 
     response = handler.lambda_handler(
-        build_direct_event(authorizer=build_authorizer(user_id="   ")),
+        build_direct_event(authorizer=build_authorizer(user_id="   ", is_authenticated=False)),
         None,
     )
 
@@ -557,8 +666,33 @@ def test_lambda_handler_allows_admin_only_event_authenticated_admin(fake_client)
     assert body["item"]["subject"]["user_id"] == "admin-user"
 
 
-def test_lambda_handler_accepts_string_admin_flag_for_admin_only_event(fake_client):
-    """String-like admin flags are allowed so future authorizer integrations stay tolerant."""
+def test_lambda_handler_allows_admin_only_event_authenticated_admin_from_lambda_authorizer_shape(fake_client):
+    fake_client.queue_get_item(
+        "example-events",
+        build_event_key(),
+        {"Item": build_event_item(is_public=False, requires_admin=True)},
+    )
+    fake_client.queue_get_item("example-rsvps", build_rsvp_key(subject_sk="USER#admin-user"), {})
+
+    response = handler.lambda_handler(
+        build_direct_event(
+            authorizer=build_lambda_authorizer(
+                user_id="admin-user",
+                is_authenticated=True,
+                is_admin=True,
+            )
+        ),
+        None,
+    )
+
+    body = decode_body(response)
+    assert response["statusCode"] == 201
+    assert body["item"]["subject"]["type"] == "USER"
+    assert body["item"]["subject"]["user_id"] == "admin-user"
+
+
+def test_lambda_handler_accepts_string_admin_flag_for_flat_authorizer_admin_only_event(fake_client):
+    """Flat custom-authorizer input still accepts string admin flags for compatibility."""
     fake_client.queue_get_item(
         "example-events",
         build_event_key(),
@@ -576,7 +710,7 @@ def test_lambda_handler_accepts_string_admin_flag_for_admin_only_event(fake_clie
     assert body["item"]["subject"]["user_id"] == "admin-user"
 
 
-def test_admin_only_requires_authenticated_admin_not_only_admin_flag(fake_client):
+def test_lambda_handler_returns_400_for_flat_authorizer_is_admin_without_is_authenticated(fake_client):
     fake_client.queue_get_item(
         "example-events",
         build_event_key(),
@@ -590,8 +724,11 @@ def test_admin_only_requires_authenticated_admin_not_only_admin_flag(fake_client
 
     assert_error_response(
         response,
-        status_code=403,
-        message="Admin privileges are required to RSVP to this event.",
+        status_code=400,
+        message=(
+            "requestContext.authorizer.is_authenticated is required when flat "
+            "authorizer caller fields are provided."
+        ),
     )
 
 

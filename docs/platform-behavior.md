@@ -1034,6 +1034,14 @@ Rules:
 The dedicated `rsvp` Lambda authorizer exists to preserve this mixed-mode
 behavior while keeping JWT parsing and validation out of the business handler.
 
+Current routed direction:
+
+- the real mixed-mode route is:
+  - `POST /events/{event_id}/rsvp`
+- it is wired through API Gateway using the dedicated Lambda request authorizer
+- the business Lambda consumes normalized caller context only
+- the business Lambda must not parse raw authorizer payloads directly
+
 #### Mixed-mode authorizer behavior
 
 The dedicated `rsvp` Lambda authorizer must support both anonymous and
@@ -1422,6 +1430,8 @@ The deployed `rsvp` Lambda now validates the locked RSVP write contract in
 `dev`:
 
 - direct and API Gateway-style request input are both supported
+- the handler now consumes shared normalized caller context instead of parsing
+  raw authorizer shapes locally
 - public events allow anonymous and authenticated RSVP
 - protected events require authentication
 - admin-only events require an authenticated admin caller
@@ -1437,6 +1447,19 @@ The deployed `rsvp` Lambda now validates the locked RSVP write contract in
   - `item`
   - `event_summary`
   - `operation`
+
+Routed mixed-mode authorizer compatibility is now locked in the business
+handler for:
+
+- anonymous caller context delivered under:
+  - `requestContext.authorizer.lambda`
+- authenticated non-admin caller context delivered under:
+  - `requestContext.authorizer.lambda`
+- authenticated admin caller context delivered under:
+  - `requestContext.authorizer.lambda`
+
+End-to-end AWS validation for the routed `POST /events/{event_id}/rsvp` path
+is now complete for this contract.
 
 ### `get-event-rsvps`
 

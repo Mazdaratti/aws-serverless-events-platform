@@ -318,8 +318,8 @@ The example shows how to:
 - build the shared `name_prefix`
 - define the baseline tag map
 - create minimal DynamoDB and SQS supporting resources
-- call the module with all supported workload roles, including the logs-only
-  `rsvp-authorizer` workload
+- call the module with all currently supported workload roles, including the
+  logs-only `rsvp-authorizer` workload
 - inspect the resulting role names and ARNs
 
 ---
@@ -338,9 +338,7 @@ The example shows how to:
 |------|---------|
 | <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
 
-## Modules
 
-No modules.
 
 ## Resources
 

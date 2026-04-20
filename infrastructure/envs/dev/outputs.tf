@@ -195,6 +195,11 @@ output "api_gateway_jwt_authorizer_id" {
   value       = module.api_gateway.jwt_authorizer_id
 }
 
+output "api_gateway_request_authorizer_ids" {
+  description = "Map of logical Lambda request authorizer name to HTTP API authorizer ID for the dev environment routed slice."
+  value       = module.api_gateway.request_authorizer_ids
+}
+
 output "api_gateway_route_ids" {
   description = "Map of logical route name to route ID for the dev environment routed slice."
   value       = module.api_gateway.route_ids

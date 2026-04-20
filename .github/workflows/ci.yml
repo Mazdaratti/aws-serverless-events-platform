@@ -65,7 +65,6 @@ jobs:
           lambdas/rsvp
           lambdas/get_event_rsvps
           lambdas/rsvp_authorizer/handler.py
-          lambdas/rsvp_authorizer_probe
 
       - name: Run Lambda handler tests
         run: python -m pytest tests/lambdas

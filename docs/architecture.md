@@ -325,6 +325,13 @@ Infrastructure layers are introduced in a controlled sequence to:
 - maintain clear review boundaries
 - support cost-aware experimentation
 
+Reusable modules are allowed to begin as thin environment-driven building
+blocks while behavior is being proven in real AWS.
+
+Once a layer is validated end to end, its reusable module is tightened,
+documented, example-backed, and CI-validated before the next major platform
+layer is introduced.
+
 Early decisions (such as synchronous RSVP writes and minimal DynamoDB indexing)
 may evolve as real workload characteristics become known.
 

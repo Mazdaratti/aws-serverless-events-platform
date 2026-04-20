@@ -30,7 +30,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - stage creation
   - JWT authorizers
   - Lambda request authorizers
-  - route and integration creation
+  - route and Lambda integration creation
   - per-route authorization configuration
   - Lambda invoke permissions
 - the current module baseline is already sufficient to support and validate:
@@ -45,7 +45,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - add `examples/basic_usage`
   - add the module README
   - expand Terraform validation CI to cover the module and example
-  - continue tightening routed rollout evidence and documentation
+  - continue tightening routed rollout evidence, examples, and documentation
 
 ### Completed milestones
 
@@ -401,7 +401,7 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - `rsvp` routed path ✅
    - temporary RSVP probe slice removed after real route validation ✅
 
-12. API Gateway reusable module completion
+12. API Gateway reusable module completion and hardening
    - harden the module interface
    - tighten variable validation and module assumptions
    - improve descriptions and comments

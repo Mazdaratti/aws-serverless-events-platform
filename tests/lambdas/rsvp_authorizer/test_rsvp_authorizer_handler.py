@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+from types import ModuleType
 from urllib.error import URLError
 
 import pytest
@@ -8,7 +9,37 @@ VENDOR_PATH = Path(__file__).resolve().parents[3] / "lambdas" / "rsvp_authorizer
 if str(VENDOR_PATH) not in sys.path:
     sys.path.insert(0, str(VENDOR_PATH))
 
-from jwt import InvalidTokenError
+try:
+    from jwt import InvalidTokenError
+except ImportError:
+    # Local Windows/Python runs may not be able to import the Lambda-compatible
+    # vendored cryptography stack. CI still exercises the real vendor tree on
+    # Linux, so for local unit tests we only need a minimal jwt surface so the
+    # handler module can import and the tests can monkeypatch _decode_and_validate_token.
+    if str(VENDOR_PATH) in sys.path:
+        sys.path.remove(str(VENDOR_PATH))
+
+    sys.modules.pop("jwt", None)
+
+    jwt_stub = ModuleType("jwt")
+
+    class InvalidTokenError(Exception):
+        pass
+
+    class PyJWKClient:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def get_signing_key_from_jwt(self, *_args, **_kwargs):
+            raise NotImplementedError("Local jwt stub does not implement JWKS lookups.")
+
+    def decode(*_args, **_kwargs):
+        raise NotImplementedError("Local jwt stub does not implement jwt.decode.")
+
+    jwt_stub.InvalidTokenError = InvalidTokenError
+    jwt_stub.PyJWKClient = PyJWKClient
+    jwt_stub.decode = decode
+    sys.modules["jwt"] = jwt_stub
 
 from lambdas.rsvp_authorizer import handler
 

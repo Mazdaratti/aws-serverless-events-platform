@@ -15,6 +15,7 @@ The current local workflow expects these tools to be available:
 - Docker
 - Terraform
 - `tflint`
+- `terraform-docs`
 
 These tools support the currently implemented backend and infrastructure
 workflow:
@@ -24,6 +25,7 @@ workflow:
   dependencies are involved
 - Terraform is used for infrastructure validation, planning, and deployment
 - `tflint` is used for Terraform linting
+- `terraform-docs` is used to refresh generated module and environment README sections
 
 ## Python
 
@@ -41,6 +43,14 @@ Examples of Python-based local workflow:
 - rebuilding the RSVP authorizer vendor tree:
   - `scripts/build_rsvp_authorizer_vendor.py`
 - running focused handler tests
+
+Local test execution now uses the shared pytest bootstrap under:
+
+- `tests/conftest.py`
+
+That bootstrap aligns local import-path behavior with CI so Lambda handlers can
+be tested locally using the same `shared/...` import layout expected by the
+packaged deployment artifacts.
 
 ## Docker
 
@@ -77,6 +87,17 @@ The local workflow currently uses Terraform for:
 - modules
 - examples
 - `infrastructure/envs/dev`
+
+## `terraform-docs`
+
+`terraform-docs` is part of the expected documentation maintenance workflow
+for:
+
+- Terraform modules
+- `infrastructure/envs/dev`
+
+It is used to refresh generated input/output/reference sections in README files
+after interface changes.
 
 ## Frontend Tooling Direction
 

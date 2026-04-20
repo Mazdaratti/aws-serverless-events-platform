@@ -1459,7 +1459,7 @@ handler for:
   - `requestContext.authorizer.lambda`
 
 End-to-end AWS validation for the routed `POST /events/{event_id}/rsvp` path
-is the remaining rollout step for this contract.
+is now complete for this contract.
 
 ### `get-event-rsvps`
 

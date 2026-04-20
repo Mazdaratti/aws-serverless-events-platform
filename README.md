@@ -24,21 +24,28 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Routed API completion and end-to-end AWS validation are the current implementation focus
-- Cognito identity infrastructure is now implemented, wired in `envs/dev`, and validated in AWS
-- public `GET /events` and JWT-protected `GET /events/mine` are now implemented, wired in `envs/dev`, and validated in AWS
-- public `GET /events/{event_id}` is now implemented, wired in `envs/dev`, and validated in AWS
-- the mixed-mode RSVP authorizer contract is now implemented and validated in AWS
-- the real mixed-mode routed `POST /events/{event_id}/rsvp` path is now implemented in `envs/dev`
+- API Gateway module completion and hardening is the current implementation focus
+- the current `api_gateway` module baseline already supports:
+  - HTTP API creation
+  - stage creation
+  - JWT authorizers
+  - Lambda request authorizers
+  - route and integration creation
+  - per-route authorization configuration
+  - Lambda invoke permissions
+- the current module baseline is already sufficient to support and validate:
+  - public routes
+  - JWT-protected routes
+  - mixed-mode Lambda-authorized routes
+  - end-to-end Lambda routing in AWS
+- all currently planned routed API slices are now implemented and validated in AWS
 - the next steps are to:
-  - continue shifting the platform from direct Lambda invocation assumptions toward fully routed API behavior
-  - validate the routed RSVP path end to end in AWS
-  - continue tightening docs and rollout evidence around the routed surface
-- this milestone already proves:
-  - public routed event reads
-  - JWT-protected routed event reads
-  - correct API Gateway-enforced auth boundaries in AWS
-  - the mixed anonymous/authenticated authorizer contract required for the RSVP route
+  - harden the reusable `api_gateway` module interface
+  - tighten variable validation and module assumptions
+  - add `examples/basic_usage`
+  - add the module README
+  - expand Terraform validation CI to cover the module and example
+  - continue tightening routed rollout evidence and documentation
 
 ### Completed milestones
 
@@ -58,11 +65,14 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - `lambda` module (ZIP-packaged Lambda deployment baseline)
   - `cognito` module (managed identity baseline)
   - `infrastructure/envs/dev` wiring for the Cognito identity baseline
+  - `api_gateway` module baseline for routed HTTP API delivery
+  - `infrastructure/envs/dev` wiring for the routed API baseline
 - Core synchronous Lambda rollout
   - `create-event`
     - implementation
     - `envs/dev` wiring
-    - AWS validation and deployment evidence
+    - routed AWS validation and deployment evidence
+    - JWT-protected `POST /events` route validated in AWS
   - `list-events`
     - implementation
     - `envs/dev` wiring
@@ -83,29 +93,39 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - `update-event`
     - implementation
     - `envs/dev` wiring
-    - AWS validation and deployment evidence
+    - routed AWS validation and deployment evidence
     - conditional writes, partial updates, and GSI consistency handling
+    - JWT-protected `PATCH /events/{event_id}` route validated in AWS
   - `cancel-event`
     - implementation
     - `envs/dev` wiring
-    - AWS validation and deployment evidence
+    - routed AWS validation and deployment evidence
     - soft-delete lifecycle transition
+    - JWT-protected `POST /events/{event_id}/cancel` route validated in AWS
   - `rsvp`
     - implementation
     - `envs/dev` wiring
-    - AWS validation and deployment evidence
+    - routed AWS validation and deployment evidence
     - transactional RSVP upsert and helper-counter maintenance
+    - mixed-mode `POST /events/{event_id}/rsvp` route validated in AWS
   - `get-event-rsvps`
     - implementation
     - `envs/dev` wiring
-    - AWS validation and deployment evidence
+    - routed AWS validation and deployment evidence
     - creator/admin RSVP read path with pagination
+    - JWT-protected `GET /events/{event_id}/rsvps` route validated in AWS
+  - `rsvp-authorizer`
+    - implementation
+    - `envs/dev` wiring
+    - AWS validation and deployment evidence
+    - mixed anonymous/authenticated caller projection for routed RSVP
 - Validation and developer workflow
   - external Lambda artifact packaging workflow via `scripts/package_lambda.py`
   - Python handler validation for implemented Lambda handlers
+  - local pytest bootstrap aligned with CI import-path behavior
   - local `terraform plan` validation for the wired dev environment
   - repository-wide `terraform-docs` configuration
-  - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, Cognito module/example, and the dev root
+  - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, Cognito module/example, API Gateway module/example, and the dev root
 
 ### Next milestones
 
@@ -139,7 +159,7 @@ AWS Shield Standard provides automatic edge protection.
 
 ---
 
-## System Workflow
+## Target System Workflow
 
 ### Frontend Delivery
 
@@ -210,9 +230,9 @@ Asynchronous processing is reserved for durable post-commit work, starting with 
 
 Amazon Cognito replaces custom authentication logic, improving security and reducing operational overhead.
 
-The routed API intentionally uses a hybrid authorizer model so ordinary protected
-routes stay simple while the RSVP route can support anonymous and authenticated
-callers on one business operation.
+The routed API uses a hybrid authorizer model so ordinary protected routes stay
+simple while the RSVP route can support anonymous and authenticated callers on
+one business operation.
 
 **No VPC Architecture**
 
@@ -228,6 +248,18 @@ Remote backend and deployment automation will be introduced later.
 Reusable infrastructure logic is implemented in focused Terraform modules, while `infrastructure/envs/dev` stays thin and composition-oriented.
 
 This keeps changes reviewable, reduces refactoring churn, and supports future multi-environment expansion.
+
+**Incremental Module Hardening**
+
+Infrastructure slices may begin as environment-driven compositions while the
+required behavior is being proven in real AWS.
+
+Once a layer is validated end to end, its reusable module is tightened,
+documented, example-backed, and CI-validated before the next major platform
+layer is introduced.
+
+This allows delivery to stay incremental without leaving temporary module
+assumptions in place longer than necessary.
 
 ---
 
@@ -279,13 +311,13 @@ aws-serverless-events-platform/
 |       `-- waf/
 |
 |-- lambdas/
-|   `-- Python Lambda workload source folders and shared placeholder structure
+|   `-- Python Lambda workload source folders, shared helpers, and authorizer code
 |
 |-- scripts/
 |   `-- Python helper scripts for packaging and local build workflows
 |
 |-- tests/
-|   `-- Focused automated tests for implemented Lambda handlers and future application code
+|   `-- Focused automated tests for implemented Lambda handlers, shared auth logic, and related workflows
 |
 |-- .gitignore
 |-- .terraform-docs.yml
@@ -299,28 +331,46 @@ Infrastructure is implemented using modular Terraform design with environment-sp
 
 ## Infrastructure Implementation Roadmap
 
-Planned implementation sequence:
+1. Terraform environment foundation ✅
+   - local-state-first `envs/dev` baseline ✅
+   - provider/version constraints ✅
+   - shared naming and tagging structure ✅
 
-1. Terraform environment foundation (local state) ✅
 2. DynamoDB business data layer ✅
+   - `events` table ✅
+   - `rsvps` table ✅
+   - initial event listing GSIs ✅
+
 3. SQS queues and dead-letter queues ✅
+   - notification dispatch queue ✅
+   - dedicated DLQ wiring ✅
+
 4. IAM roles and policies for workloads ✅
+   - least-privilege execution roles ✅
+   - workload-specific access profiles ✅
+   - DynamoDB and SQS policy wiring ✅
+
 5. Lambda compute layer ✅
-6. Core synchronous Lambda workload rollout
+   - ZIP-based Lambda deployment baseline ✅
+   - external packaging workflow ✅
+   - CloudWatch log group wiring ✅
+
+6. Core synchronous Lambda workload rollout ✅
    - `create-event` ✅
    - `list-events` ✅
+   - `list-my-events` ✅
    - `get-event` ✅
    - `update-event` ✅
    - `cancel-event` ✅
    - `rsvp` ✅
    - `get-event-rsvps` ✅
-   - note: workload implementations are complete, and routed API rollout is now
-     being finished incrementally route by route
-7. Cognito authentication baseline (foundation) ✅
+
+7. Cognito authentication baseline ✅
    - Cognito User Pool ✅
    - public app client ✅
    - admin group ✅
-8. Lambda identity normalization across authorizer modes
+
+8. Lambda identity normalization across authorizer modes ✅
    - shared caller normalization helper ✅
    - shared helper test coverage ✅
    - shared packaging support for `shared/...` imports ✅
@@ -328,22 +378,39 @@ Planned implementation sequence:
    - `update-event` normalization adoption ✅
    - `cancel-event` normalization adoption ✅
    - `get-event-rsvps` normalization adoption ✅
+   - `rsvp` normalization adoption ✅
    - `list-events` public-only cleanup ✅
+
 9. `list-my-events` workload split from `list-events` ✅
-10. Mixed-mode RSVP lambda authorizer ✅
-11. `rsvp` normalization for mixed-mode authorizer contract ✅
-12. API Gateway routed validation and rollout
-   - narrow protected `create-event` route slice ✅ (end-to-end validated)
-   - incremental protected `update-event` route slice ✅ (end-to-end validated)
-   - incremental protected `cancel-event` route slice ✅ (end-to-end validated)
-   - incremental protected `get-event-rsvps` route slice ✅ (end-to-end validated)
-   - public `list-events` route slice ✅ (end-to-end validated)
-   - JWT-protected `list-my-events` route slice ✅ (end-to-end validated)
-   - public `get-event` route slice ✅ (end-to-end validated)
-   - mixed-mode authorizer probe slice ✅ (end-to-end validated)
-   - real mixed-mode `rsvp` route ✅ (wired in `envs/dev`)
-   - next routed step: end-to-end AWS validation for mixed-mode `rsvp`
-13. Frontend S3 hosting, CloudFront distribution, WAF protection
+   - dedicated creator-scoped listing workload ✅
+   - JWT-protected routed path ✅
+
+10. Mixed-mode RSVP Lambda authorizer ✅
+   - mixed anonymous/authenticated caller projection ✅
+   - invalid presented auth denied at API Gateway edge ✅
+   - routed downstream shape validated in AWS ✅
+
+11. Routed API rollout and AWS validation ✅
+   - `create-event` routed path ✅
+   - `update-event` routed path ✅
+   - `cancel-event` routed path ✅
+   - `get-event-rsvps` routed path ✅
+   - `list-events` routed path ✅
+   - `list-my-events` routed path ✅
+   - `get-event` routed path ✅
+   - `rsvp` routed path ✅
+   - temporary RSVP probe slice removed after real route validation ✅
+
+12. API Gateway reusable module completion
+   - harden the module interface
+   - tighten variable validation and module assumptions
+   - improve descriptions and comments
+   - add `examples/basic_usage`
+   - add module `README.md`
+   - ensure `terraform-docs` injection is correct
+   - expand Terraform validation CI to cover the module and example
+
+13. Frontend S3 hosting, CloudFront distribution, and WAF protection
 14. EventBridge and SNS integration
 15. `notification-worker`
 16. CloudWatch observability and X-Ray tracing
@@ -351,7 +418,13 @@ Planned implementation sequence:
 18. CI/CD deployment workflow
 
 
-The repository now also includes a Terraform validation workflow for the currently implemented modules, examples, and `envs/dev` root, plus focused Python validation for the implemented Lambda handlers. That workflow improves static validation confidence, while real AWS creation is still verified through local `plan` and `apply` in the dev environment.
+The repository now also includes Terraform validation coverage for the currently
+implemented modules, examples, and `envs/dev` root, plus focused Python
+validation for the implemented Lambda handlers and shared auth flow.
+
+This improves static validation confidence while real AWS behavior continues to
+be verified through local `plan`, `apply`, and milestone-specific routed API
+validation in the dev environment.
 
 ---
 
@@ -404,6 +477,7 @@ The current local backend and infrastructure workflow expects:
 - Docker
 - Terraform
 - `tflint`
+- `terraform-docs`
 
 Frontend tooling is not yet a hard project baseline, but Node.js and npm are
 expected to be added once frontend implementation becomes an active track.

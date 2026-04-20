@@ -184,7 +184,7 @@ Validation:
 
 ## IAM Roles (Lambda Execution Baseline)
 
-Creates the initial Lambda execution IAM baseline for the platform.
+Defines the Lambda execution IAM baseline for the platform.
 
 Implemented via:
 
@@ -205,26 +205,27 @@ This environment currently wires in:
 
 Why this module is wired now:
 
-- the Lambda compute layer comes next in the rollout order
-- workload execution roles should exist before functions are introduced
-- the platform now has enough real DynamoDB and SQS resources to bind least-privilege IAM to concrete ARNs
+- workload execution roles must exist before Lambda functions can be deployed cleanly
+- the platform now has real DynamoDB and SQS resources available for least-privilege IAM binding
+- the environment can now validate workload-specific execution roles against concrete AWS resource ARNs
 
 Important design notes:
 
 - each workload gets its own least-privilege execution role and customer-managed policy
-- `get-event` intentionally stays narrower than `list-events` and receives only direct `GetItem` access for the events table
-- `update-event` receives narrow `GetItem` + `UpdateItem` access for the events table
-- `cancel-event` receives narrow `GetItem` + `UpdateItem` access for the events table
-- `rsvp-authorizer` uses the logs-only execution profile because JWT verification happens against Cognito/JWKS at runtime and does not require DynamoDB or SQS permissions
-- `rsvp` is the special transactional role spanning both DynamoDB business tables
+- `create-event` receives write access for creating canonical event records in the `events` table
+- `get-event` receives only direct `GetItem` access for the `events` table
+- `list-events` currently receives temporary `Scan` access for the `events` table as a short-term access-pattern accommodation
+- `list-my-events` receives `Query` access for the `creator-events` GSI
+- `update-event` and `cancel-event` receive narrow `GetItem` + `UpdateItem` access for the `events` table
+- `rsvp` is the transactional workload role and spans both business tables so it can:
+  - read the current event state
+  - read the current RSVP state
+  - perform the transactional write across `events` and `rsvps`
 - `get-event-rsvps` is the read-only RSVP visibility role and receives:
-  - `GetItem` on the `events` table
-  - `Query` on the `rsvps` table
-- `list-my-events` is the dedicated creator-scoped listing role and receives:
-  - `Query` on the `creator-events` GSI
-- `rsvp` intentionally has no SQS permissions
-- only `notification-worker` gets SQS consumer permissions
-- `list-events` currently includes temporary `Scan` access only as a short-term contract accommodation
+  - `GetItem` on `events`
+  - `Query` on `rsvps`
+- `rsvp-authorizer` uses a logs-only execution profile because Cognito token validation and JWKS retrieval happen without direct Cognito IAM access
+- `notification-worker` is the only workload that currently receives SQS consumer permissions
 
 The environment should stay thin:
 
@@ -313,13 +314,12 @@ Validation:
 
 ---
 
-## API Gateway Slice
+## API Gateway Routed API Baseline
 
-This is the first end-to-end validated request path in the platform:
+This is the current end-to-end validated routed backend baseline in the platform:
 Cognito → API Gateway → Lambda → DynamoDB.
 
-This section documents the current incremental API Gateway slice introduced for
-the platform.
+This section documents the routed API baseline currently deployed in `envs/dev`.
 
 Implemented via:
 
@@ -358,21 +358,20 @@ Why this module is wired now:
   - `POST /events`
   - `PATCH /events/{event_id}`
   - `POST /events/{event_id}/cancel`
+  - `POST /events/{event_id}/rsvp`
   - `GET /events/{event_id}/rsvps`
   - `GET /events`
   - `GET /events/mine`
   - `GET /events/{event_id}`
-- `POST /events/{event_id}/rsvp` is now wired as the real mixed-mode business route
-- the remaining routed API step for this slice is end-to-end AWS validation of the real RSVP route
 
 Important design notes:
 
-- this is intentionally an incremental routed slice, not the final API surface
+- this is the current routed backend baseline, not yet the final product edge surface
 - `GET /events` is intentionally a public route with `authorization_type = NONE`
 - ordinary protected routes use native JWT authorization at API Gateway
 - `GET /events/mine` is intentionally JWT-protected so API Gateway enforces the creator-route authentication boundary
 - the mixed-mode RSVP authorizer is now implemented as a Lambda request authorizer
-- the real mixed-mode `rsvp` business route is now wired through API Gateway using that authorizer
+- the real mixed-mode `rsvp` business route is now validated through API Gateway using that authorizer
 - the business `create-event`, `list-my-events`, `update-event`, `cancel-event`, and `get-event-rsvps` Lambdas consume normalized caller context instead of parsing JWTs directly
 - the business `rsvp` Lambda now also consumes normalized caller context instead of parsing raw authorizer payloads directly
 - reusable API Gateway logic belongs in modules while `envs/dev` stays composition-oriented
@@ -436,9 +435,19 @@ Validation:
 - confirmed routed `GET /events/mine` pagination works through:
   - `limit`
   - opaque `next_cursor`
-- confirmed normalized caller context is correctly resolved inside the Lambda from the JWT authorizer input
-- the mixed-mode RSVP authorizer contract is now validated
-- the real routed RSVP path is now wired and ready for end-to-end AWS validation
+- confirmed normalized caller context is correctly resolved inside business Lambdas from JWT authorizer input
+- confirmed the mixed-mode RSVP authorizer is attached to routed `POST /events/{event_id}/rsvp`
+- confirmed anonymous public `POST /events/{event_id}/rsvp` succeeds through API Gateway with `201`
+- confirmed authenticated user `POST /events/{event_id}/rsvp` succeeds through API Gateway where allowed
+- confirmed authenticated admin `POST /events/{event_id}/rsvp` succeeds through API Gateway where allowed
+- confirmed malformed or invalid presented auth for routed `POST /events/{event_id}/rsvp` is denied at the API edge with `403`
+- confirmed anonymous routed `POST /events/{event_id}/rsvp` to a protected event returns `403`
+- confirmed non-admin routed `POST /events/{event_id}/rsvp` to an admin-only event returns `403`
+- confirmed full-capacity routed `POST /events/{event_id}/rsvp` with `attending = true` returns `400`
+- confirmed full-capacity routed `POST /events/{event_id}/rsvp` with `attending = false` still succeeds
+- confirmed cancelled-event routed `POST /events/{event_id}/rsvp` returns `400`
+- confirmed past-event routed `POST /events/{event_id}/rsvp` returns `400`
+- confirmed normalized caller context is correctly resolved inside the `rsvp` Lambda from the mixed-mode request authorizer input
 - confirmed Terraform outputs match the deployed API ID, stage URL, authorizer ID, and route wiring
 - see evidence screenshots under `docs/assets/lambda_api/`
 
@@ -446,7 +455,7 @@ Validation:
 
 ## Lambda Compute Baseline
 
-Creates the first real Lambda compute baseline for the platform.
+Defines the current Lambda compute baseline for the platform.
 
 Implemented via:
 
@@ -495,7 +504,6 @@ Current business behavior validated in this environment:
 - `create-event`
   - protected routed invocation via `POST /events` succeeds for authenticated callers
   - anonymous routed invocation is rejected at the API edge
-  - authenticated event creation succeeds
   - non-admin admin-only creation is rejected
   - admin admin-only creation succeeds
   - canonical event items are written with `status = ACTIVE`
@@ -532,8 +540,6 @@ Current business behavior validated in this environment:
   - protected routed invocation via `PATCH /events/{event_id}` succeeds for authenticated admins
   - authenticated non-owner routed invocation returns `403`
   - cancelled-event routed invocation returns `400`
-  - creator-owned and admin updates succeed
-  - unauthorized updates return `403`
   - invalid update input returns `400`
   - capacity reductions below current `attending_count` return `400`
   - cancelled events cannot be updated
@@ -546,9 +552,6 @@ Current business behavior validated in this environment:
   - authenticated non-owner routed invocation returns `403`
   - repeated routed invocation returns `200` idempotently
   - anonymous routed invocation is rejected at the API edge
-  - creator-owned cancel succeeds
-  - unauthorized cancel returns `403`
-  - repeated cancel returns `200`
   - cancelled items use the locked public event DTO under `item`
   - `status = CANCELLED` is returned
   - public GSI helper attributes are removed while creator visibility helpers remain in storage
@@ -575,10 +578,6 @@ Current business behavior validated in this environment:
   - missing-event routed invocation returns `404`
   - empty-RSVP routed invocation returns `200` with `items = []`
   - anonymous routed invocation is rejected at the API edge
-  - creator-owned RSVP reads return `200`
-  - admin RSVP reads return `200`
-  - anonymous and non-owner non-admin callers are rejected with `403`
-  - missing events return `404`
   - request resolution supports:
     - direct invocation input
     - API Gateway-style `pathParameters` and `queryStringParameters`

@@ -182,16 +182,41 @@ module "cognito" {
 }
 
 ############################################
-# API Gateway incremental routed slice
+# API Gateway access-log destination
 ############################################
 
-# This environment wires in a deliberately incremental HTTP API slice so the
-# platform can validate one real routed path at a time before broadening API
-# Gateway coverage across the remaining Lambda workloads.
+# API Gateway stage access logs are distinct from Lambda execution logs.
 #
-# The current routed slice now includes both:
+# The reusable api_gateway module owns the stage logging configuration, but the
+# environment owns the CloudWatch Logs destination so envs/dev stays
+# composition-focused and can choose retention explicitly.
+resource "aws_cloudwatch_log_group" "api_gateway_access" {
+  name              = "/aws/apigateway/${local.name_prefix}-http-api-access"
+  retention_in_days = 14
+
+  tags = merge(local.tags, {
+    Name = "${local.name_prefix}-http-api-access"
+  })
+}
+
+############################################
+# API Gateway routed backend baseline
+############################################
+
+# This environment wires in the reusable HTTP API backend module for the
+# current routed platform baseline.
+#
+# The routed backend now includes:
 # - public routes
 # - ordinary JWT-protected routes
+# - one mixed-mode Lambda-authorized route
+# - stage access logging
+# - default stage throttling
+# - stricter per-route throttling on selected write paths
+#
+# Reusable HTTP API delivery logic stays in the module so envs/dev remains
+# composition-focused and owns only environment-level concerns such as the
+# access-log destination.
 module "api_gateway" {
   source = "../../modules/api_gateway"
 
@@ -202,10 +227,33 @@ module "api_gateway" {
   jwt_issuer   = module.cognito.issuer
   jwt_audience = [module.cognito.user_pool_client_id]
 
+  # Keep CORS disabled in dev for the current backend-only rollout. The module
+  # supports CORS, but this environment does not enable it until browser-based
+  # frontend traffic becomes part of the wired platform baseline.
+  cors_configuration = null
+
+  # Enable API Gateway stage access logging explicitly in dev so the routed API
+  # baseline includes first-class request visibility separate from Lambda logs.
+  access_log_enabled         = true
+  access_log_destination_arn = aws_cloudwatch_log_group.api_gateway_access.arn
+  access_log_format = jsonencode({
+    request_id = "$context.requestId"
+    route_key  = "$context.routeKey"
+    status     = "$context.status"
+    source_ip  = "$context.identity.sourceIp"
+  })
+
+  # Apply one default throttling baseline to the whole stage, then tighten the
+  # more write-sensitive routes individually below.
+  default_throttling_burst_limit = 100
+  default_throttling_rate_limit  = 50
+
   request_authorizers = {
     rsvp-mixed-mode = {
-      authorizer_uri       = module.lambda.invoke_arns["rsvp-authorizer"]
-      lambda_function_name = module.lambda.function_names["rsvp-authorizer"]
+      authorizer_uri                   = module.lambda.invoke_arns["rsvp-authorizer"]
+      lambda_function_name             = module.lambda.function_names["rsvp-authorizer"]
+      enable_simple_responses          = true
+      authorizer_result_ttl_in_seconds = 0
     }
   }
 
@@ -232,24 +280,30 @@ module "api_gateway" {
     }
 
     create-event = {
-      route_key            = "POST /events"
-      lambda_invoke_arn    = module.lambda.invoke_arns["create-event"]
-      lambda_function_name = module.lambda.function_names["create-event"]
-      authorization_type   = "JWT"
+      route_key              = "POST /events"
+      lambda_invoke_arn      = module.lambda.invoke_arns["create-event"]
+      lambda_function_name   = module.lambda.function_names["create-event"]
+      authorization_type     = "JWT"
+      throttling_burst_limit = 20
+      throttling_rate_limit  = 10
     }
 
     update-event = {
-      route_key            = "PATCH /events/{event_id}"
-      lambda_invoke_arn    = module.lambda.invoke_arns["update-event"]
-      lambda_function_name = module.lambda.function_names["update-event"]
-      authorization_type   = "JWT"
+      route_key              = "PATCH /events/{event_id}"
+      lambda_invoke_arn      = module.lambda.invoke_arns["update-event"]
+      lambda_function_name   = module.lambda.function_names["update-event"]
+      authorization_type     = "JWT"
+      throttling_burst_limit = 20
+      throttling_rate_limit  = 10
     }
 
     cancel-event = {
-      route_key            = "POST /events/{event_id}/cancel"
-      lambda_invoke_arn    = module.lambda.invoke_arns["cancel-event"]
-      lambda_function_name = module.lambda.function_names["cancel-event"]
-      authorization_type   = "JWT"
+      route_key              = "POST /events/{event_id}/cancel"
+      lambda_invoke_arn      = module.lambda.invoke_arns["cancel-event"]
+      lambda_function_name   = module.lambda.function_names["cancel-event"]
+      authorization_type     = "JWT"
+      throttling_burst_limit = 15
+      throttling_rate_limit  = 8
     }
 
     get-event-rsvps = {
@@ -260,11 +314,13 @@ module "api_gateway" {
     }
 
     rsvp = {
-      route_key            = "POST /events/{event_id}/rsvp"
-      lambda_invoke_arn    = module.lambda.invoke_arns["rsvp"]
-      lambda_function_name = module.lambda.function_names["rsvp"]
-      authorization_type   = "CUSTOM"
-      authorizer_key       = "rsvp-mixed-mode"
+      route_key              = "POST /events/{event_id}/rsvp"
+      lambda_invoke_arn      = module.lambda.invoke_arns["rsvp"]
+      lambda_function_name   = module.lambda.function_names["rsvp"]
+      authorization_type     = "CUSTOM"
+      authorizer_key         = "rsvp-mixed-mode"
+      throttling_burst_limit = 15
+      throttling_rate_limit  = 8
     }
   }
 }

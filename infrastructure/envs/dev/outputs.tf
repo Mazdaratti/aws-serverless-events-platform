@@ -154,58 +154,58 @@ output "cognito_user_pool_endpoint" {
 }
 
 ############################################
-# API Gateway protected create-event slice outputs
+# API Gateway routed backend baseline outputs
 ############################################
 
-# These outputs expose the narrow routed create-event validation slice so the
-# environment can be tested end to end without requiring callers to inspect the
+# These outputs expose the current routed backend baseline so the environment
+# can be tested end to end without requiring callers to inspect the
 # api_gateway module internals directly.
 output "api_gateway_api_id" {
-  description = "ID of the HTTP API created for the dev environment routed slice."
+  description = "ID of the HTTP API created for the dev environment routed backend baseline."
   value       = module.api_gateway.api_id
 }
 
 output "api_gateway_api_arn" {
-  description = "ARN of the HTTP API created for the dev environment routed slice."
+  description = "ARN of the HTTP API created for the dev environment routed backend baseline."
   value       = module.api_gateway.api_arn
 }
 
 output "api_gateway_execution_arn" {
-  description = "Execution ARN of the HTTP API created for the dev environment routed slice."
+  description = "Execution ARN of the HTTP API created for the dev environment routed backend baseline."
   value       = module.api_gateway.api_execution_arn
 }
 
 output "api_gateway_api_endpoint" {
-  description = "Base invoke endpoint of the HTTP API created for the dev environment routed slice."
+  description = "Base invoke endpoint of the HTTP API created for the dev environment routed backend baseline."
   value       = module.api_gateway.api_endpoint
 }
 
 output "api_gateway_stage_name" {
-  description = "Stage name of the HTTP API created for the dev environment routed slice."
+  description = "Stage name of the HTTP API created for the dev environment routed backend baseline."
   value       = module.api_gateway.stage_name
 }
 
 output "api_gateway_stage_invoke_url" {
-  description = "Stage-qualified invoke URL of the HTTP API created for the dev environment routed slice."
+  description = "Stage-qualified invoke URL of the HTTP API created for the dev environment routed backend baseline."
   value       = module.api_gateway.stage_invoke_url
 }
 
 output "api_gateway_jwt_authorizer_id" {
-  description = "JWT authorizer ID of the HTTP API created for the dev environment routed slice."
+  description = "JWT authorizer ID of the HTTP API created for the dev environment routed backend baseline."
   value       = module.api_gateway.jwt_authorizer_id
 }
 
 output "api_gateway_request_authorizer_ids" {
-  description = "Map of logical Lambda request authorizer name to HTTP API authorizer ID for the dev environment routed slice."
+  description = "Map of logical Lambda request authorizer name to HTTP API authorizer ID for the dev environment routed backend baseline."
   value       = module.api_gateway.request_authorizer_ids
 }
 
 output "api_gateway_route_ids" {
-  description = "Map of logical route name to route ID for the dev environment routed slice."
+  description = "Map of logical route name to route ID for the dev environment routed backend baseline."
   value       = module.api_gateway.route_ids
 }
 
 output "api_gateway_route_keys" {
-  description = "Map of logical route name to route key for the dev environment routed slice."
+  description = "Map of logical route name to route key for the dev environment routed backend baseline."
   value       = module.api_gateway.route_keys
 }

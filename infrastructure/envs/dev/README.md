@@ -329,8 +329,11 @@ This environment currently wires in:
 
 - one HTTP API
 - one stage
+- one environment-owned CloudWatch Logs log group for API Gateway stage access logs
 - one JWT authorizer (Cognito-based)
 - one Lambda request authorizer for the mixed-mode RSVP route
+- stage access logging for the HTTP API
+- default stage throttling
 - eight routed API endpoints:
   - `POST /events`
   - `PATCH /events/{event_id}`
@@ -367,6 +370,15 @@ Why this module is wired now:
 Important design notes:
 
 - this is the current routed backend baseline, not yet the final product edge surface
+- API Gateway stage access logs are now enabled in `dev`
+- the API Gateway access-log log group is owned by `envs/dev`, while the reusable module owns the stage logging configuration
+- stage throttling is now configured in `dev` to establish one backend protection baseline before the edge layer is introduced
+- stricter per-route throttling is now applied to the more write-sensitive routes:
+  - `POST /events`
+  - `PATCH /events/{event_id}`
+  - `POST /events/{event_id}/cancel`
+  - `POST /events/{event_id}/rsvp`
+- CORS remains intentionally disabled in `dev` during the current backend-only rollout, even though the reusable module now supports it
 - `GET /events` is intentionally a public route with `authorization_type = NONE`
 - ordinary protected routes use native JWT authorization at API Gateway
 - `GET /events/mine` is intentionally JWT-protected so API Gateway enforces the creator-route authentication boundary
@@ -382,6 +394,15 @@ Validation:
 - confirmed the HTTP API was created in `eu-central-1`
 - confirmed the rendered API name is `aws-serverless-events-platform-dev-http-api`
 - confirmed the stage name is `dev`
+- confirmed the API Gateway stage access-log log group is owned by the environment and separate from Lambda log groups
+- confirmed stage access logging is configured on the deployed API Gateway stage
+- confirmed default stage throttling is configured on the deployed API Gateway stage
+- confirmed stricter per-route throttling overrides are configured for:
+  - `POST /events`
+  - `PATCH /events/{event_id}`
+  - `POST /events/{event_id}/cancel`
+  - `POST /events/{event_id}/rsvp`
+- confirmed CORS remains disabled in `dev`
 - confirmed the route keys are:
   - `POST /events`
   - `PATCH /events/{event_id}`
@@ -636,7 +657,11 @@ Validation:
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.14.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.37 |
 
+## Providers
 
+| Name | Version |
+|------|---------|
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.41.0 |
 
 ## Modules
 
@@ -649,7 +674,11 @@ Validation:
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
 | <a name="module_sqs"></a> [sqs](#module\_sqs) | ../../modules/sqs | n/a |
 
+## Resources
 
+| Name | Type |
+|------|------|
+| [aws_cloudwatch_log_group.api_gateway_access](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
 
 ## Inputs
 

@@ -396,6 +396,8 @@ Validation:
 - confirmed the stage name is `dev`
 - confirmed the API Gateway stage access-log log group is owned by the environment and separate from Lambda log groups
 - confirmed stage access logging is configured on the deployed API Gateway stage
+- confirmed the deployed stage access-log destination is:
+  - `/aws/apigateway/aws-serverless-events-platform-dev-http-api-access`
 - confirmed default stage throttling is configured on the deployed API Gateway stage
 - confirmed stricter per-route throttling overrides are configured for:
   - `POST /events`
@@ -403,6 +405,11 @@ Validation:
   - `POST /events/{event_id}/cancel`
   - `POST /events/{event_id}/rsvp`
 - confirmed CORS remains disabled in `dev`
+- confirmed the mixed-mode request authorizer remains configured with:
+  - payload format version `2.0`
+  - simple responses enabled
+  - TTL `0`
+  - identity sources omitted
 - confirmed the route keys are:
   - `POST /events`
   - `PATCH /events/{event_id}`
@@ -447,6 +454,10 @@ Validation:
 - confirmed unauthenticated `GET /events/mine` is rejected at the API edge with `401`
 - confirmed authenticated creator `GET /events/mine` succeeds through API Gateway with JWT validation
 - confirmed authenticated admin `GET /events/mine` succeeds through API Gateway with JWT validation and returns only the admin caller's own events
+- confirmed API Gateway access-log entries are written to the dedicated API Gateway access-log group for:
+  - `GET /events`
+  - `GET /events/mine`
+  - `POST /events/{event_id}/rsvp`
 - confirmed `GET /events/{event_id}` is public and has no attached authorizer
 - confirmed unauthenticated `GET /events/{event_id}` succeeds through API Gateway with `200`
 - confirmed routed `GET /events/{event_id}` still returns cancelled events by ID
@@ -461,6 +472,7 @@ Validation:
 - confirmed anonymous public `POST /events/{event_id}/rsvp` succeeds through API Gateway with `201`
 - confirmed authenticated user `POST /events/{event_id}/rsvp` succeeds through API Gateway where allowed
 - confirmed authenticated admin `POST /events/{event_id}/rsvp` succeeds through API Gateway where allowed
+- confirmed an earlier malformed RSVP validation request returned `400` because the request body was not valid JSON, not because of an API Gateway routing or authorizer regression
 - confirmed malformed or invalid presented auth for routed `POST /events/{event_id}/rsvp` is denied at the API edge with `403`
 - confirmed anonymous routed `POST /events/{event_id}/rsvp` to a protected event returns `403`
 - confirmed non-admin routed `POST /events/{event_id}/rsvp` to an admin-only event returns `403`

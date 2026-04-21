@@ -329,8 +329,11 @@ This environment currently wires in:
 
 - one HTTP API
 - one stage
+- one environment-owned CloudWatch Logs log group for API Gateway stage access logs
 - one JWT authorizer (Cognito-based)
 - one Lambda request authorizer for the mixed-mode RSVP route
+- stage access logging for the HTTP API
+- default stage throttling
 - eight routed API endpoints:
   - `POST /events`
   - `PATCH /events/{event_id}`
@@ -367,6 +370,15 @@ Why this module is wired now:
 Important design notes:
 
 - this is the current routed backend baseline, not yet the final product edge surface
+- API Gateway stage access logs are now enabled in `dev`
+- the API Gateway access-log log group is owned by `envs/dev`, while the reusable module owns the stage logging configuration
+- stage throttling is now configured in `dev` to establish one backend protection baseline before the edge layer is introduced
+- stricter per-route throttling is now applied to the more write-sensitive routes:
+  - `POST /events`
+  - `PATCH /events/{event_id}`
+  - `POST /events/{event_id}/cancel`
+  - `POST /events/{event_id}/rsvp`
+- CORS remains intentionally disabled in `dev` during the current backend-only rollout, even though the reusable module now supports it
 - `GET /events` is intentionally a public route with `authorization_type = NONE`
 - ordinary protected routes use native JWT authorization at API Gateway
 - `GET /events/mine` is intentionally JWT-protected so API Gateway enforces the creator-route authentication boundary
@@ -382,6 +394,22 @@ Validation:
 - confirmed the HTTP API was created in `eu-central-1`
 - confirmed the rendered API name is `aws-serverless-events-platform-dev-http-api`
 - confirmed the stage name is `dev`
+- confirmed the API Gateway stage access-log log group is owned by the environment and separate from Lambda log groups
+- confirmed stage access logging is configured on the deployed API Gateway stage
+- confirmed the deployed stage access-log destination is:
+  - `/aws/apigateway/aws-serverless-events-platform-dev-http-api-access`
+- confirmed default stage throttling is configured on the deployed API Gateway stage
+- confirmed stricter per-route throttling overrides are configured for:
+  - `POST /events`
+  - `PATCH /events/{event_id}`
+  - `POST /events/{event_id}/cancel`
+  - `POST /events/{event_id}/rsvp`
+- confirmed CORS remains disabled in `dev`
+- confirmed the mixed-mode request authorizer remains configured with:
+  - payload format version `2.0`
+  - simple responses enabled
+  - TTL `0`
+  - identity sources omitted
 - confirmed the route keys are:
   - `POST /events`
   - `PATCH /events/{event_id}`
@@ -426,6 +454,10 @@ Validation:
 - confirmed unauthenticated `GET /events/mine` is rejected at the API edge with `401`
 - confirmed authenticated creator `GET /events/mine` succeeds through API Gateway with JWT validation
 - confirmed authenticated admin `GET /events/mine` succeeds through API Gateway with JWT validation and returns only the admin caller's own events
+- confirmed API Gateway access-log entries are written to the dedicated API Gateway access-log group for:
+  - `GET /events`
+  - `GET /events/mine`
+  - `POST /events/{event_id}/rsvp`
 - confirmed `GET /events/{event_id}` is public and has no attached authorizer
 - confirmed unauthenticated `GET /events/{event_id}` succeeds through API Gateway with `200`
 - confirmed routed `GET /events/{event_id}` still returns cancelled events by ID
@@ -440,6 +472,7 @@ Validation:
 - confirmed anonymous public `POST /events/{event_id}/rsvp` succeeds through API Gateway with `201`
 - confirmed authenticated user `POST /events/{event_id}/rsvp` succeeds through API Gateway where allowed
 - confirmed authenticated admin `POST /events/{event_id}/rsvp` succeeds through API Gateway where allowed
+- confirmed an earlier malformed RSVP validation request returned `400` because the request body was not valid JSON, not because of an API Gateway routing or authorizer regression
 - confirmed malformed or invalid presented auth for routed `POST /events/{event_id}/rsvp` is denied at the API edge with `403`
 - confirmed anonymous routed `POST /events/{event_id}/rsvp` to a protected event returns `403`
 - confirmed non-admin routed `POST /events/{event_id}/rsvp` to an admin-only event returns `403`
@@ -636,7 +669,11 @@ Validation:
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.14.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.37 |
 
+## Providers
 
+| Name | Version |
+|------|---------|
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.41.0 |
 
 ## Modules
 
@@ -649,7 +686,11 @@ Validation:
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
 | <a name="module_sqs"></a> [sqs](#module\_sqs) | ../../modules/sqs | n/a |
 
+## Resources
 
+| Name | Type |
+|------|------|
+| [aws_cloudwatch_log_group.api_gateway_access](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
 
 ## Inputs
 
@@ -664,16 +705,16 @@ Validation:
 
 | Name | Description |
 |------|-------------|
-| <a name="output_api_gateway_api_arn"></a> [api\_gateway\_api\_arn](#output\_api\_gateway\_api\_arn) | ARN of the HTTP API created for the dev environment routed slice. |
-| <a name="output_api_gateway_api_endpoint"></a> [api\_gateway\_api\_endpoint](#output\_api\_gateway\_api\_endpoint) | Base invoke endpoint of the HTTP API created for the dev environment routed slice. |
-| <a name="output_api_gateway_api_id"></a> [api\_gateway\_api\_id](#output\_api\_gateway\_api\_id) | ID of the HTTP API created for the dev environment routed slice. |
-| <a name="output_api_gateway_execution_arn"></a> [api\_gateway\_execution\_arn](#output\_api\_gateway\_execution\_arn) | Execution ARN of the HTTP API created for the dev environment routed slice. |
-| <a name="output_api_gateway_jwt_authorizer_id"></a> [api\_gateway\_jwt\_authorizer\_id](#output\_api\_gateway\_jwt\_authorizer\_id) | JWT authorizer ID of the HTTP API created for the dev environment routed slice. |
-| <a name="output_api_gateway_request_authorizer_ids"></a> [api\_gateway\_request\_authorizer\_ids](#output\_api\_gateway\_request\_authorizer\_ids) | Map of logical Lambda request authorizer name to HTTP API authorizer ID for the dev environment routed slice. |
-| <a name="output_api_gateway_route_ids"></a> [api\_gateway\_route\_ids](#output\_api\_gateway\_route\_ids) | Map of logical route name to route ID for the dev environment routed slice. |
-| <a name="output_api_gateway_route_keys"></a> [api\_gateway\_route\_keys](#output\_api\_gateway\_route\_keys) | Map of logical route name to route key for the dev environment routed slice. |
-| <a name="output_api_gateway_stage_invoke_url"></a> [api\_gateway\_stage\_invoke\_url](#output\_api\_gateway\_stage\_invoke\_url) | Stage-qualified invoke URL of the HTTP API created for the dev environment routed slice. |
-| <a name="output_api_gateway_stage_name"></a> [api\_gateway\_stage\_name](#output\_api\_gateway\_stage\_name) | Stage name of the HTTP API created for the dev environment routed slice. |
+| <a name="output_api_gateway_api_arn"></a> [api\_gateway\_api\_arn](#output\_api\_gateway\_api\_arn) | ARN of the HTTP API created for the dev environment routed backend baseline. |
+| <a name="output_api_gateway_api_endpoint"></a> [api\_gateway\_api\_endpoint](#output\_api\_gateway\_api\_endpoint) | Base invoke endpoint of the HTTP API created for the dev environment routed backend baseline. |
+| <a name="output_api_gateway_api_id"></a> [api\_gateway\_api\_id](#output\_api\_gateway\_api\_id) | ID of the HTTP API created for the dev environment routed backend baseline. |
+| <a name="output_api_gateway_execution_arn"></a> [api\_gateway\_execution\_arn](#output\_api\_gateway\_execution\_arn) | Execution ARN of the HTTP API created for the dev environment routed backend baseline. |
+| <a name="output_api_gateway_jwt_authorizer_id"></a> [api\_gateway\_jwt\_authorizer\_id](#output\_api\_gateway\_jwt\_authorizer\_id) | JWT authorizer ID of the HTTP API created for the dev environment routed backend baseline. |
+| <a name="output_api_gateway_request_authorizer_ids"></a> [api\_gateway\_request\_authorizer\_ids](#output\_api\_gateway\_request\_authorizer\_ids) | Map of logical Lambda request authorizer name to HTTP API authorizer ID for the dev environment routed backend baseline. |
+| <a name="output_api_gateway_route_ids"></a> [api\_gateway\_route\_ids](#output\_api\_gateway\_route\_ids) | Map of logical route name to route ID for the dev environment routed backend baseline. |
+| <a name="output_api_gateway_route_keys"></a> [api\_gateway\_route\_keys](#output\_api\_gateway\_route\_keys) | Map of logical route name to route key for the dev environment routed backend baseline. |
+| <a name="output_api_gateway_stage_invoke_url"></a> [api\_gateway\_stage\_invoke\_url](#output\_api\_gateway\_stage\_invoke\_url) | Stage-qualified invoke URL of the HTTP API created for the dev environment routed backend baseline. |
+| <a name="output_api_gateway_stage_name"></a> [api\_gateway\_stage\_name](#output\_api\_gateway\_stage\_name) | Stage name of the HTTP API created for the dev environment routed backend baseline. |
 | <a name="output_cognito_admin_group_name"></a> [cognito\_admin\_group\_name](#output\_cognito\_admin\_group\_name) | Name of the Cognito admin group created for the dev environment. |
 | <a name="output_cognito_issuer"></a> [cognito\_issuer](#output\_cognito\_issuer) | JWT issuer URL for the Cognito User Pool created for the dev environment. |
 | <a name="output_cognito_user_pool_arn"></a> [cognito\_user\_pool\_arn](#output\_cognito\_user\_pool\_arn) | ARN of the Cognito User Pool created for the dev environment. |

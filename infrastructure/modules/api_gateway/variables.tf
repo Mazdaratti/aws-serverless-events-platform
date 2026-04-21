@@ -15,6 +15,7 @@ variable "name_prefix" {
 variable "tags" {
   description = "Tags applied to API Gateway resources that support tagging."
   type        = map(string)
+  default     = {}
 }
 
 ############################################
@@ -54,6 +55,180 @@ variable "jwt_audience" {
   }
 }
 
+############################################
+# Optional API-level CORS support
+############################################
+
+variable "cors_configuration" {
+  description = <<-EOT
+    Optional HTTP API CORS configuration.
+
+    Leave null to disable module-managed CORS entirely.
+  EOT
+
+  type = object({
+    allow_origins     = list(string)
+    allow_methods     = optional(list(string))
+    allow_headers     = optional(list(string))
+    expose_headers    = optional(list(string))
+    allow_credentials = optional(bool)
+    max_age           = optional(number)
+  })
+
+  default = null
+
+  validation {
+    condition = (
+      var.cors_configuration == null ||
+      length(var.cors_configuration.allow_origins) > 0
+    )
+    error_message = "cors_configuration.allow_origins must contain at least one value when cors_configuration is set."
+  }
+
+  validation {
+    condition = (
+      var.cors_configuration == null ||
+      alltrue([
+        for origin in var.cors_configuration.allow_origins :
+        trimspace(origin) != ""
+      ])
+    )
+    error_message = "cors_configuration.allow_origins must contain only non-empty values."
+  }
+
+  validation {
+    condition = (
+      var.cors_configuration == null ||
+      try(var.cors_configuration.allow_methods == null, true) ||
+      (
+        length(var.cors_configuration.allow_methods) > 0 &&
+        alltrue([
+          for method in var.cors_configuration.allow_methods :
+          contains(["GET", "POST", "PATCH", "DELETE", "OPTIONS"], upper(trimspace(method)))
+        ])
+      )
+    )
+    error_message = "cors_configuration.allow_methods must be omitted or contain only GET, POST, PATCH, DELETE, or OPTIONS."
+  }
+
+  validation {
+    condition = (
+      var.cors_configuration == null ||
+      try(var.cors_configuration.allow_headers == null, true) ||
+      alltrue([
+        for header in var.cors_configuration.allow_headers :
+        trimspace(header) != ""
+      ])
+    )
+    error_message = "cors_configuration.allow_headers must be omitted or contain only non-empty values."
+  }
+
+  validation {
+    condition = (
+      var.cors_configuration == null ||
+      try(var.cors_configuration.expose_headers == null, true) ||
+      alltrue([
+        for header in var.cors_configuration.expose_headers :
+        trimspace(header) != ""
+      ])
+    )
+    error_message = "cors_configuration.expose_headers must be omitted or contain only non-empty values."
+  }
+
+  validation {
+    condition = (
+      var.cors_configuration == null ||
+      try(var.cors_configuration.max_age == null, true) ||
+      (
+        var.cors_configuration.max_age >= 0 &&
+        floor(var.cors_configuration.max_age) == var.cors_configuration.max_age
+      )
+    )
+    error_message = "cors_configuration.max_age must be omitted or set to an integer value greater than or equal to 0."
+  }
+}
+
+############################################
+# Optional stage access logging
+############################################
+
+variable "access_log_enabled" {
+  description = "Whether the HTTP API stage writes API Gateway access logs to CloudWatch Logs."
+  type        = bool
+  default     = false
+}
+
+variable "access_log_destination_arn" {
+  description = "Caller-supplied CloudWatch Logs destination ARN for stage access logs when access_log_enabled is true."
+  type        = string
+  default     = null
+
+  validation {
+    condition = (
+      var.access_log_destination_arn == null ||
+      trimspace(var.access_log_destination_arn) != ""
+    )
+    error_message = "access_log_destination_arn must be null or a non-empty string."
+  }
+}
+
+variable "access_log_format" {
+  description = "Access log format string used by the HTTP API stage when access_log_enabled is true."
+  type        = string
+  default     = null
+
+  validation {
+    condition = (
+      var.access_log_format == null ||
+      trimspace(var.access_log_format) != ""
+    )
+    error_message = "access_log_format must be null or a non-empty string."
+  }
+}
+
+############################################
+# Optional stage default throttling
+############################################
+
+variable "default_throttling_burst_limit" {
+  description = "Default burst throttling limit applied at the HTTP API stage when stage throttling is enabled."
+  type        = number
+  default     = null
+
+  validation {
+    condition = (
+      var.default_throttling_burst_limit == null ||
+      (
+        var.default_throttling_burst_limit > 0 &&
+        floor(var.default_throttling_burst_limit) == var.default_throttling_burst_limit
+      )
+    )
+    error_message = "default_throttling_burst_limit must be null or a positive integer."
+  }
+}
+
+variable "default_throttling_rate_limit" {
+  description = "Default steady-state throttling rate limit applied at the HTTP API stage when stage throttling is enabled."
+  type        = number
+  default     = null
+
+  validation {
+    condition = (
+      var.default_throttling_rate_limit == null ||
+      var.default_throttling_rate_limit > 0
+    )
+    error_message = "default_throttling_rate_limit must be null or a positive number."
+  }
+
+  validation {
+    condition = (
+      (var.default_throttling_burst_limit == null && var.default_throttling_rate_limit == null) ||
+      (var.default_throttling_burst_limit != null && var.default_throttling_rate_limit != null)
+    )
+    error_message = "default_throttling_burst_limit and default_throttling_rate_limit must either both be set or both be null."
+  }
+}
+
 variable "request_authorizers" {
   description = <<-EOT
     Optional HTTP API Lambda request authorizers keyed by logical authorizer name.
@@ -69,11 +244,19 @@ variable "request_authorizers" {
     authorizer_credentials_arn        = optional(string)
     name                              = optional(string)
     authorizer_payload_format_version = optional(string, "2.0")
-    enable_simple_responses           = optional(bool, true)
+    enable_simple_responses           = bool
     authorizer_result_ttl_in_seconds  = optional(number, 0)
   }))
 
   default = {}
+
+  validation {
+    condition = alltrue([
+      for authorizer_key, authorizer in var.request_authorizers :
+      trimspace(authorizer_key) != ""
+    ])
+    error_message = "request_authorizers keys must be non-empty strings."
+  }
 
   validation {
     condition = alltrue([
@@ -94,14 +277,31 @@ variable "request_authorizers" {
   validation {
     condition = alltrue([
       for authorizer in values(var.request_authorizers) :
+      try(authorizer.name == null, true) || trimspace(authorizer.name) != ""
+    ])
+    error_message = "Each request authorizer name must be omitted or set to a non-empty string."
+  }
+
+  validation {
+    condition = alltrue([
+      for authorizer in values(var.request_authorizers) :
+      try(authorizer.authorizer_credentials_arn == null, true) || trimspace(authorizer.authorizer_credentials_arn) != ""
+    ])
+    error_message = "Each request authorizer authorizer_credentials_arn must be omitted or set to a non-empty string."
+  }
+
+  validation {
+    condition = alltrue([
+      for authorizer in values(var.request_authorizers) :
       try(authorizer.identity_sources == null, true) || (
         length(authorizer.identity_sources) > 0 && alltrue([
           for identity_source in authorizer.identity_sources :
-          trimspace(identity_source) != ""
+          trimspace(identity_source) != "" &&
+          length(regexall("^\\$request\\..+", trimspace(identity_source))) > 0
         ])
       )
     ])
-    error_message = "Each request authorizer identity_sources value must be omitted or contain at least one non-empty identity source."
+    error_message = "Each request authorizer identity_sources value must be omitted or contain one or more non-empty values starting with \"$request.\"."
   }
 
   validation {
@@ -115,9 +315,18 @@ variable "request_authorizers" {
   validation {
     condition = alltrue([
       for authorizer in values(var.request_authorizers) :
-      authorizer.authorizer_result_ttl_in_seconds >= 0
+      floor(authorizer.authorizer_result_ttl_in_seconds) == authorizer.authorizer_result_ttl_in_seconds
     ])
-    error_message = "Each request authorizer authorizer_result_ttl_in_seconds must be zero or greater."
+    error_message = "Each request authorizer authorizer_result_ttl_in_seconds must be an integer."
+  }
+
+  validation {
+    condition = alltrue([
+      for authorizer in values(var.request_authorizers) :
+      authorizer.authorizer_result_ttl_in_seconds >= 0 &&
+      authorizer.authorizer_result_ttl_in_seconds <= 3600
+    ])
+    error_message = "Each request authorizer authorizer_result_ttl_in_seconds must be between 0 and 3600."
   }
 
   validation {
@@ -137,22 +346,66 @@ variable "routes" {
   description = <<-EOT
     Map of HTTP API routes keyed by logical route name.
 
-    This first module version stays intentionally small:
+    Supported route behavior:
     - route_key defines the HTTP API route such as "POST /events"
     - lambda_invoke_arn defines the Lambda integration target
     - lambda_function_name defines the Lambda permission target
     - authorization_type supports public, JWT, and Lambda-authorized routes
     - authorizer_key is used only for CUSTOM routes to select one logical
       request authorizer from var.request_authorizers
+    - optional per-route throttling overrides can be supplied directly
   EOT
 
   type = map(object({
-    route_key            = string
-    lambda_invoke_arn    = string
-    lambda_function_name = string
-    authorization_type   = string
-    authorizer_key       = optional(string)
+    route_key              = string
+    lambda_invoke_arn      = string
+    lambda_function_name   = string
+    authorization_type     = string
+    authorizer_key         = optional(string)
+    throttling_burst_limit = optional(number)
+    throttling_rate_limit  = optional(number)
   }))
+
+  validation {
+    condition = length(distinct([
+      for route in values(var.routes) :
+      trimspace(route.route_key)
+    ])) == length(values(var.routes))
+    error_message = "Each route.route_key must be unique across var.routes."
+  }
+
+  validation {
+    condition = alltrue([
+      for route in values(var.routes) :
+      trimspace(route.route_key) != "" &&
+      trimspace(route.route_key) == route.route_key
+    ])
+    error_message = "Each route.route_key must be a non-empty string with no leading or trailing whitespace."
+  }
+
+  validation {
+    condition = alltrue([
+      for route in values(var.routes) :
+      length(regexall("^(GET|POST|PATCH|DELETE|OPTIONS) /\\S*$", route.route_key)) > 0
+    ])
+    error_message = "Each route.route_key must match \"<METHOD> <PATH>\", where METHOD is one of GET, POST, PATCH, DELETE, or OPTIONS and PATH starts with '/'."
+  }
+
+  validation {
+    condition = alltrue([
+      for route in values(var.routes) :
+      trimspace(route.lambda_invoke_arn) != ""
+    ])
+    error_message = "Each route.lambda_invoke_arn must be a non-empty string."
+  }
+
+  validation {
+    condition = alltrue([
+      for route in values(var.routes) :
+      trimspace(route.lambda_function_name) != ""
+    ])
+    error_message = "Each route.lambda_function_name must be a non-empty string."
+  }
 
   validation {
     condition = alltrue([
@@ -184,5 +437,39 @@ variable "routes" {
       route.authorization_type == "CUSTOM" || try(route.authorizer_key == null, true)
     ])
     error_message = "authorizer_key may only be set for CUSTOM routes."
+  }
+
+  validation {
+    condition = alltrue([
+      for route in values(var.routes) :
+      (
+        try(route.throttling_burst_limit, null) == null &&
+        try(route.throttling_rate_limit, null) == null
+      ) ||
+      (
+        try(route.throttling_burst_limit, null) != null &&
+        try(route.throttling_rate_limit, null) != null
+      )
+    ])
+    error_message = "Each route must either set both throttling_burst_limit and throttling_rate_limit or leave both unset."
+  }
+
+  validation {
+    condition = alltrue([
+      for route in values(var.routes) :
+      try(route.throttling_burst_limit, null) == null || (
+        route.throttling_burst_limit > 0 &&
+        floor(route.throttling_burst_limit) == route.throttling_burst_limit
+      )
+    ])
+    error_message = "Each route.throttling_burst_limit must be omitted or set to a positive integer."
+  }
+
+  validation {
+    condition = alltrue([
+      for route in values(var.routes) :
+      try(route.throttling_rate_limit, null) == null || route.throttling_rate_limit > 0
+    ])
+    error_message = "Each route.throttling_rate_limit must be omitted or set to a positive number."
   }
 }

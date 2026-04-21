@@ -24,28 +24,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- API Gateway module completion and hardening is the current implementation focus
-- the current `api_gateway` module baseline already supports:
-  - HTTP API creation
-  - stage creation
-  - JWT authorizers
-  - Lambda request authorizers
-  - route and Lambda integration creation
-  - per-route authorization configuration
-  - Lambda invoke permissions
-- the current module baseline is already sufficient to support and validate:
-  - public routes
-  - JWT-protected routes
-  - mixed-mode Lambda-authorized routes
-  - end-to-end Lambda routing in AWS
-- all currently planned routed API slices are now implemented and validated in AWS
-- the next steps are to:
-  - harden the reusable `api_gateway` module interface
-  - tighten variable validation and module assumptions
-  - add `examples/basic_usage`
-  - add the module README
-  - expand Terraform validation CI to cover the module and example
-  - continue tightening routed rollout evidence, examples, and documentation
+- Edge delivery layer (S3 + CloudFront + WAF)
 
 ### Completed milestones
 
@@ -66,7 +45,16 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - `cognito` module (managed identity baseline)
   - `infrastructure/envs/dev` wiring for the Cognito identity baseline
   - `api_gateway` module baseline for routed HTTP API delivery
-  - `infrastructure/envs/dev` wiring for the routed API baseline
+  - `api_gateway` module hardening:
+    - stricter module input validation
+    - optional CORS support
+    - optional stage access logging
+    - default stage throttling
+    - per-route throttling overrides
+    - `examples/basic_usage`
+    - module `README.md`
+    - Terraform validation CI coverage for the module and example
+  - `infrastructure/envs/dev` wiring for the routed backend baseline
 - Core synchronous Lambda rollout
   - `create-event`
     - implementation
@@ -401,21 +389,20 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - `rsvp` routed path ✅
    - temporary RSVP probe slice removed after real route validation ✅
 
-12. API Gateway reusable module completion and hardening
-   - harden the module interface
-   - tighten variable validation and module assumptions
-   - improve descriptions and comments
-   - add `examples/basic_usage`
-   - add module `README.md`
-   - ensure `terraform-docs` injection is correct
-   - expand Terraform validation CI to cover the module and example
+12. API Gateway reusable module completion and hardening ✅
+   - hardened the module interface ✅
+   - tightened variable validation and module assumptions ✅
+   - improved descriptions and comments ✅
+   - added `examples/basic_usage` ✅
+   - added module `README.md` ✅
+   - ensured `terraform-docs` injection is correct ✅
+   - expanded Terraform validation CI to cover the module and example ✅
 
-13. Frontend S3 hosting, CloudFront distribution, and WAF protection
-14. EventBridge and SNS integration
-15. `notification-worker`
-16. CloudWatch observability and X-Ray tracing
-17. Remote Terraform backend and GitHub OIDC
-18. CI/CD deployment workflow
+13. EventBridge and SNS integration
+14. `notification-worker`
+15. CloudWatch observability and X-Ray tracing
+16. Remote Terraform backend and GitHub OIDC
+17. CI/CD deployment workflow
 
 
 The repository now also includes Terraform validation coverage for the currently

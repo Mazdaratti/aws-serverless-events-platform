@@ -6,6 +6,24 @@ resource "aws_apigatewayv2_api" "this" {
   name          = "${var.name_prefix}-http-api"
   protocol_type = "HTTP"
 
+  # HTTP API CORS is optional in this module.
+  #
+  # When cors_configuration is null, API Gateway leaves CORS behavior
+  # untouched. When it is set, API Gateway will manage browser preflight
+  # responses and attach the configured CORS headers for this API.
+  dynamic "cors_configuration" {
+    for_each = var.cors_configuration == null ? [] : [var.cors_configuration]
+
+    content {
+      allow_origins     = cors_configuration.value.allow_origins
+      allow_methods     = try(cors_configuration.value.allow_methods, null)
+      allow_headers     = try(cors_configuration.value.allow_headers, null)
+      expose_headers    = try(cors_configuration.value.expose_headers, null)
+      allow_credentials = try(cors_configuration.value.allow_credentials, null)
+      max_age           = try(cors_configuration.value.max_age, null)
+    }
+  }
+
   tags = var.tags
 }
 
@@ -13,6 +31,68 @@ resource "aws_apigatewayv2_stage" "this" {
   api_id      = aws_apigatewayv2_api.this.id
   name        = var.stage_name
   auto_deploy = true
+
+  # Keep the stage-level contract strict in one place instead of trying to
+  # express cross-variable relationships inside variable validation blocks.
+  #
+  # Access logging is optional, but when enabled the caller must provide both
+  # a destination ARN and a non-empty log format. When disabled, both values
+  # must stay null so the module input stays predictable and reviewable.
+  lifecycle {
+    precondition {
+      condition = (
+        var.access_log_enabled ?
+        (
+          trimspace(coalesce(var.access_log_destination_arn, "")) != "" &&
+          trimspace(coalesce(var.access_log_format, "")) != ""
+        ) :
+        (
+          var.access_log_destination_arn == null &&
+          var.access_log_format == null
+        )
+      )
+      error_message = "When access_log_enabled is true, access_log_destination_arn and access_log_format must both be non-empty. When access_log_enabled is false, both values must be null."
+    }
+  }
+
+  # Stage access logging belongs to API Gateway itself, not to the Lambda
+  # module. The caller owns the CloudWatch Logs log group and passes its ARN
+  # into this module when logging is enabled.
+  dynamic "access_log_settings" {
+    for_each = var.access_log_enabled ? [1] : []
+
+    content {
+      destination_arn = var.access_log_destination_arn
+      format          = var.access_log_format
+    }
+  }
+
+  # Default stage throttling creates one baseline protection level for the
+  # whole HTTP API. Individual routes can still override these defaults later
+  # through route_settings when a smaller write-heavy surface needs tighter
+  # limits than the rest of the API.
+  dynamic "default_route_settings" {
+    for_each = var.default_throttling_burst_limit == null ? [] : [1]
+
+    content {
+      throttling_burst_limit = var.default_throttling_burst_limit
+      throttling_rate_limit  = var.default_throttling_rate_limit
+    }
+  }
+
+  # Route settings stay intentionally narrow in this PR. The module currently
+  # uses them only for per-route throttling overrides, which lets callers
+  # tighten selected write paths without widening the module surface to other
+  # API Gateway route-setting concerns.
+  dynamic "route_settings" {
+    for_each = local.route_settings
+
+    content {
+      route_key              = route_settings.key
+      throttling_burst_limit = route_settings.value.throttling_burst_limit
+      throttling_rate_limit  = route_settings.value.throttling_rate_limit
+    }
+  }
 
   tags = var.tags
 }
@@ -57,7 +137,7 @@ resource "aws_apigatewayv2_authorizer" "request" {
 ############################################
 
 resource "aws_apigatewayv2_integration" "route" {
-  for_each = local.routes
+  for_each = local.route_integrations
 
   api_id                 = aws_apigatewayv2_api.this.id
   integration_type       = "AWS_PROXY"
@@ -67,7 +147,7 @@ resource "aws_apigatewayv2_integration" "route" {
 }
 
 resource "aws_apigatewayv2_route" "route" {
-  for_each = local.routes
+  for_each = local.route_integrations
 
   api_id    = aws_apigatewayv2_api.this.id
   route_key = each.value.route_key
@@ -96,7 +176,7 @@ resource "aws_lambda_permission" "authorizer_invoke" {
 }
 
 resource "aws_lambda_permission" "api_gateway_invoke" {
-  for_each = local.routes
+  for_each = local.route_integrations
 
   statement_id  = "AllowExecutionFromApiGateway-${replace(replace(each.key, "-", "_"), " ", "_")}"
   action        = "lambda:InvokeFunction"

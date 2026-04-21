@@ -287,6 +287,7 @@ Rules:
 Current locked implementation rule for this mixed-mode route:
 
 - request authorizer `identity_sources` must be omitted
+- `enable_simple_responses` must remain enabled
 - request authorizer result TTL must be `0`
 
 This preserves the required mixed-mode behavior:
@@ -295,6 +296,9 @@ This preserves the required mixed-mode behavior:
 - valid header -> authenticated path is preserved
 - malformed or invalid presented auth is denied instead of silently downgraded
   to anonymous
+
+The current routed implementation is intentionally locked to the HTTP API
+Lambda request-authorizer simple-response path for this route.
 
 ---
 
@@ -1757,7 +1761,6 @@ This sequence remains intentional:
 The following behaviors are intentionally not fully locked yet:
 
 - exact account-deletion cleanup semantics
-- exact ordinary-route JWT authorizer implementation details
 
 These should be decided in the implementation steps where they become
 immediately relevant.

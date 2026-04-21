@@ -28,6 +28,7 @@ htmlcov/
 # Lambda build artifacts
 ############################################
 *.zip
+!infrastructure/modules/api_gateway/examples/basic_usage/files/example-lambda.zip
 infrastructure/modules/lambda/examples/basic_usage/artifacts/
 artifacts/
 dist/

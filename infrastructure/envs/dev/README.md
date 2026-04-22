@@ -666,6 +666,60 @@ Validation:
 
 ---
 
+## S3 Frontend Origin Bucket Baseline
+
+Creates the initial private frontend-origin storage baseline for the platform.
+
+Implemented via:
+
+- `modules/s3_frontend_bucket`
+
+This environment currently wires in:
+
+- one private S3 bucket for future frontend asset storage
+
+Why this module is wired now:
+
+- the platform now needs a real frontend-origin bucket before CloudFront and WAF can be added cleanly
+- the edge-delivery rollout is intentionally being implemented in small module-first and env-wiring-second slices
+- a private S3 origin bucket is the first concrete storage dependency for the later browser-facing edge layer
+
+Important design notes:
+
+- this bucket is an origin bucket, not a public website bucket
+- direct public access is intentionally blocked
+- S3 website hosting is intentionally not used
+- `envs/dev` currently keeps bucket versioning disabled to keep this non-production environment lean
+- `envs/dev` currently sets `force_destroy = true` so the bucket stays easy to tear down and recreate during iterative edge rollout work
+- one tiny placeholder frontend file can now be uploaded for validation without introducing a real frontend implementation yet
+- the future CloudFront layer is expected to use this bucket as its private frontend origin
+- reusable AWS resource logic belongs in modules while `envs/dev` stays composition-oriented
+
+Validation:
+
+- validated via `terraform apply`, Terraform output verification, AWS Console inspection, AWS CLI inspection, placeholder object upload, direct public-access check, and a clean post-apply `terraform plan`
+- confirmed the bucket was created in `eu-central-1`
+- confirmed the rendered bucket name is:
+  - `aws-serverless-events-platform-dev-frontend`
+- confirmed Terraform outputs match the created bucket identity:
+  - `frontend_bucket_arn`
+  - `frontend_bucket_id`
+  - `frontend_bucket_name`
+  - `frontend_bucket_regional_domain_name`
+- confirmed bucket-level public access blocking is fully enabled
+- confirmed ownership controls use:
+  - `BucketOwnerEnforced`
+- confirmed default server-side encryption uses:
+  - `AES256`
+- confirmed bucket versioning is not enabled in `dev`:
+  - `Status = Suspended`
+- confirmed placeholder `index.html` upload succeeds
+- confirmed direct public object access returns:
+  - `403 AccessDenied`
+- see evidence screenshots under `docs/assets/s3_frontend_bucket/`
+
+---
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -689,6 +743,7 @@ Validation:
 | <a name="module_dynamodb_data_layer"></a> [dynamodb\_data\_layer](#module\_dynamodb\_data\_layer) | ../../modules/dynamodb_data_layer | n/a |
 | <a name="module_iam"></a> [iam](#module\_iam) | ../../modules/iam | n/a |
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
+| <a name="module_s3_frontend_bucket"></a> [s3\_frontend\_bucket](#module\_s3\_frontend\_bucket) | ../../modules/s3_frontend_bucket | n/a |
 | <a name="module_sqs"></a> [sqs](#module\_sqs) | ../../modules/sqs | n/a |
 
 ## Resources
@@ -702,9 +757,9 @@ Validation:
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region where resources will be deployed. | `string` | n/a | yes |
+| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 | <a name="input_environment"></a> [environment](#input\_environment) | Deployment environment name. | `string` | n/a | yes |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Project name used for naming and tagging resources. | `string` | n/a | yes |
-| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 
 ## Outputs
 
@@ -728,6 +783,10 @@ Validation:
 | <a name="output_cognito_user_pool_id"></a> [cognito\_user\_pool\_id](#output\_cognito\_user\_pool\_id) | ID of the Cognito User Pool created for the dev environment. |
 | <a name="output_events_table_arn"></a> [events\_table\_arn](#output\_events\_table\_arn) | ARN of the DynamoDB events table created for the dev environment. |
 | <a name="output_events_table_name"></a> [events\_table\_name](#output\_events\_table\_name) | Name of the DynamoDB events table created for the dev environment. |
+| <a name="output_frontend_bucket_arn"></a> [frontend\_bucket\_arn](#output\_frontend\_bucket\_arn) | ARN of the private frontend origin bucket created for the dev environment. |
+| <a name="output_frontend_bucket_id"></a> [frontend\_bucket\_id](#output\_frontend\_bucket\_id) | ID of the private frontend origin bucket created for the dev environment. |
+| <a name="output_frontend_bucket_name"></a> [frontend\_bucket\_name](#output\_frontend\_bucket\_name) | Name of the private frontend origin bucket created for the dev environment. |
+| <a name="output_frontend_bucket_regional_domain_name"></a> [frontend\_bucket\_regional\_domain\_name](#output\_frontend\_bucket\_regional\_domain\_name) | Regional domain name of the private frontend origin bucket created for the dev environment. |
 | <a name="output_iam_role_arns"></a> [iam\_role\_arns](#output\_iam\_role\_arns) | Map of workload IAM role ARNs for the dev environment. |
 | <a name="output_iam_role_names"></a> [iam\_role\_names](#output\_iam\_role\_names) | Map of workload IAM role names for the dev environment. |
 | <a name="output_lambda_function_arns"></a> [lambda\_function\_arns](#output\_lambda\_function\_arns) | Map of workload Lambda function ARNs for the dev environment. |

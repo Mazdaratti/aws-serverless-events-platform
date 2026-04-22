@@ -324,3 +324,25 @@ module "api_gateway" {
     }
   }
 }
+
+############################################
+# S3 frontend origin bucket baseline
+############################################
+
+# This environment wires in the reusable frontend-origin bucket module so the
+# later edge-delivery steps can attach CloudFront and WAF to a real private S3
+# origin instead of relying only on the current backend-only testing surface.
+#
+# In dev, the bucket intentionally keeps versioning disabled and allows force
+# destroy so this non-production environment stays easy to reset while the edge
+# layer is still being introduced incrementally.
+module "s3_frontend_bucket" {
+  source = "../../modules/s3_frontend_bucket"
+
+  name_prefix = local.name_prefix
+  tags        = local.tags
+
+  bucket_name_suffix = "frontend"
+  versioning_enabled = false
+  force_destroy      = true
+}

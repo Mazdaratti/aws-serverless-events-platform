@@ -154,6 +154,33 @@ output "cognito_user_pool_endpoint" {
 }
 
 ############################################
+# S3 frontend origin bucket baseline outputs
+############################################
+
+# These outputs expose the private frontend origin bucket values that the later
+# edge-delivery steps are most likely to need, without requiring callers to
+# inspect the s3_frontend_bucket module internals directly.
+output "frontend_bucket_arn" {
+  description = "ARN of the private frontend origin bucket created for the dev environment."
+  value       = module.s3_frontend_bucket.bucket_arn
+}
+
+output "frontend_bucket_id" {
+  description = "ID of the private frontend origin bucket created for the dev environment."
+  value       = module.s3_frontend_bucket.bucket_id
+}
+
+output "frontend_bucket_name" {
+  description = "Name of the private frontend origin bucket created for the dev environment."
+  value       = module.s3_frontend_bucket.bucket_name
+}
+
+output "frontend_bucket_regional_domain_name" {
+  description = "Regional domain name of the private frontend origin bucket created for the dev environment."
+  value       = module.s3_frontend_bucket.bucket_regional_domain_name
+}
+
+############################################
 # API Gateway routed backend baseline outputs
 ############################################
 

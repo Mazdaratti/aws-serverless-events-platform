@@ -35,9 +35,10 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - implemented in small 2-PR slices per component:
     - reusable module first
     - `infrastructure/envs/dev` wiring second
-  - current implementation order:
+  - completed in this sequence so far:
     - S3 frontend bucket module
     - S3 frontend bucket wiring in `envs/dev`
+  - remaining implementation order:
     - WAF module
     - WAF wiring in `envs/dev`
     - CloudFront module
@@ -80,6 +81,13 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - `examples/basic_usage`
     - module `README.md`
     - Terraform validation CI coverage for the module and example
+  - `infrastructure/envs/dev` wiring for the private frontend origin bucket
+    - private S3 bucket created in AWS
+    - bucket-level public access blocking validated
+    - SSE-S3 encryption validated
+    - versioning intentionally left suspended in `dev`
+    - placeholder `index.html` upload validated
+    - direct public object access denied
   - `infrastructure/envs/dev` wiring for the routed backend baseline
 - Core synchronous Lambda rollout
   - `create-event`
@@ -428,7 +436,7 @@ Infrastructure is implemented using modular Terraform design with environment-sp
 
 13. Edge delivery layer (S3 + CloudFront + WAF)
    - `s3_frontend_bucket` reusable module baseline ✅
-   - `infrastructure/envs/dev` wiring for the private frontend origin bucket
+   - `infrastructure/envs/dev` wiring for the private frontend origin bucket ✅
    - `waf` reusable module
    - `infrastructure/envs/dev` wiring for the WAF baseline
    - `cloudfront` reusable module

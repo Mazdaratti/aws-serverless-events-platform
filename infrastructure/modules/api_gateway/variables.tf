@@ -1,5 +1,5 @@
 ############################################
-# Shared environment context
+# Shared module inputs
 ############################################
 
 variable "name_prefix" {
@@ -13,9 +13,13 @@ variable "name_prefix" {
 }
 
 variable "tags" {
-  description = "Tags applied to API Gateway resources that support tagging."
+  description = "Baseline tags passed from the environment root and extended with resource-specific tags inside the module."
   type        = map(string)
-  default     = {}
+
+  validation {
+    condition     = length(var.tags) > 0
+    error_message = "tags must contain at least the baseline environment tags."
+  }
 }
 
 ############################################

@@ -308,9 +308,11 @@ The following concerns intentionally remain outside this module:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.41.0 |
 
+## Modules
 
+No modules.
 
 ## Resources
 
@@ -329,19 +331,19 @@ The following concerns intentionally remain outside this module:
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_jwt_audience"></a> [jwt\_audience](#input\_jwt\_audience) | JWT audience values accepted by the HTTP API JWT authorizer. | `list(string)` | n/a | yes |
-| <a name="input_jwt_issuer"></a> [jwt\_issuer](#input\_jwt\_issuer) | JWT issuer URL used by the HTTP API JWT authorizer. | `string` | n/a | yes |
-| <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Shared environment naming prefix used to derive API Gateway resource names. | `string` | n/a | yes |
-| <a name="input_routes"></a> [routes](#input\_routes) | Map of HTTP API routes keyed by logical route name.<br/><br/>Supported route behavior:<br/>- route\_key defines the HTTP API route such as "POST /events"<br/>- lambda\_invoke\_arn defines the Lambda integration target<br/>- lambda\_function\_name defines the Lambda permission target<br/>- authorization\_type supports public, JWT, and Lambda-authorized routes<br/>- authorizer\_key is used only for CUSTOM routes to select one logical<br/>  request authorizer from var.request\_authorizers<br/>- optional per-route throttling overrides can be supplied directly | <pre>map(object({<br/>    route_key              = string<br/>    lambda_invoke_arn      = string<br/>    lambda_function_name   = string<br/>    authorization_type     = string<br/>    authorizer_key         = optional(string)<br/>    throttling_burst_limit = optional(number)<br/>    throttling_rate_limit  = optional(number)<br/>  }))</pre> | n/a | yes |
-| <a name="input_stage_name"></a> [stage\_name](#input\_stage\_name) | Stage name for the HTTP API used by this environment slice. | `string` | n/a | yes |
 | <a name="input_access_log_destination_arn"></a> [access\_log\_destination\_arn](#input\_access\_log\_destination\_arn) | Caller-supplied CloudWatch Logs destination ARN for stage access logs when access\_log\_enabled is true. | `string` | `null` | no |
 | <a name="input_access_log_enabled"></a> [access\_log\_enabled](#input\_access\_log\_enabled) | Whether the HTTP API stage writes API Gateway access logs to CloudWatch Logs. | `bool` | `false` | no |
 | <a name="input_access_log_format"></a> [access\_log\_format](#input\_access\_log\_format) | Access log format string used by the HTTP API stage when access\_log\_enabled is true. | `string` | `null` | no |
 | <a name="input_cors_configuration"></a> [cors\_configuration](#input\_cors\_configuration) | Optional HTTP API CORS configuration.<br/><br/>Leave null to disable module-managed CORS entirely. | <pre>object({<br/>    allow_origins     = list(string)<br/>    allow_methods     = optional(list(string))<br/>    allow_headers     = optional(list(string))<br/>    expose_headers    = optional(list(string))<br/>    allow_credentials = optional(bool)<br/>    max_age           = optional(number)<br/>  })</pre> | `null` | no |
 | <a name="input_default_throttling_burst_limit"></a> [default\_throttling\_burst\_limit](#input\_default\_throttling\_burst\_limit) | Default burst throttling limit applied at the HTTP API stage when stage throttling is enabled. | `number` | `null` | no |
 | <a name="input_default_throttling_rate_limit"></a> [default\_throttling\_rate\_limit](#input\_default\_throttling\_rate\_limit) | Default steady-state throttling rate limit applied at the HTTP API stage when stage throttling is enabled. | `number` | `null` | no |
+| <a name="input_jwt_audience"></a> [jwt\_audience](#input\_jwt\_audience) | JWT audience values accepted by the HTTP API JWT authorizer. | `list(string)` | n/a | yes |
+| <a name="input_jwt_issuer"></a> [jwt\_issuer](#input\_jwt\_issuer) | JWT issuer URL used by the HTTP API JWT authorizer. | `string` | n/a | yes |
+| <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Shared environment naming prefix used to derive API Gateway resource names. | `string` | n/a | yes |
 | <a name="input_request_authorizers"></a> [request\_authorizers](#input\_request\_authorizers) | Optional HTTP API Lambda request authorizers keyed by logical authorizer name.<br/><br/>This supports mixed-mode routed behavior that cannot be expressed with the<br/>built-in JWT authorizer alone. | <pre>map(object({<br/>    authorizer_uri                    = string<br/>    lambda_function_name              = string<br/>    identity_sources                  = optional(list(string))<br/>    authorizer_credentials_arn        = optional(string)<br/>    name                              = optional(string)<br/>    authorizer_payload_format_version = optional(string, "2.0")<br/>    enable_simple_responses           = bool<br/>    authorizer_result_ttl_in_seconds  = optional(number, 0)<br/>  }))</pre> | `{}` | no |
-| <a name="input_tags"></a> [tags](#input\_tags) | Tags applied to API Gateway resources that support tagging. | `map(string)` | `{}` | no |
+| <a name="input_routes"></a> [routes](#input\_routes) | Map of HTTP API routes keyed by logical route name.<br/><br/>Supported route behavior:<br/>- route\_key defines the HTTP API route such as "POST /events"<br/>- lambda\_invoke\_arn defines the Lambda integration target<br/>- lambda\_function\_name defines the Lambda permission target<br/>- authorization\_type supports public, JWT, and Lambda-authorized routes<br/>- authorizer\_key is used only for CUSTOM routes to select one logical<br/>  request authorizer from var.request\_authorizers<br/>- optional per-route throttling overrides can be supplied directly | <pre>map(object({<br/>    route_key              = string<br/>    lambda_invoke_arn      = string<br/>    lambda_function_name   = string<br/>    authorization_type     = string<br/>    authorizer_key         = optional(string)<br/>    throttling_burst_limit = optional(number)<br/>    throttling_rate_limit  = optional(number)<br/>  }))</pre> | n/a | yes |
+| <a name="input_stage_name"></a> [stage\_name](#input\_stage\_name) | Stage name for the HTTP API used by this environment slice. | `string` | n/a | yes |
+| <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific tags inside the module. | `map(string)` | n/a | yes |
 
 ## Outputs
 

@@ -28,6 +28,20 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 ### Current focus
 
 - Edge delivery layer (S3 + CloudFront + WAF)
+  - production-shaped public entry layer in front of the existing routed backend
+  - private S3 frontend origin bucket
+  - CloudFront delivery for static assets and later backend API forwarding
+  - AWS WAF managed-rule and rate-limit baseline at the edge
+  - implemented in small 2-PR slices per component:
+    - reusable module first
+    - `infrastructure/envs/dev` wiring second
+  - current implementation order:
+    - S3 frontend bucket module
+    - S3 frontend bucket wiring in `envs/dev`
+    - WAF module
+    - WAF wiring in `envs/dev`
+    - CloudFront module
+    - CloudFront wiring in `envs/dev`
 
 ### Completed milestones
 
@@ -54,6 +68,15 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - optional stage access logging
     - default stage throttling
     - per-route throttling overrides
+    - `examples/basic_usage`
+    - module `README.md`
+    - Terraform validation CI coverage for the module and example
+  - `s3_frontend_bucket` module baseline for private frontend-origin storage
+    - private S3 origin bucket baseline
+    - block-all-public-access baseline
+    - bucket ownership controls
+    - SSE-S3 encryption
+    - configurable versioning and force-destroy behavior
     - `examples/basic_usage`
     - module `README.md`
     - Terraform validation CI coverage for the module and example
@@ -116,11 +139,12 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - local pytest bootstrap aligned with CI import-path behavior
   - local `terraform plan` validation for the wired dev environment
   - repository-wide `terraform-docs` configuration
-  - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, Cognito module/example, API Gateway module/example, and the dev root
+  - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, Cognito module/example, API Gateway module/example, S3 frontend bucket module/example, and the dev root
 
 ### Next milestones
 
-- Edge delivery layer (S3 + CloudFront + WAF)
+- Frontend Foundation
+- Frontend Deployment Integration
 - EventBridge + SNS integration
 - `notification-worker`
 - Observability baseline
@@ -298,6 +322,7 @@ aws-serverless-events-platform/
 |       |-- eventbridge/
 |       |-- iam/
 |       |-- lambda/
+|       |-- s3_frontend_bucket/
 |       |-- sqs/
 |       `-- waf/
 |
@@ -401,11 +426,21 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - ensured `terraform-docs` injection is correct ✅
    - expanded Terraform validation CI to cover the module and example ✅
 
-13. EventBridge and SNS integration
-14. `notification-worker`
-15. CloudWatch observability and X-Ray tracing
-16. Remote Terraform backend and GitHub OIDC
-17. CI/CD deployment workflow
+13. Edge delivery layer (S3 + CloudFront + WAF)
+   - `s3_frontend_bucket` reusable module baseline ✅
+   - `infrastructure/envs/dev` wiring for the private frontend origin bucket
+   - `waf` reusable module
+   - `infrastructure/envs/dev` wiring for the WAF baseline
+   - `cloudfront` reusable module
+   - `infrastructure/envs/dev` wiring for the CloudFront baseline
+
+14. Frontend Foundation
+15. Frontend Deployment Integration
+16. EventBridge and SNS integration
+17. `notification-worker`
+18. CloudWatch observability and X-Ray tracing
+19. Remote Terraform backend and GitHub OIDC
+20. CI/CD deployment workflow
 
 
 The repository now also includes Terraform validation coverage for the currently

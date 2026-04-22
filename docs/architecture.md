@@ -31,6 +31,110 @@ WAF applies:
 
 This design protects the platform at the network edge and reduces load on backend services.
 
+### Edge Delivery Direction
+
+The intended edge-delivery baseline uses one CloudFront distribution as the
+public entry point for browser traffic.
+
+That distribution is expected to:
+
+- serve static frontend assets from a private S3 bucket
+- forward backend API requests to API Gateway
+- attach WAF protection at the edge
+- enforce HTTPS-only browser access
+- provide CDN caching for static frontend assets
+
+This keeps the platform aligned with a production-style edge model:
+
+- S3 stores static frontend assets
+- CloudFront is the public browser-facing layer
+- WAF protects public traffic before requests reach platform origins
+
+### Frontend Origin Strategy
+
+The frontend bucket is intentionally private.
+
+It is not intended to expose:
+
+- public bucket access
+- S3 website hosting endpoints
+- direct browser access to bucket objects
+
+Instead, the bucket exists only as a private CloudFront origin.
+
+This preserves a cleaner production-shaped boundary:
+
+- S3 stores frontend artifacts
+- CloudFront delivers those artifacts publicly
+- origin access stays controlled at the edge layer
+
+### CloudFront Behavior Direction
+
+CloudFront behavior is expected to remain intentionally simple in the first
+edge-delivery milestone.
+
+The initial distribution should support:
+
+- one default behavior for static frontend assets from S3
+- one separate behavior for backend API traffic to API Gateway
+- HTTPS redirect at the edge
+- compression for static frontend assets
+- caching for static frontend assets
+- little or no caching for backend API traffic
+- WAF association on the distribution
+
+The backend-forwarding behavior should preserve the existing routed backend
+contract instead of redefining backend authorization or business behavior at
+the edge.
+
+The exact browser-visible API path shape is intentionally not locked here yet.
+That detail should be finalized during the CloudFront implementation step so it
+can align cleanly with the deployed API Gateway stage strategy and routed
+backend contract already in use.
+
+### API Gateway Relationship
+
+CloudFront does not replace API Gateway.
+
+API Gateway remains responsible for:
+
+- route matching
+- JWT validation
+- Lambda request authorizers
+- normalized caller context
+- backend authorization boundaries
+- Lambda proxy integration behavior
+
+CloudFront changes the public entry path and request-routing layer, but the
+backend authorization model remains unchanged.
+
+### CORS Direction
+
+The reusable API Gateway module supports optional CORS configuration, but the
+platform's preferred browser-integration direction is same-origin access
+through CloudFront.
+
+That means the long-term preferred browser path is:
+
+- frontend assets delivered through CloudFront
+- backend API requests also entering through CloudFront
+
+Because of that, API Gateway CORS is expected to remain disabled unless a
+specific environment or integration case genuinely requires cross-origin
+browser access.
+
+### Future Frontend Deployment Direction
+
+Frontend deployment is expected to follow this flow:
+
+1. build frontend assets
+2. upload build artifacts into the private frontend bucket
+3. invalidate CloudFront cache as needed
+4. serve the new frontend version through CloudFront
+
+This keeps frontend deployment separate from backend Lambda deployment while
+still presenting one public product entry point.
+
 ---
 
 ## Authentication Layer

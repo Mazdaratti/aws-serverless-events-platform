@@ -19,6 +19,7 @@ This document is the working source of truth for:
 - event visibility and ownership behavior
 - RSVP access rules
 - account-management direction
+- frontend and edge-delivery behavior
 - auth versus business-authorization boundaries
 - normalized caller-context rules
 - Lambda implementation sequencing
@@ -26,6 +27,260 @@ This document is the working source of truth for:
 
 It should be updated when the platform's intended behavior changes in a
 meaningful way.
+
+---
+
+## Frontend and Edge Delivery Behavior
+
+The platform's frontend and edge-delivery direction is now locked strongly
+enough that future frontend implementation should follow it.
+
+This section defines the behavioral contract the future frontend app should use
+when interacting with the already implemented backend.
+
+### Public entry-point model
+
+The intended public entry point for the product is one CloudFront distribution.
+
+That distribution is expected to serve:
+
+- static frontend assets from a private S3 bucket
+- backend API requests using the existing routed API path shape
+
+This means the long-term browser-visible product is intended to present one
+origin for:
+
+- static frontend assets
+- backend API requests
+
+The platform is intentionally not introducing a second browser-facing API path
+contract such as `/api/*` in this phase.
+
+Instead, the future edge layer should preserve the already implemented routed
+backend path shape.
+
+### Routed API path contract for the frontend
+
+The frontend should follow the same route paths already implemented and
+validated in the backend:
+
+- `GET /events`
+- `GET /events/mine`
+- `GET /events/{event_id}`
+- `POST /events`
+- `PATCH /events/{event_id}`
+- `POST /events/{event_id}/cancel`
+- `POST /events/{event_id}/rsvp`
+- `GET /events/{event_id}/rsvps`
+
+This is the primary frontend integration direction for the product.
+
+The frontend must be implemented assuming these route paths remain the
+canonical public API shape.
+
+### Current deployment-path note
+
+The currently deployed direct API Gateway entry point still includes the stage
+path for the active environment.
+
+In `dev`, that means direct non-CloudFront API testing currently uses the
+stage-qualified API Gateway invoke path shape, for example:
+
+- `/dev/events`
+- `/dev/events/mine`
+- `/dev/events/{event_id}`
+
+That stage-qualified execute-api URL is a deployment detail of the current
+backend-only phase, not the intended long-term browser-facing product shape.
+
+The future CloudFront layer should preserve the routed backend path contract
+without forcing the frontend to adopt a separate translated API path family.
+
+### Same-origin contract
+
+The frontend should treat the backend API as same-origin application traffic in
+the final edge-delivery model.
+
+Rules:
+
+- the frontend should call backend routes through relative paths such as:
+  - `/events`
+  - `/events/mine`
+  - `/events/{event_id}`
+- the frontend should not treat the raw API Gateway execute-api hostname as the
+  normal browser-facing API base
+- the frontend should not hardcode a direct API Gateway stage URL into normal
+  application behavior
+- the frontend should assume the final browser-visible product uses one origin
+  for:
+  - static frontend assets
+  - backend API requests
+
+### CORS direction
+
+The reusable API Gateway module now supports optional CORS configuration, but
+that is not the primary frontend integration strategy.
+
+Locked direction:
+
+- the preferred product path is same-origin browser access through CloudFront
+- the frontend should not be designed around cross-origin browser calls to the
+  raw API Gateway URL
+- API Gateway CORS support remains an infrastructure capability for exceptional
+  cases such as:
+  - temporary direct API testing
+  - alternate environment setups
+  - future integration needs that genuinely require cross-origin behavior
+
+So CORS readiness remains useful, but the frontend app contract is not based on
+cross-origin API usage.
+
+### Frontend authentication behavior
+
+Frontend authentication remains Cognito-managed.
+
+The frontend is responsible for:
+
+- initiating sign-in and sign-out through the chosen frontend auth flow
+- holding the authenticated session state needed for browser interaction
+- attaching a bearer token for ordinary protected API requests
+- omitting authentication when calling public routes
+- preserving optional-auth behavior for the mixed-mode RSVP route
+
+The frontend must not:
+
+- derive identity or admin status from request payloads
+- invent user identity locally
+- bypass Cognito as the source of authenticated user identity
+- treat username or email as the internal user identifier
+
+The frontend should understand the routed auth modes as:
+
+- public routes:
+  - no bearer token required
+- authenticated routes:
+  - bearer token required
+- mixed-mode RSVP route:
+  - bearer token may be absent for anonymous public RSVP
+  - bearer token may be present for authenticated RSVP
+  - malformed or invalid presented auth should be treated as a failed request,
+    not silently downgraded to anonymous behavior
+
+### Frontend request-shape contract
+
+The frontend must follow the current routed API contract and must not rely on
+internal storage model details.
+
+Rules:
+
+- use public route paths only
+- use public event identifiers only
+- never send internal storage key forms such as:
+  - `EVENT#...`
+- treat pagination cursors as opaque values
+- pass `next_cursor` back exactly as received
+- not infer DynamoDB key structure from API responses
+- not depend on hidden storage-only fields
+
+### Frontend response-consumption contract
+
+The frontend must consume the already locked backend response contracts as they
+are exposed by the routed API.
+
+This includes:
+
+- event DTOs returned by:
+  - `list-events`
+  - `list-my-events`
+  - `get-event`
+  - `update-event`
+  - `cancel-event`
+- RSVP write responses returned by:
+  - `rsvp`
+- RSVP read responses returned by:
+  - `get-event-rsvps`
+
+The frontend must treat those API-facing DTOs as the source of truth for UI
+rendering rather than trying to reconstruct hidden backend state.
+
+In particular:
+
+- the frontend must use:
+  - `event_id`
+  - not internal `event_pk`
+- the frontend must use:
+  - `created_by`
+  - not internal `creator_id`
+- the frontend must not expect:
+  - GSI helper fields
+  - raw DynamoDB keys
+  - `not_attending_count` inside public event DTOs
+
+### Frontend timestamp behavior
+
+Backend APIs return canonical timestamps as ISO 8601 UTC strings.
+
+Locked frontend direction:
+
+- the frontend is responsible for user-friendly timestamp rendering
+- the frontend should convert backend UTC timestamps into readable UI text for
+  people
+- the frontend must not require the backend to pre-render presentation-specific
+  date strings
+
+This preserves the current backend/frontend responsibility split already used
+by the event DTO contract.
+
+### Frontend route-usage direction
+
+The initial frontend should align with the currently implemented routed API
+surface only.
+
+Locked initial browser-facing API surface:
+
+- `GET /events`
+- `GET /events/mine`
+- `GET /events/{event_id}`
+- `POST /events`
+- `PATCH /events/{event_id}`
+- `POST /events/{event_id}/cancel`
+- `POST /events/{event_id}/rsvp`
+- `GET /events/{event_id}/rsvps`
+
+The frontend must not assume unimplemented routes exist.
+
+### Frontend error-handling direction
+
+The frontend should respect the current routed API error semantics instead of
+normalizing all failures into one generic UI state.
+
+Important examples from the locked backend contract:
+
+- `401`
+  - ordinary protected route called without valid authentication
+  - rejected at the API edge
+- `403`
+  - caller is authenticated but not allowed for the requested business action
+  - or invalid presented auth on the mixed-mode RSVP route is denied at the
+    API edge
+- `404`
+  - resource does not exist
+- `400`
+  - validation or business-rule failure
+
+The frontend should preserve these distinctions in a user-appropriate way.
+
+### Frontend non-responsibilities
+
+The frontend must not:
+
+- implement business authorization logic as the source of truth
+- duplicate JWT validation logic that belongs to API Gateway or the dedicated
+  RSVP authorizer
+- depend on direct Lambda invocation shapes
+- depend on raw API Gateway authorizer context
+- depend on DynamoDB storage model details
+- assume CORS is the primary browser integration mechanism
 
 ---
 

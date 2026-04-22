@@ -370,6 +370,11 @@ Why this module is wired now:
 Important design notes:
 
 - this is the current routed backend baseline, not yet the final product edge surface
+- the current stage-qualified API Gateway invoke URL is a backend-only
+  integration and validation surface during the pre-CloudFront phase
+- the future edge layer is expected to preserve the existing routed backend
+  path contract rather than introducing a separate translated browser-facing
+  API path family
 - API Gateway stage access logs are now enabled in `dev`
 - the API Gateway access-log log group is owned by `envs/dev`, while the reusable module owns the stage logging configuration
 - stage throttling is now configured in `dev` to establish one backend protection baseline before the edge layer is introduced

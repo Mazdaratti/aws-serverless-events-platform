@@ -30,7 +30,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - Edge delivery layer (S3 + CloudFront + WAF)
   - production-shaped public entry layer in front of the existing routed backend
   - private S3 frontend origin bucket
-  - CloudFront delivery for static assets and later `/api/*` forwarding
+  - CloudFront delivery for static assets and later backend API forwarding
   - AWS WAF managed-rule and rate-limit baseline at the edge
   - implemented in small 2-PR slices per component:
     - reusable module first

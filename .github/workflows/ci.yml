@@ -93,6 +93,8 @@ jobs:
           - infrastructure/modules/s3_frontend_bucket/examples/basic_usage
           - infrastructure/modules/sqs
           - infrastructure/modules/sqs/examples/basic_usage
+          - infrastructure/modules/waf
+          - infrastructure/modules/waf/examples/basic_usage
           - infrastructure/envs/dev
 
     defaults:

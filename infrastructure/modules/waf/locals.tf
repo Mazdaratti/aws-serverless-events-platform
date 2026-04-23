@@ -43,5 +43,6 @@ locals {
     rule.name => "${local.web_acl_metric_name}_${replace(rule.name, "-", "_")}"
   }
 
+  rate_limit_rule_name   = "${local.web_acl_name}-rate-limit"
   rate_limit_metric_name = "${local.web_acl_metric_name}_rate_limit"
 }

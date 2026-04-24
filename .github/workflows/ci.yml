@@ -81,6 +81,8 @@ jobs:
           # and are relevant for this stage of the repository.
           - infrastructure/modules/api_gateway
           - infrastructure/modules/api_gateway/examples/basic_usage
+          - infrastructure/modules/cloudfront
+          - infrastructure/modules/cloudfront/examples/basic_usage
           - infrastructure/modules/cognito
           - infrastructure/modules/cognito/examples/basic_usage
           - infrastructure/modules/dynamodb_data_layer

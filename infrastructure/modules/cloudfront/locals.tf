@@ -23,7 +23,7 @@ locals {
   s3_origin_domain_name  = trimspace(var.s3_origin_bucket_regional_domain_name)
   api_origin_id          = trimspace(var.api_origin_id)
   api_origin_domain_name = trimspace(var.api_origin_domain_name)
-  api_origin_path        = var.api_origin_path == null ? null : trimspace(var.api_origin_path)
+  api_origin_path        = var.api_origin_path == null ? "" : trimspace(var.api_origin_path)
 
   # The current backend contract deliberately preserves the deployed API route
   # family directly under /events instead of introducing a new /api/* prefix.

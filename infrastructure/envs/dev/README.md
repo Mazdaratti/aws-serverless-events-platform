@@ -676,13 +676,13 @@ Implemented via:
 
 This environment currently wires in:
 
-- one private S3 bucket for future frontend asset storage
+- one private S3 bucket for frontend asset storage behind CloudFront
 
 Why this module is wired now:
 
-- the platform now needs a real frontend-origin bucket before CloudFront and WAF can be added cleanly
+- the platform needed a real frontend-origin bucket before CloudFront and WAF could be added cleanly
 - the edge-delivery rollout is intentionally being implemented in small module-first and env-wiring-second slices
-- a private S3 origin bucket is the first concrete storage dependency for the later browser-facing edge layer
+- a private S3 origin bucket is the storage dependency for the browser-facing CloudFront edge layer
 
 Important design notes:
 
@@ -692,7 +692,7 @@ Important design notes:
 - `envs/dev` currently keeps bucket versioning disabled to keep this non-production environment lean
 - `envs/dev` currently sets `force_destroy = true` so the bucket stays easy to tear down and recreate during iterative edge rollout work
 - one tiny placeholder frontend file can now be uploaded for validation without introducing a real frontend implementation yet
-- the future CloudFront layer is expected to use this bucket as its private frontend origin
+- the CloudFront distribution now uses this bucket as its private frontend origin
 - reusable AWS resource logic belongs in modules while `envs/dev` stays composition-oriented
 
 Validation:
@@ -743,7 +743,7 @@ Why this module is wired now:
 Important design notes:
 
 - the Web ACL is CloudFront-scoped, so it is managed through the `us-east-1` AWS provider alias
-- the Web ACL is not associated with a CloudFront distribution yet because the CloudFront module and environment wiring are separate follow-up steps
+- the Web ACL is now associated with the dev CloudFront distribution through the CloudFront module wiring
 - the default Web ACL action is `allow`
 - the managed-rule baseline includes:
   - `AWSManagedRulesCommonRuleSet`
@@ -780,6 +780,83 @@ Validation:
 
 ---
 
+## CloudFront Edge Distribution Baseline
+
+Creates the initial public edge entry-point baseline for the platform.
+
+Implemented via:
+
+- `modules/cloudfront`
+
+This environment currently wires in:
+
+- one CloudFront distribution
+- one S3 Origin Access Control for the private frontend origin bucket
+- one default static asset behavior backed by the private S3 bucket
+- two ordered API behaviors for:
+  - `/events`
+  - `/events/*`
+- one API Gateway origin using the existing `dev` stage path
+- the already-created CloudFront-scoped WAF Web ACL
+- one environment-owned S3 bucket policy that allows CloudFront read access to the private frontend bucket
+
+Why this module is wired now:
+
+- the private frontend origin bucket and WAF baseline already exist in `dev`
+- the platform now needs CloudFront to become the intended public entry point
+- the edge-delivery baseline must prove both static delivery and backend API routing before real frontend implementation starts
+
+Important design notes:
+
+- CloudFront serves `index.html` and future static frontend assets from the private S3 origin bucket
+- S3 direct public access remains denied
+- CloudFront accesses S3 through Origin Access Control, not legacy Origin Access Identity
+- the S3 bucket policy is owned by `envs/dev` because it binds this concrete bucket to this concrete distribution ARN
+- API Gateway remains the backend route/auth/integration layer
+- CloudFront forwards the existing backend route family through:
+  - `/events`
+  - `/events/*`
+- CloudFront uses the API Gateway domain as the origin and supplies the stage path through `origin_path = /dev`
+- WAF is associated with the distribution at the CloudFront edge
+- static traffic uses the managed caching-optimized policy
+- API traffic uses the managed caching-disabled policy and forwards viewer request details needed by API Gateway
+- custom domains, Route 53, ACM certificates, logging buckets, SPA rewrites, and frontend deployment automation remain out of scope for this environment step
+- reusable AWS resource logic belongs in modules while `envs/dev` stays composition-oriented
+
+Validation:
+
+- validated via `terraform apply`, AWS Console inspection, AWS CLI inspection, runtime curl checks, and a clean post-apply `terraform plan`
+- confirmed the CloudFront distribution was created and deployed
+- confirmed the rendered CloudFront distribution name is:
+  - `aws-serverless-events-platform-dev-edge`
+- confirmed the CloudFront distribution domain name was created and is exposed via:
+  - `cloudfront_distribution_domain_name`
+- confirmed Terraform outputs match the created distribution identity:
+  - `cloudfront_distribution_id`
+  - `cloudfront_distribution_arn`
+  - `cloudfront_distribution_domain_name`
+  - `cloudfront_distribution_hosted_zone_id`
+  - `cloudfront_s3_origin_access_control_id`
+- confirmed the distribution has two origins:
+  - `s3-frontend-origin`
+  - `api-gateway-origin`
+- confirmed the S3 origin uses Origin Access Control
+- confirmed the API Gateway origin uses the API Gateway domain with origin path:
+  - `/dev`
+- confirmed behaviors are configured for:
+  - default static frontend traffic
+  - `/events`
+  - `/events/*`
+- confirmed WAF is associated with the distribution
+- confirmed direct S3 public access to `index.html` returns `403 AccessDenied`
+- confirmed CloudFront serves `index.html` successfully
+- confirmed CloudFront routes `/events` to API Gateway successfully
+- confirmed HTTP requests redirect to HTTPS at CloudFront
+- confirmed a clean post-apply `terraform plan`
+- see evidence screenshots under `docs/assets/cloudfront/`
+
+---
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -792,13 +869,14 @@ Validation:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.41.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.42.0 |
 
 ## Modules
 
 | Name | Source | Version |
 |------|--------|---------|
 | <a name="module_api_gateway"></a> [api\_gateway](#module\_api\_gateway) | ../../modules/api_gateway | n/a |
+| <a name="module_cloudfront"></a> [cloudfront](#module\_cloudfront) | ../../modules/cloudfront | n/a |
 | <a name="module_cognito"></a> [cognito](#module\_cognito) | ../../modules/cognito | n/a |
 | <a name="module_dynamodb_data_layer"></a> [dynamodb\_data\_layer](#module\_dynamodb\_data\_layer) | ../../modules/dynamodb_data_layer | n/a |
 | <a name="module_iam"></a> [iam](#module\_iam) | ../../modules/iam | n/a |
@@ -812,6 +890,8 @@ Validation:
 | Name | Type |
 |------|------|
 | [aws_cloudwatch_log_group.api_gateway_access](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
+| [aws_s3_bucket_policy.frontend_origin](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_policy) | resource |
+| [aws_iam_policy_document.frontend_bucket_cloudfront_read](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 
 ## Inputs
 
@@ -836,6 +916,11 @@ Validation:
 | <a name="output_api_gateway_route_keys"></a> [api\_gateway\_route\_keys](#output\_api\_gateway\_route\_keys) | Map of logical route name to route key for the dev environment routed backend baseline. |
 | <a name="output_api_gateway_stage_invoke_url"></a> [api\_gateway\_stage\_invoke\_url](#output\_api\_gateway\_stage\_invoke\_url) | Stage-qualified invoke URL of the HTTP API created for the dev environment routed backend baseline. |
 | <a name="output_api_gateway_stage_name"></a> [api\_gateway\_stage\_name](#output\_api\_gateway\_stage\_name) | Stage name of the HTTP API created for the dev environment routed backend baseline. |
+| <a name="output_cloudfront_distribution_arn"></a> [cloudfront\_distribution\_arn](#output\_cloudfront\_distribution\_arn) | ARN of the CloudFront distribution created for the dev environment. |
+| <a name="output_cloudfront_distribution_domain_name"></a> [cloudfront\_distribution\_domain\_name](#output\_cloudfront\_distribution\_domain\_name) | Domain name of the CloudFront distribution created for the dev environment. |
+| <a name="output_cloudfront_distribution_hosted_zone_id"></a> [cloudfront\_distribution\_hosted\_zone\_id](#output\_cloudfront\_distribution\_hosted\_zone\_id) | Route 53 hosted zone ID used by the CloudFront distribution created for the dev environment. |
+| <a name="output_cloudfront_distribution_id"></a> [cloudfront\_distribution\_id](#output\_cloudfront\_distribution\_id) | ID of the CloudFront distribution created for the dev environment. |
+| <a name="output_cloudfront_s3_origin_access_control_id"></a> [cloudfront\_s3\_origin\_access\_control\_id](#output\_cloudfront\_s3\_origin\_access\_control\_id) | ID of the Origin Access Control used by the dev CloudFront distribution for the private S3 frontend origin. |
 | <a name="output_cognito_admin_group_name"></a> [cognito\_admin\_group\_name](#output\_cognito\_admin\_group\_name) | Name of the Cognito admin group created for the dev environment. |
 | <a name="output_cognito_issuer"></a> [cognito\_issuer](#output\_cognito\_issuer) | JWT issuer URL for the Cognito User Pool created for the dev environment. |
 | <a name="output_cognito_user_pool_arn"></a> [cognito\_user\_pool\_arn](#output\_cognito\_user\_pool\_arn) | ARN of the Cognito User Pool created for the dev environment. |

@@ -346,3 +346,30 @@ module "s3_frontend_bucket" {
   versioning_enabled = false
   force_destroy      = true
 }
+
+############################################
+# WAF edge protection baseline
+############################################
+
+# This environment wires in the reusable CloudFront-scoped WAF module as the
+# next edge-delivery slice after the private frontend origin bucket.
+#
+# CloudFront-scoped WAFv2 resources must be managed through us-east-1, so this
+# module receives the aliased provider from providers.tf explicitly.
+#
+# The Web ACL is created now, but it is not associated with CloudFront yet.
+# That association belongs to the later CloudFront wiring step.
+module "waf" {
+  source = "../../modules/waf"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  name_prefix = local.name_prefix
+  tags        = local.tags
+
+  web_acl_name_suffix = "edge"
+  rate_limit_enabled  = true
+  rate_limit          = 2000
+}

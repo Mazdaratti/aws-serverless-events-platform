@@ -50,29 +50,31 @@ resource "aws_cloudfront_distribution" "this" {
   web_acl_id          = var.web_acl_arn
 
   origin {
-    domain_name              = local.s3_origin_domain_name
-    origin_id                = local.s3_origin_id
-    origin_access_control_id = aws_cloudfront_origin_access_control.s3.id
-
-    # Required for regular S3 bucket origins. With OAC, the legacy origin
-    # access identity value intentionally stays empty.
-    s3_origin_config {
-      origin_access_identity = ""
-    }
+    domain_name                 = local.s3_origin_domain_name
+    origin_id                   = local.s3_origin_id
+    origin_access_control_id    = aws_cloudfront_origin_access_control.s3.id
+    connection_attempts         = 3
+    connection_timeout          = 10
+    response_completion_timeout = 0
   }
 
   origin {
-    domain_name = local.api_origin_domain_name
-    origin_id   = local.api_origin_id
-    origin_path = local.api_origin_path
+    domain_name                 = local.api_origin_domain_name
+    origin_id                   = local.api_origin_id
+    origin_path                 = local.api_origin_path
+    connection_attempts         = 3
+    connection_timeout          = 10
+    response_completion_timeout = 0
 
     # API Gateway is modeled as a custom HTTPS origin. The stage path, such as
     # /dev, is supplied through origin_path by the environment root later.
     custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
+      http_port                = 80
+      https_port               = 443
+      origin_keepalive_timeout = 5
+      origin_protocol_policy   = "https-only"
+      origin_read_timeout      = 30
+      origin_ssl_protocols     = ["TLSv1.2"]
     }
   }
 

@@ -26,8 +26,7 @@ CloudFront serves static frontend assets from:
 WAF applies:
 
 - AWS Managed Rule Sets
-- Rate limiting
-- Optional IP filtering rules
+- IP-based rate limiting
 
 This design protects the platform at the network edge and reduces load on backend services.
 

@@ -373,3 +373,72 @@ module "waf" {
   rate_limit_enabled  = true
   rate_limit          = 2000
 }
+
+############################################
+# CloudFront edge distribution baseline
+############################################
+
+# This environment wires in the reusable CloudFront module as the public edge
+# entry-point baseline for the platform.
+#
+# CloudFront now composes the private S3 frontend origin, the routed API
+# Gateway backend origin, and the CloudFront-scoped WAF Web ACL that were
+# introduced in earlier edge-delivery slices.
+module "cloudfront" {
+  source = "../../modules/cloudfront"
+
+  name_prefix = local.name_prefix
+  tags        = local.tags
+
+  s3_origin_bucket_regional_domain_name = module.s3_frontend_bucket.bucket_regional_domain_name
+
+  # API Gateway exposes a stage-qualified execute-api URL today. CloudFront
+  # receives the origin domain separately from the stage path so browser-facing
+  # requests can keep the existing /events route shape while API Gateway still
+  # receives /dev/events behind the edge layer.
+  api_origin_domain_name = replace(module.api_gateway.api_endpoint, "https://", "")
+  api_origin_path        = "/${module.api_gateway.stage_name}"
+
+  # Attach the already-created CloudFront-scoped WAF baseline at the edge.
+  web_acl_arn = module.waf.web_acl_arn
+
+  price_class         = "PriceClass_100"
+  enabled             = true
+  default_root_object = "index.html"
+}
+
+############################################
+# CloudFront access to the private S3 origin
+############################################
+
+data "aws_iam_policy_document" "frontend_bucket_cloudfront_read" {
+  statement {
+    sid    = "AllowCloudFrontRead"
+    effect = "Allow"
+
+    actions = ["s3:GetObject"]
+
+    resources = [
+      "${module.s3_frontend_bucket.bucket_arn}/*",
+    ]
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = [module.cloudfront.distribution_arn]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "frontend_origin" {
+  # OAC signs CloudFront requests, but S3 still needs an explicit bucket policy
+  # that trusts only this distribution ARN. The policy belongs here because the
+  # environment owns the concrete bucket/distribution relationship.
+  bucket = module.s3_frontend_bucket.bucket_id
+  policy = data.aws_iam_policy_document.frontend_bucket_cloudfront_read.json
+}

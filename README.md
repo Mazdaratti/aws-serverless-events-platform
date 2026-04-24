@@ -27,22 +27,12 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Edge delivery layer (S3 + CloudFront + WAF)
-  - production-shaped public entry layer in front of the existing routed backend
-  - private S3 frontend origin bucket
-  - CloudFront delivery for static assets and later backend API forwarding
-  - AWS WAF managed-rule and rate-limit baseline at the edge
-  - implemented in small 2-PR slices per component:
-    - reusable module first
-    - `infrastructure/envs/dev` wiring second
-  - completed in this sequence so far:
-    - S3 frontend bucket module
-    - S3 frontend bucket wiring in `envs/dev`
-    - WAF module
-    - WAF wiring in `envs/dev`
-    - CloudFront module
-  - remaining implementation order:
-    - CloudFront wiring in `envs/dev`
+- Frontend Foundation
+  - build the first real browser application on top of the completed edge-delivery baseline
+  - use CloudFront as the intended public entry point
+  - serve frontend assets from the private S3 origin through CloudFront
+  - call the existing routed backend through the CloudFront `/events` and `/events/*` route family
+  - keep frontend implementation separate from deployment automation
 
 ### Completed milestones
 
@@ -113,6 +103,17 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - `examples/basic_usage`
     - module `README.md`
     - Terraform validation CI coverage for the module and example
+  - `infrastructure/envs/dev` wiring for the CloudFront edge distribution baseline
+    - CloudFront distribution created in AWS
+    - private S3 frontend bucket attached through Origin Access Control
+    - caller-owned S3 bucket policy scoped to the CloudFront distribution ARN
+    - API Gateway origin attached with the existing `/events` route shape
+    - WAF Web ACL associated with the distribution
+    - HTTPS redirect validated
+    - static placeholder delivery through CloudFront validated
+    - `/events` API routing through CloudFront validated
+    - direct S3 public object access remains denied
+    - clean post-apply Terraform plan validated
   - `infrastructure/envs/dev` wiring for the routed backend baseline
 - Core synchronous Lambda rollout
   - `create-event`
@@ -176,7 +177,6 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Next milestones
 
-- Frontend Foundation
 - Frontend Deployment Integration
 - EventBridge + SNS integration
 - `notification-worker`
@@ -465,9 +465,9 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - `waf` reusable module ✅
    - `infrastructure/envs/dev` wiring for the WAF baseline ✅
    - `cloudfront` reusable module ✅
-   - `infrastructure/envs/dev` wiring for the CloudFront baseline
+   - `infrastructure/envs/dev` wiring for the CloudFront baseline ✅
 
-14. Frontend Foundation
+14. Frontend Foundation ⏳
 15. Frontend Deployment Integration
 16. EventBridge and SNS integration
 17. `notification-worker`

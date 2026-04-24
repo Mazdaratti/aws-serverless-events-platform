@@ -203,6 +203,39 @@ output "waf_web_acl_name" {
 }
 
 ############################################
+# CloudFront edge distribution baseline outputs
+############################################
+
+# These outputs expose the CloudFront distribution values needed for browser
+# validation, later frontend deployment integration, and future DNS/custom
+# domain work without requiring callers to inspect the cloudfront module
+# internals directly.
+output "cloudfront_distribution_id" {
+  description = "ID of the CloudFront distribution created for the dev environment."
+  value       = module.cloudfront.distribution_id
+}
+
+output "cloudfront_distribution_arn" {
+  description = "ARN of the CloudFront distribution created for the dev environment."
+  value       = module.cloudfront.distribution_arn
+}
+
+output "cloudfront_distribution_domain_name" {
+  description = "Domain name of the CloudFront distribution created for the dev environment."
+  value       = module.cloudfront.distribution_domain_name
+}
+
+output "cloudfront_distribution_hosted_zone_id" {
+  description = "Route 53 hosted zone ID used by the CloudFront distribution created for the dev environment."
+  value       = module.cloudfront.distribution_hosted_zone_id
+}
+
+output "cloudfront_s3_origin_access_control_id" {
+  description = "ID of the Origin Access Control used by the dev CloudFront distribution for the private S3 frontend origin."
+  value       = module.cloudfront.s3_origin_access_control_id
+}
+
+############################################
 # API Gateway routed backend baseline outputs
 ############################################
 

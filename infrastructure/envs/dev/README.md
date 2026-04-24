@@ -720,6 +720,66 @@ Validation:
 
 ---
 
+## WAF Edge Protection Baseline
+
+Creates the initial CloudFront-scoped WAF protection baseline for the platform.
+
+Implemented via:
+
+- `modules/waf`
+
+This environment currently wires in:
+
+- one CloudFront-scoped WAFv2 Web ACL
+- a fixed AWS managed-rule baseline
+- one simple IP-based rate-limit rule
+
+Why this module is wired now:
+
+- the platform now has private frontend-origin storage and can begin adding the edge protection layer in front of the future CloudFront entry point
+- WAF is intentionally introduced before CloudFront wiring so the protection baseline exists before the distribution is attached to it
+- the edge-delivery rollout remains split into small module-first and env-wiring-second slices
+
+Important design notes:
+
+- the Web ACL is CloudFront-scoped, so it is managed through the `us-east-1` AWS provider alias
+- the Web ACL is not associated with a CloudFront distribution yet because the CloudFront module and environment wiring are separate follow-up steps
+- the default Web ACL action is `allow`
+- the managed-rule baseline includes:
+  - `AWSManagedRulesCommonRuleSet`
+  - `AWSManagedRulesKnownBadInputsRuleSet`
+  - `AWSManagedRulesAmazonIpReputationList`
+- the rate-limit rule blocks requests when one source IP exceeds the configured threshold
+- `dev` currently uses a simple rate limit of `2000` requests per five-minute evaluation window
+- visibility configuration is enabled for the Web ACL and every rule so metrics and sampled requests are available
+- reusable AWS resource logic belongs in modules while `envs/dev` stays composition-oriented
+
+Validation:
+
+- validated via `terraform apply`, Terraform output verification, AWS CLI inspection, AWS Console inspection, tag inspection, and a clean post-apply `terraform plan`
+- confirmed the CloudFront-scoped Web ACL was created in `us-east-1`
+- confirmed the rendered Web ACL name is:
+  - `aws-serverless-events-platform-dev-edge`
+- confirmed Terraform outputs match the created Web ACL identity:
+  - `waf_web_acl_arn`
+  - `waf_web_acl_id`
+  - `waf_web_acl_name`
+- confirmed the Web ACL scope is:
+  - `CLOUDFRONT`
+- confirmed the default action is:
+  - `allow`
+- confirmed the managed-rule baseline is present
+- confirmed the rate-limit rule uses:
+  - `Limit = 2000`
+  - `AggregateKeyType = IP`
+  - `Action = Block`
+- confirmed Web ACL and rule visibility configuration is enabled
+- confirmed expected project, environment, management, and name tags are applied
+- confirmed a clean post-apply `terraform plan`
+- see evidence screenshots under `docs/assets/waf/`
+
+---
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -745,6 +805,7 @@ Validation:
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
 | <a name="module_s3_frontend_bucket"></a> [s3\_frontend\_bucket](#module\_s3\_frontend\_bucket) | ../../modules/s3_frontend_bucket | n/a |
 | <a name="module_sqs"></a> [sqs](#module\_sqs) | ../../modules/sqs | n/a |
+| <a name="module_waf"></a> [waf](#module\_waf) | ../../modules/waf | n/a |
 
 ## Resources
 
@@ -802,4 +863,7 @@ Validation:
 | <a name="output_sqs_queue_arns"></a> [sqs\_queue\_arns](#output\_sqs\_queue\_arns) | Map of logical queue key to rendered SQS queue ARN for the dev environment. |
 | <a name="output_sqs_queue_names"></a> [sqs\_queue\_names](#output\_sqs\_queue\_names) | Map of logical queue key to rendered SQS queue name for the dev environment. |
 | <a name="output_sqs_queue_urls"></a> [sqs\_queue\_urls](#output\_sqs\_queue\_urls) | Map of logical queue key to rendered SQS queue URL for the dev environment. |
+| <a name="output_waf_web_acl_arn"></a> [waf\_web\_acl\_arn](#output\_waf\_web\_acl\_arn) | ARN of the CloudFront-scoped Web ACL created for the dev environment. |
+| <a name="output_waf_web_acl_id"></a> [waf\_web\_acl\_id](#output\_waf\_web\_acl\_id) | ID of the CloudFront-scoped Web ACL created for the dev environment. |
+| <a name="output_waf_web_acl_name"></a> [waf\_web\_acl\_name](#output\_waf\_web\_acl\_name) | Name of the CloudFront-scoped Web ACL created for the dev environment. |
 <!-- END_TF_DOCS -->

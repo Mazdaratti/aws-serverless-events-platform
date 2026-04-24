@@ -181,6 +181,28 @@ output "frontend_bucket_regional_domain_name" {
 }
 
 ############################################
+# WAF edge protection baseline outputs
+############################################
+
+# These outputs expose the CloudFront-scoped Web ACL values that later
+# CloudFront wiring will need, without requiring callers to inspect the waf
+# module internals directly.
+output "waf_web_acl_arn" {
+  description = "ARN of the CloudFront-scoped Web ACL created for the dev environment."
+  value       = module.waf.web_acl_arn
+}
+
+output "waf_web_acl_id" {
+  description = "ID of the CloudFront-scoped Web ACL created for the dev environment."
+  value       = module.waf.web_acl_id
+}
+
+output "waf_web_acl_name" {
+  description = "Name of the CloudFront-scoped Web ACL created for the dev environment."
+  value       = module.waf.web_acl_name
+}
+
+############################################
 # API Gateway routed backend baseline outputs
 ############################################
 

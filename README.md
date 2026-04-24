@@ -38,9 +38,9 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - completed in this sequence so far:
     - S3 frontend bucket module
     - S3 frontend bucket wiring in `envs/dev`
-  - remaining implementation order:
     - WAF module
     - WAF wiring in `envs/dev`
+  - remaining implementation order:
     - CloudFront module
     - CloudFront wiring in `envs/dev`
 
@@ -88,6 +88,20 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - versioning intentionally left suspended in `dev`
     - placeholder `index.html` upload validated
     - direct public object access denied
+  - `waf` module baseline for CloudFront edge protection
+    - CloudFront-scoped WAFv2 Web ACL baseline
+    - fixed AWS managed-rule baseline
+    - simple IP-based rate limiting
+    - visibility configuration enabled by default
+    - `examples/basic_usage`
+    - module `README.md`
+    - Terraform validation CI coverage for the module and example
+  - `infrastructure/envs/dev` wiring for the WAF edge protection baseline
+    - CloudFront-scoped Web ACL created in AWS
+    - Web ACL managed through the required `us-east-1` provider path
+    - managed rules validated
+    - rate-limit rule validated
+    - visibility configuration and tags validated
   - `infrastructure/envs/dev` wiring for the routed backend baseline
 - Core synchronous Lambda rollout
   - `create-event`
@@ -147,7 +161,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - local pytest bootstrap aligned with CI import-path behavior
   - local `terraform plan` validation for the wired dev environment
   - repository-wide `terraform-docs` configuration
-  - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, Cognito module/example, API Gateway module/example, S3 frontend bucket module/example, and the dev root
+  - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, Cognito module/example, API Gateway module/example, S3 frontend bucket module/example, WAF module/example, and the dev root
 
 ### Next milestones
 
@@ -437,8 +451,8 @@ Infrastructure is implemented using modular Terraform design with environment-sp
 13. Edge delivery layer (S3 + CloudFront + WAF)
    - `s3_frontend_bucket` reusable module baseline ✅
    - `infrastructure/envs/dev` wiring for the private frontend origin bucket ✅
-   - `waf` reusable module
-   - `infrastructure/envs/dev` wiring for the WAF baseline
+   - `waf` reusable module ✅
+   - `infrastructure/envs/dev` wiring for the WAF baseline ✅
    - `cloudfront` reusable module
    - `infrastructure/envs/dev` wiring for the CloudFront baseline
 

@@ -96,7 +96,9 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - `cloudfront` module baseline for edge distribution
     - CloudFront distribution baseline
     - S3 Origin Access Control for private frontend-origin access
+    - CloudFront Function for targeted SPA navigation rewrites
     - default static asset behavior backed by S3
+    - ordered frontend SPA behaviors for `/app` and `/app/*`
     - ordered backend API behaviors for `/events` and `/events/*`
     - HTTPS redirect behavior
     - managed static caching and API no-cache policies
@@ -108,10 +110,14 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - CloudFront distribution created in AWS
     - private S3 frontend bucket attached through Origin Access Control
     - caller-owned S3 bucket policy scoped to the CloudFront distribution ARN
+    - frontend SPA route namespace `/app` and `/app/*` routed to S3
+    - targeted CloudFront Function rewrite for eligible browser HTML navigations
     - API Gateway origin attached with the existing `/events` route shape
     - WAF Web ACL associated with the distribution
     - HTTPS redirect validated
     - static placeholder delivery through CloudFront validated
+    - `/app` SPA deep-link routing through CloudFront validated
+    - missing static assets under `/app/*` confirmed not to rewrite to the SPA entrypoint
     - `/events` API routing through CloudFront validated
     - direct S3 public object access remains denied
     - clean post-apply Terraform plan validated
@@ -480,6 +486,7 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - `infrastructure/envs/dev` wiring for the WAF baseline ✅
    - `cloudfront` reusable module ✅
    - `infrastructure/envs/dev` wiring for the CloudFront baseline ✅
+   - `/app` SPA routing namespace and CloudFront Function rewrite ✅
 
 14. Frontend Foundation ⏳
 15. Frontend Deployment Integration

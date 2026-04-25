@@ -31,6 +31,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - build the first real browser application on top of the completed edge-delivery baseline
   - use CloudFront as the intended public entry point
   - serve frontend assets from the private S3 origin through CloudFront
+  - serve frontend browser routes under `/app`
   - call the existing routed backend through the CloudFront `/events` and `/events/*` route family
   - keep frontend implementation separate from deployment automation
 
@@ -213,28 +214,41 @@ AWS Shield Standard provides automatic edge protection.
 
 1. Users access the application through **Amazon CloudFront**.
 2. CloudFront securely serves static frontend assets from a private **Amazon S3** bucket.
-3. **AWS WAF** filters malicious traffic at the edge before requests reach the backend.
+3. Frontend browser routes are served under `/app`.
+4. **AWS WAF** filters malicious traffic at the edge before requests reach the backend.
+
+### Frontend Routing Model
+
+The frontend is delivered as a SPA under:
+
+- `/app`
+
+API routes remain under:
+
+- `/events`
+
+CloudFront handles SPA deep-link routing for `/app/*` without affecting API behavior.
 
 ### API Request Flow
 
-4. The frontend sends API requests to **Amazon API Gateway**.
-5. Route protection is enforced at API Gateway using a hybrid authorizer model:
+5. The frontend sends same-origin API requests through **Amazon CloudFront** to **Amazon API Gateway**.
+6. Route protection is enforced at API Gateway using a hybrid authorizer model:
    - native JWT authorizer for ordinary protected routes
    - a dedicated Lambda authorizer for the mixed-mode RSVP route
 
 ### Event Management
 
-6. API Gateway invokes a **Lambda function** to create or retrieve event data.
-7. Event information is stored in **Amazon DynamoDB**, providing scalable serverless persistence.
+7. API Gateway invokes a **Lambda function** to create or retrieve event data.
+8. Event information is stored in **Amazon DynamoDB**, providing scalable serverless persistence.
 
 ### RSVP Processing
 
-8. RSVP submissions are handled as a **synchronous business operation**.
-9. The primary RSVP write path is:
+9. RSVP submissions are handled as a **synchronous business operation**.
+10. The primary RSVP write path is:
 
-`Client -> API Gateway -> Lambda -> DynamoDB transaction`
+`Client -> CloudFront -> API Gateway -> Lambda -> DynamoDB transaction`
 
-10. This design preserves the current API contract so the caller immediately knows whether:
+11. This design preserves the current API contract so the caller immediately knows whether:
 - the RSVP was created
 - the RSVP was updated
 - the event is already at capacity
@@ -243,9 +257,9 @@ AWS Shield Standard provides automatic edge protection.
 
 ### Event-Driven Extensions
 
-11. After a successful durable write, domain events such as event creation or RSVP confirmation are published to **Amazon EventBridge**.
-12. EventBridge routes these events to **Amazon SNS**, enabling notifications and future integrations.
-13. **Amazon SQS** remains part of the platform for asynchronous side effects and decoupled follow-up processing such as:
+12. After a successful durable write, domain events such as event creation or RSVP confirmation are published to **Amazon EventBridge**.
+13. EventBridge routes these events to **Amazon SNS**, enabling notifications and future integrations.
+14. **Amazon SQS** remains part of the platform for asynchronous side effects and decoupled follow-up processing such as:
 - notification buffering
 - enrichment tasks
 - reconciliation or repair jobs
@@ -255,8 +269,8 @@ AWS Shield Standard provides automatic edge protection.
 
 ### Observability
 
-14. Logs and metrics are collected in **Amazon CloudWatch**.
-15. Distributed tracing is enabled with **AWS X-Ray** to analyze request performance and dependencies.
+15. Logs and metrics are collected in **Amazon CloudWatch**.
+16. Distributed tracing is enabled with **AWS X-Ray** to analyze request performance and dependencies.
 
 This design preserves immediate correctness for core business writes while still enabling scalable asynchronous processing where it adds real value.
 
@@ -537,8 +551,13 @@ The current local backend and infrastructure workflow expects:
 - `tflint`
 - `terraform-docs`
 
-Frontend tooling is not yet a hard project baseline, but Node.js and npm are
-expected to be added once frontend implementation becomes an active track.
+Frontend implementation will use:
+
+- React + Vite + TypeScript
+- React Router with `BrowserRouter` and `/app` as the route basename
+- `aws-amplify/auth` for Cognito browser authentication
+- plain `fetch` for backend API calls
+- Node.js and npm for frontend build tooling
 
 See:
 

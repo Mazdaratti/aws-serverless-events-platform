@@ -35,12 +35,26 @@ resource "aws_cloudfront_origin_access_control" "s3" {
 }
 
 ############################################
+# Frontend SPA rewrite function
+############################################
+
+resource "aws_cloudfront_function" "spa_rewrite" {
+  # The function is published to LIVE so CloudFront can attach it to cache
+  # behaviors. It only rewrites eligible /app browser navigations to index.html.
+  name    = local.spa_rewrite_function_name
+  runtime = "cloudfront-js-2.0"
+  comment = "Rewrite /app SPA navigations to /index.html."
+  publish = true
+  code    = file("${path.module}/functions/spa-rewrite.js")
+}
+
+############################################
 # Edge distribution baseline
 ############################################
 
 resource "aws_cloudfront_distribution" "this" {
-  # This distribution is the future public entry point for both static frontend
-  # files and the existing routed backend API. The module intentionally does
+  # This distribution is the public entry point for both static frontend files
+  # and the existing routed backend API. The module intentionally does
   # not create DNS records, ACM certificates, or S3 bucket policies.
   enabled             = var.enabled
   comment             = local.distribution_name
@@ -87,6 +101,29 @@ resource "aws_cloudfront_distribution" "this" {
 
     cache_policy_id = data.aws_cloudfront_cache_policy.static.id
     compress        = true
+  }
+
+  dynamic "ordered_cache_behavior" {
+    for_each = local.frontend_app_path_patterns
+
+    content {
+      # These behaviors keep UI routes on the S3 origin while the function
+      # rewrites browser deep links to the React entrypoint.
+      path_pattern           = ordered_cache_behavior.value
+      target_origin_id       = local.s3_origin_id
+      viewer_protocol_policy = "redirect-to-https"
+
+      allowed_methods = ["GET", "HEAD"]
+      cached_methods  = ["GET", "HEAD"]
+
+      cache_policy_id = data.aws_cloudfront_cache_policy.static.id
+      compress        = true
+
+      function_association {
+        event_type   = "viewer-request"
+        function_arn = aws_cloudfront_function.spa_rewrite.arn
+      }
+    }
   }
 
   dynamic "ordered_cache_behavior" {

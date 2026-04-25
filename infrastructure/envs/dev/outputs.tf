@@ -235,6 +235,16 @@ output "cloudfront_s3_origin_access_control_id" {
   value       = module.cloudfront.s3_origin_access_control_id
 }
 
+output "cloudfront_spa_rewrite_function_arn" {
+  description = "ARN of the CloudFront Function that rewrites eligible /app SPA navigations for the dev environment."
+  value       = module.cloudfront.spa_rewrite_function_arn
+}
+
+output "cloudfront_spa_rewrite_function_name" {
+  description = "Name of the CloudFront Function that rewrites eligible /app SPA navigations for the dev environment."
+  value       = module.cloudfront.spa_rewrite_function_name
+}
+
 ############################################
 # API Gateway routed backend baseline outputs
 ############################################

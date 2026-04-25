@@ -49,6 +49,57 @@ This keeps the platform aligned with a production-style edge model:
 - CloudFront is the public browser-facing layer
 - WAF protects public traffic before requests reach platform origins
 
+### Frontend Routing Namespace
+
+The platform separates frontend application routes and backend API routes at
+the CloudFront edge layer.
+
+The following namespace split is now locked:
+
+- `/app` and `/app/*`
+  - reserved for the frontend application
+  - served from the private S3 frontend origin
+  - handled as a single-page application (SPA)
+- `/events` and `/events/*`
+  - reserved for backend API routes
+  - forwarded to API Gateway
+  - no frontend routing logic applies
+
+This separation ensures that:
+
+- browser navigation does not collide with API routes
+- frontend routing remains independent of backend path design
+- API contracts remain stable and unchanged
+
+### SPA Deep-Link Handling
+
+The frontend application uses client-side routing.
+
+To support browser refresh and direct navigation for SPA routes under `/app`,
+CloudFront rewrites eligible browser navigation requests to `/index.html`.
+
+This is implemented using a CloudFront Function attached only to the S3-facing
+frontend behaviors.
+
+Rewrite conditions:
+
+- request path is `/app` or starts with `/app/`
+- request method is `GET` or `HEAD`
+- request represents a browser navigation that expects HTML
+
+Rewrite target:
+
+- `/index.html`
+
+Important constraints:
+
+- API routes under `/events` must not be affected
+- static asset requests must not be rewritten
+- missing static assets must still return real `403` or `404` responses
+
+This keeps SPA routing isolated while preserving correct behavior for API and
+assets.
+
 ### Frontend Origin Strategy
 
 The frontend bucket is intentionally private.
@@ -69,13 +120,16 @@ This preserves a cleaner production-shaped boundary:
 
 ### CloudFront Behavior Direction
 
-CloudFront behavior is expected to remain intentionally simple in the first
-edge-delivery milestone.
+CloudFront behavior remains intentionally simple while preserving a clean
+frontend/API path split at the edge.
 
-The initial distribution should support:
+The distribution should support:
 
 - one default behavior for static frontend assets from S3
-- one separate behavior for backend API traffic to API Gateway
+- S3-facing frontend behaviors for `/app` and `/app/*`
+- API Gateway-facing backend behaviors for `/events` and `/events/*`
+- a CloudFront Function attached only to the S3-facing frontend behaviors for
+  SPA deep-link rewrites
 - HTTPS redirect at the edge
 - compression for static frontend assets
 - caching for static frontend assets
@@ -86,10 +140,9 @@ The backend-forwarding behavior should preserve the existing routed backend
 contract instead of redefining backend authorization or business behavior at
 the edge.
 
-The exact browser-visible API path shape is intentionally not locked here yet.
-That detail should be finalized during the CloudFront implementation step so it
-can align cleanly with the deployed API Gateway stage strategy and routed
-backend contract already in use.
+The browser-visible path split is now locked: frontend application routes live
+under `/app` and `/app/*`, while backend API routes remain under `/events` and
+`/events/*`.
 
 ### API Gateway Relationship
 
@@ -285,7 +338,7 @@ RSVP submission is implemented as a **synchronous transactional operation**.
 
 Primary flow:
 
-`Client -> API Gateway -> Lambda -> DynamoDB transaction`
+`Client -> CloudFront -> API Gateway -> Lambda -> DynamoDB transaction`
 
 This guarantees the caller immediately receives the final business outcome:
 

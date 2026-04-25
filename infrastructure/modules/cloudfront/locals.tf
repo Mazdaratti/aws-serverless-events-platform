@@ -17,6 +17,10 @@ locals {
   # to let this distribution read from the private S3 frontend origin.
   s3_origin_access_control_name = "${local.distribution_name}-s3-oac"
 
+  # Keep the SPA rewrite function name tied to the distribution because the
+  # function exists only to support this CloudFront frontend routing model.
+  spa_rewrite_function_name = "${local.distribution_name}-spa-rewrite"
+
   # Normalize caller-supplied origin values once so the CloudFront resource can
   # focus on behavior wiring instead of repeated trimming.
   s3_origin_id           = trimspace(var.s3_origin_id)
@@ -24,6 +28,15 @@ locals {
   api_origin_id          = trimspace(var.api_origin_id)
   api_origin_domain_name = trimspace(var.api_origin_domain_name)
   api_origin_path        = var.api_origin_path == null ? "" : trimspace(var.api_origin_path)
+
+  # Frontend SPA routes are reserved under /app so browser navigation never
+  # collides with the /events API contract. CloudFront needs both patterns so
+  # exact /app and child paths match the S3 origin behaviors that run the
+  # viewer-request rewrite function.
+  frontend_app_path_patterns = [
+    "/app",
+    "/app/*",
+  ]
 
   # The current backend contract deliberately preserves the deployed API route
   # family directly under /events instead of introducing a new /api/* prefix.

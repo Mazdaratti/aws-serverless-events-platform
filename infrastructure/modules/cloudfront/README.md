@@ -17,6 +17,7 @@ This module is CloudFront-distribution-only in v1.
 This module currently creates:
 
 - one CloudFront Origin Access Control for the S3 frontend origin
+- one CloudFront Function for frontend SPA navigation rewrites
 - one CloudFront distribution
 
 That distribution is configured with:
@@ -24,6 +25,9 @@ That distribution is configured with:
 - one private S3 frontend origin
 - one API Gateway backend origin
 - one default cache behavior for static frontend assets
+- two ordered cache behaviors for the frontend application namespace:
+  - `/app`
+  - `/app/*`
 - two ordered cache behaviors for the existing backend route family:
   - `/events`
   - `/events/*`
@@ -34,8 +38,8 @@ That distribution is configured with:
 - optional WAF Web ACL association
 - default CloudFront certificate
 
-It also exposes the distribution and OAC identifiers later layers are most
-likely to need.
+It also exposes the distribution, OAC, and SPA rewrite function identifiers
+later layers are most likely to need.
 
 ---
 
@@ -47,7 +51,8 @@ clearly needs after creating the private S3 origin bucket and WAF baseline:
 - one CloudFront distribution
 - private S3 frontend delivery through OAC
 - API Gateway origin forwarding
-- static and API behavior separation
+- frontend, static asset, and API behavior separation
+- SPA deep-link routing under the locked `/app` namespace
 - optional Web ACL attachment point
 
 The module does not create S3 buckets, S3 bucket policies, WAF Web ACLs, Route
@@ -139,9 +144,36 @@ while still forwarding child event paths to API Gateway.
 
 ---
 
+## Frontend SPA Routing Direction
+
+Frontend application routes are reserved under:
+
+- `/app`
+- `/app/*`
+
+These paths are served from the private S3 frontend origin.
+
+The module attaches a CloudFront Function only to the `/app` and `/app/*`
+behaviors. The function rewrites eligible browser HTML navigations to:
+
+- `/index.html`
+
+This supports React Router deep links and browser refreshes without using a
+broad CloudFront 403/404 fallback.
+
+Important:
+
+- `/events` and `/events/*` are still forwarded to API Gateway
+- API behaviors do not run the SPA rewrite function
+- static asset requests under `/app/*` are not rewritten
+- missing static assets still return real S3 or CloudFront errors
+
+---
+
 ## Cache Behavior Direction
 
-The module intentionally separates static and API behavior.
+The module intentionally separates frontend application, static asset, and API
+behavior.
 
 Static frontend behavior:
 
@@ -150,6 +182,16 @@ Static frontend behavior:
 - redirects HTTP to HTTPS
 - enables compression
 - uses AWS managed `Managed-CachingOptimized`
+
+Frontend application behavior:
+
+- matches `/app` and `/app/*`
+- uses the S3 origin
+- allows `GET` and `HEAD`
+- redirects HTTP to HTTPS
+- enables compression
+- uses AWS managed `Managed-CachingOptimized`
+- attaches the SPA rewrite CloudFront Function on viewer requests
 
 API behavior:
 
@@ -211,6 +253,8 @@ The module exposes the values later layers are most likely to need:
 - `distribution_domain_name`
 - `distribution_hosted_zone_id`
 - `s3_origin_access_control_id`
+- `spa_rewrite_function_arn`
+- `spa_rewrite_function_name`
 
 The distribution ARN is especially important for caller-owned S3 bucket policy
 wiring when using OAC.
@@ -230,6 +274,7 @@ The example shows how to:
 - create a minimal private S3 frontend origin
 - create a minimal API Gateway HTTP API origin
 - call the CloudFront module
+- expose the SPA rewrite function for validation
 - attach a caller-owned S3 bucket policy for OAC access
 
 The example intentionally does not create WAF, Route 53 records, ACM
@@ -251,7 +296,7 @@ The following concerns intentionally remain outside this module:
 - CloudFront logging buckets
 - frontend application assets
 - frontend deployment automation
-- SPA routing and custom error rewrites
+- broad custom error response fallbacks
 
 ---
 
@@ -278,6 +323,7 @@ No modules.
 | Name | Type |
 |------|------|
 | [aws_cloudfront_distribution.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudfront_distribution) | resource |
+| [aws_cloudfront_function.spa_rewrite](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudfront_function) | resource |
 | [aws_cloudfront_origin_access_control.s3](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudfront_origin_access_control) | resource |
 | [aws_cloudfront_cache_policy.api](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/cloudfront_cache_policy) | data source |
 | [aws_cloudfront_cache_policy.static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/cloudfront_cache_policy) | data source |
@@ -308,4 +354,6 @@ No modules.
 | <a name="output_distribution_hosted_zone_id"></a> [distribution\_hosted\_zone\_id](#output\_distribution\_hosted\_zone\_id) | Route 53 hosted zone ID used by CloudFront distributions. |
 | <a name="output_distribution_id"></a> [distribution\_id](#output\_distribution\_id) | ID of the CloudFront distribution. |
 | <a name="output_s3_origin_access_control_id"></a> [s3\_origin\_access\_control\_id](#output\_s3\_origin\_access\_control\_id) | ID of the Origin Access Control used for the private S3 frontend origin. |
+| <a name="output_spa_rewrite_function_arn"></a> [spa\_rewrite\_function\_arn](#output\_spa\_rewrite\_function\_arn) | ARN of the CloudFront Function that rewrites eligible /app SPA navigations. |
+| <a name="output_spa_rewrite_function_name"></a> [spa\_rewrite\_function\_name](#output\_spa\_rewrite\_function\_name) | Name of the CloudFront Function that rewrites eligible /app SPA navigations. |
 <!-- END_TF_DOCS -->

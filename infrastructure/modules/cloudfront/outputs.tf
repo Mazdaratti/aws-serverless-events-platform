@@ -23,6 +23,20 @@ output "distribution_hosted_zone_id" {
 }
 
 ############################################
+# Downstream SPA rewrite outputs
+############################################
+
+output "spa_rewrite_function_arn" {
+  description = "ARN of the CloudFront Function that rewrites eligible /app SPA navigations."
+  value       = aws_cloudfront_function.spa_rewrite.arn
+}
+
+output "spa_rewrite_function_name" {
+  description = "Name of the CloudFront Function that rewrites eligible /app SPA navigations."
+  value       = aws_cloudfront_function.spa_rewrite.name
+}
+
+############################################
 # Downstream origin access outputs
 ############################################
 

@@ -794,7 +794,11 @@ This environment currently wires in:
 
 - one CloudFront distribution
 - one S3 Origin Access Control for the private frontend origin bucket
+- one CloudFront Function for frontend SPA navigation rewrites
 - one default static asset behavior backed by the private S3 bucket
+- two ordered frontend SPA behaviors for:
+  - `/app`
+  - `/app/*`
 - two ordered API behaviors for:
   - `/events`
   - `/events/*`
@@ -818,11 +822,17 @@ Important design notes:
 - CloudFront forwards the existing backend route family through:
   - `/events`
   - `/events/*`
+- CloudFront serves frontend application routes under:
+  - `/app`
+  - `/app/*`
+- the `/app` and `/app/*` behaviors use a viewer-request CloudFront Function
+  to rewrite eligible browser HTML navigations to `/index.html`
+- missing static assets under `/app/*` are not rewritten to the SPA entrypoint
 - CloudFront uses the API Gateway domain as the origin and supplies the stage path through `origin_path = /dev`
 - WAF is associated with the distribution at the CloudFront edge
 - static traffic uses the managed caching-optimized policy
 - API traffic uses the managed caching-disabled policy and forwards viewer request details needed by API Gateway
-- custom domains, Route 53, ACM certificates, logging buckets, SPA rewrites, and frontend deployment automation remain out of scope for this environment step
+- custom domains, Route 53, ACM certificates, logging buckets, broad custom error response fallbacks, and frontend deployment automation remain out of scope for this environment step
 - reusable AWS resource logic belongs in modules while `envs/dev` stays composition-oriented
 
 Validation:
@@ -839,6 +849,8 @@ Validation:
   - `cloudfront_distribution_domain_name`
   - `cloudfront_distribution_hosted_zone_id`
   - `cloudfront_s3_origin_access_control_id`
+  - `cloudfront_spa_rewrite_function_arn`
+  - `cloudfront_spa_rewrite_function_name`
 - confirmed the distribution has two origins:
   - `s3-frontend-origin`
   - `api-gateway-origin`
@@ -847,12 +859,21 @@ Validation:
   - `/dev`
 - confirmed behaviors are configured for:
   - default static frontend traffic
+  - `/app`
+  - `/app/*`
   - `/events`
   - `/events/*`
+- confirmed the SPA rewrite CloudFront Function is deployed and attached only to:
+  - `/app`
+  - `/app/*`
 - confirmed WAF is associated with the distribution
 - confirmed direct S3 public access to `index.html` returns `403 AccessDenied`
 - confirmed CloudFront serves `index.html` successfully
+- confirmed CloudFront rewrites eligible `/app` browser HTML navigations to `/index.html`
+- confirmed CloudFront rewrites eligible `/app/events/example` browser HTML navigations to `/index.html`
+- confirmed missing static assets under `/app/*` return real S3 or CloudFront errors instead of the SPA entrypoint
 - confirmed CloudFront routes `/events` to API Gateway successfully
+- confirmed CloudFront routes `/events/not-a-real-event` to API Gateway and returns API JSON
 - confirmed HTTP requests redirect to HTTPS at CloudFront
 - confirmed a clean post-apply `terraform plan`
 - see evidence screenshots under `docs/assets/cloudfront/`
@@ -923,6 +944,8 @@ Validation:
 | <a name="output_cloudfront_distribution_hosted_zone_id"></a> [cloudfront\_distribution\_hosted\_zone\_id](#output\_cloudfront\_distribution\_hosted\_zone\_id) | Route 53 hosted zone ID used by the CloudFront distribution created for the dev environment. |
 | <a name="output_cloudfront_distribution_id"></a> [cloudfront\_distribution\_id](#output\_cloudfront\_distribution\_id) | ID of the CloudFront distribution created for the dev environment. |
 | <a name="output_cloudfront_s3_origin_access_control_id"></a> [cloudfront\_s3\_origin\_access\_control\_id](#output\_cloudfront\_s3\_origin\_access\_control\_id) | ID of the Origin Access Control used by the dev CloudFront distribution for the private S3 frontend origin. |
+| <a name="output_cloudfront_spa_rewrite_function_arn"></a> [cloudfront\_spa\_rewrite\_function\_arn](#output\_cloudfront\_spa\_rewrite\_function\_arn) | ARN of the CloudFront Function that rewrites eligible /app SPA navigations for the dev environment. |
+| <a name="output_cloudfront_spa_rewrite_function_name"></a> [cloudfront\_spa\_rewrite\_function\_name](#output\_cloudfront\_spa\_rewrite\_function\_name) | Name of the CloudFront Function that rewrites eligible /app SPA navigations for the dev environment. |
 | <a name="output_cognito_admin_group_name"></a> [cognito\_admin\_group\_name](#output\_cognito\_admin\_group\_name) | Name of the Cognito admin group created for the dev environment. |
 | <a name="output_cognito_issuer"></a> [cognito\_issuer](#output\_cognito\_issuer) | JWT issuer URL for the Cognito User Pool created for the dev environment. |
 | <a name="output_cognito_user_pool_arn"></a> [cognito\_user\_pool\_arn](#output\_cognito\_user\_pool\_arn) | ARN of the Cognito User Pool created for the dev environment. |

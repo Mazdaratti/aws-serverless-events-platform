@@ -33,10 +33,10 @@ meaningful way.
 ## Frontend and Edge Delivery Behavior
 
 The platform's frontend and edge-delivery direction is now locked strongly
-enough that future frontend implementation should follow it.
+enough that frontend implementation must follow it.
 
-This section defines the behavioral contract the future frontend app should use
-when interacting with the already implemented backend.
+This section defines the behavioral contract the frontend app must use when
+interacting with the already implemented backend.
 
 ### Public entry-point model
 
@@ -56,8 +56,8 @@ origin for:
 The platform is intentionally not introducing a second browser-facing API path
 contract such as `/api/*` in this phase.
 
-Instead, the future edge layer should preserve the already implemented routed
-backend path shape.
+Instead, the edge layer preserves the already implemented routed backend path
+shape.
 
 ### Routed API path contract for the frontend
 
@@ -78,6 +78,27 @@ This is the primary frontend integration direction for the product.
 The frontend must be implemented assuming these route paths remain the
 canonical public API shape.
 
+### Frontend Route Namespace
+
+The frontend application uses a dedicated route namespace:
+
+- `/app` and `/app/*`
+
+The frontend must assume:
+
+- all browser navigation occurs under `/app`
+- backend API routes remain under `/events`
+- no overlap between UI routes and API routes is allowed
+- CloudFront serves `/app` routes from the frontend origin
+
+The frontend must not:
+
+- use `/events` paths for UI routing
+- depend on API routes serving HTML
+
+This keeps browser navigation and client-side routing separate from the routed
+backend API contract.
+
 ### Current deployment-path note
 
 The currently deployed direct API Gateway entry point still includes the stage
@@ -91,15 +112,15 @@ stage-qualified API Gateway invoke path shape, for example:
 - `/dev/events/{event_id}`
 
 That stage-qualified execute-api URL is a deployment detail of the current
-backend-only phase, not the intended long-term browser-facing product shape.
+backend/API validation path, not the intended browser-facing product shape.
 
-The future CloudFront layer should preserve the routed backend path contract
-without forcing the frontend to adopt a separate translated API path family.
+The CloudFront layer preserves the routed backend path contract without forcing
+the frontend to adopt a separate translated API path family.
 
 ### Same-origin contract
 
 The frontend should treat the backend API as same-origin application traffic in
-the final edge-delivery model.
+the CloudFront edge-delivery model.
 
 Rules:
 
@@ -115,6 +136,19 @@ Rules:
   for:
   - static frontend assets
   - backend API requests
+
+### Same-Origin Path Separation
+
+Although the frontend and API share the same origin, they are separated by path:
+
+- frontend routes: `/app` and `/app/*`
+- API routes: `/events` and `/events/*`
+
+The frontend must:
+
+- use relative paths for API calls, such as `/events`
+- not prefix API calls with `/app`
+- not assume API routes serve HTML
 
 ### CORS direction
 
@@ -233,7 +267,7 @@ by the event DTO contract.
 
 ### Frontend route-usage direction
 
-The initial frontend should align with the currently implemented routed API
+The frontend foundation should align with the currently implemented routed API
 surface only.
 
 Locked initial browser-facing API surface:
@@ -281,6 +315,8 @@ The frontend must not:
 - depend on raw API Gateway authorizer context
 - depend on DynamoDB storage model details
 - assume CORS is the primary browser integration mechanism
+- use `/events` paths for browser UI routing
+- depend on API routes serving frontend HTML
 
 ---
 

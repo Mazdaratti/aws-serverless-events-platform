@@ -722,15 +722,15 @@ Validation:
 
 ---
 
-## WAF Edge Protection Baseline
+## Optional WAF Edge Protection Baseline
 
-Creates the initial CloudFront-scoped WAF protection baseline for the platform.
+Optionally creates the CloudFront-scoped WAF protection baseline for the platform.
 
 Implemented via:
 
 - `modules/waf`
 
-This environment currently wires in:
+When `enable_waf = true`, this environment wires in:
 
 - one CloudFront-scoped WAFv2 Web ACL
 - a fixed AWS managed-rule baseline
@@ -738,21 +738,23 @@ This environment currently wires in:
 
 Why this module is wired now:
 
-- the platform now has private frontend-origin storage and can begin adding the edge protection layer in front of the future CloudFront entry point
-- WAF is intentionally introduced before CloudFront wiring so the protection baseline exists before the distribution is attached to it
+- the platform has private frontend-origin storage and a CloudFront distribution that can attach edge protection when needed
+- WAF remains part of the target architecture, but dev can disable it while the frontend is not actively used
 - the edge-delivery rollout remains split into small module-first and env-wiring-second slices
 
 Important design notes:
 
 - the Web ACL is CloudFront-scoped, so it is managed through the `us-east-1` AWS provider alias
-- the Web ACL is now associated with the dev CloudFront distribution through the CloudFront module wiring
+- `enable_waf` defaults to `false` in dev to avoid steady Web ACL and rule charges before the browser application needs active edge filtering
+- when enabled, the Web ACL is associated with the dev CloudFront distribution through the CloudFront module wiring
+- when disabled, the WAF outputs return `null` and CloudFront receives no Web ACL ARN
 - the default Web ACL action is `allow`
 - the managed-rule baseline includes:
   - `AWSManagedRulesCommonRuleSet`
   - `AWSManagedRulesKnownBadInputsRuleSet`
   - `AWSManagedRulesAmazonIpReputationList`
 - the rate-limit rule blocks requests when one source IP exceeds the configured threshold
-- `dev` currently uses a simple rate limit of `2000` requests per five-minute evaluation window
+- when enabled, `dev` uses a simple rate limit of `2000` requests per five-minute evaluation window
 - visibility configuration is enabled for the Web ACL and every rule so metrics and sampled requests are available
 - reusable AWS resource logic belongs in modules while `envs/dev` stays composition-oriented
 
@@ -803,12 +805,12 @@ This environment currently wires in:
   - `/events`
   - `/events/*`
 - one API Gateway origin using the existing `dev` stage path
-- the already-created CloudFront-scoped WAF Web ACL
+- optional attachment for the CloudFront-scoped WAF Web ACL
 - one environment-owned S3 bucket policy that allows CloudFront read access to the private frontend bucket
 
 Why this module is wired now:
 
-- the private frontend origin bucket and WAF baseline already exist in `dev`
+- the private frontend origin bucket already exists in `dev`
 - the platform now needs CloudFront to become the intended public entry point
 - the edge-delivery baseline must prove both static delivery and backend API routing before real frontend implementation starts
 
@@ -829,7 +831,7 @@ Important design notes:
   to rewrite eligible browser HTML navigations to `/index.html`
 - missing static assets under `/app/*` are not rewritten to the SPA entrypoint
 - CloudFront uses the API Gateway domain as the origin and supplies the stage path through `origin_path = /dev`
-- WAF is associated with the distribution at the CloudFront edge
+- WAF can be associated with the distribution at the CloudFront edge by setting `enable_waf = true`
 - static traffic uses the managed caching-optimized policy
 - API traffic uses the managed caching-disabled policy and forwards viewer request details needed by API Gateway
 - custom domains, Route 53, ACM certificates, logging buckets, broad custom error response fallbacks, and frontend deployment automation remain out of scope for this environment step
@@ -921,9 +923,10 @@ Validation:
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region where resources will be deployed. | `string` | n/a | yes |
-| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 | <a name="input_environment"></a> [environment](#input\_environment) | Deployment environment name. | `string` | n/a | yes |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Project name used for naming and tagging resources. | `string` | n/a | yes |
+| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
+| <a name="input_enable_waf"></a> [enable\_waf](#input\_enable\_waf) | Whether to create and attach the CloudFront-scoped WAF Web ACL in this dev environment. | `bool` | `false` | no |
 
 ## Outputs
 
@@ -973,7 +976,7 @@ Validation:
 | <a name="output_sqs_queue_arns"></a> [sqs\_queue\_arns](#output\_sqs\_queue\_arns) | Map of logical queue key to rendered SQS queue ARN for the dev environment. |
 | <a name="output_sqs_queue_names"></a> [sqs\_queue\_names](#output\_sqs\_queue\_names) | Map of logical queue key to rendered SQS queue name for the dev environment. |
 | <a name="output_sqs_queue_urls"></a> [sqs\_queue\_urls](#output\_sqs\_queue\_urls) | Map of logical queue key to rendered SQS queue URL for the dev environment. |
-| <a name="output_waf_web_acl_arn"></a> [waf\_web\_acl\_arn](#output\_waf\_web\_acl\_arn) | ARN of the CloudFront-scoped Web ACL created for the dev environment. |
-| <a name="output_waf_web_acl_id"></a> [waf\_web\_acl\_id](#output\_waf\_web\_acl\_id) | ID of the CloudFront-scoped Web ACL created for the dev environment. |
-| <a name="output_waf_web_acl_name"></a> [waf\_web\_acl\_name](#output\_waf\_web\_acl\_name) | Name of the CloudFront-scoped Web ACL created for the dev environment. |
+| <a name="output_waf_web_acl_arn"></a> [waf\_web\_acl\_arn](#output\_waf\_web\_acl\_arn) | ARN of the CloudFront-scoped Web ACL created for the dev environment, or null when WAF is disabled. |
+| <a name="output_waf_web_acl_id"></a> [waf\_web\_acl\_id](#output\_waf\_web\_acl\_id) | ID of the CloudFront-scoped Web ACL created for the dev environment, or null when WAF is disabled. |
+| <a name="output_waf_web_acl_name"></a> [waf\_web\_acl\_name](#output\_waf\_web\_acl\_name) | Name of the CloudFront-scoped Web ACL created for the dev environment, or null when WAF is disabled. |
 <!-- END_TF_DOCS -->

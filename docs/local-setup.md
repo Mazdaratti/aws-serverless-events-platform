@@ -16,6 +16,8 @@ The current local workflow expects these tools to be available:
 - Terraform
 - `tflint`
 - `terraform-docs`
+- Node.js
+- npm
 
 These tools support the currently implemented backend and infrastructure
 workflow:
@@ -26,6 +28,8 @@ workflow:
 - Terraform is used for infrastructure validation, planning, and deployment
 - `tflint` is used for Terraform linting
 - `terraform-docs` is used to refresh generated module and environment README sections
+- Node.js and npm are used for the React/Vite frontend application under
+  `frontend/`
 
 ## Python
 
@@ -99,15 +103,49 @@ for:
 It is used to refresh generated input/output/reference sections in README files
 after interface changes.
 
-## Frontend Tooling Direction
+## Frontend
 
-Frontend implementation is not yet the active focus, so frontend tooling is not
-yet a hard local baseline.
+Frontend implementation is now an active implementation track.
 
-Expected later additions:
+The frontend foundation uses:
 
 - Node.js
 - npm
+- React
+- Vite
+- TypeScript
+- React Router
 
-Those should be added here once frontend work becomes an active implementation
-track rather than a placeholder direction.
+The frontend app lives under:
+
+- `frontend/`
+
+Local frontend validation should run from that directory:
+
+- `npm install`
+- `npm run typecheck`
+- `npm run build`
+- `npm run dev` (optional for local development)
+
+The frontend is built as a static SPA for the CloudFront/S3 delivery model.
+
+Runtime routing and API integration rules:
+
+- React Router uses `BrowserRouter` with `/app` as the basename
+- Vite must not configure `base: "/app/"`; default base (root) must be used
+- static build assets should resolve as root-relative paths such as
+  `/assets/...`
+- API calls must use same-origin relative paths such as `/events`
+- API calls must not use a direct API Gateway URL
+- API calls must not use a `/api` prefix
+
+Authentication uses Cognito through the frontend Amplify Auth SDK.
+
+Token rules:
+
+- Cognito auth tokens must use `sessionStorage`
+- Cognito auth tokens must not use `localStorage`
+- the frontend must use the JWT type currently validated by API Gateway and the
+  RSVP authorizer, expected to be the Cognito ID token
+- the anonymous RSVP token may use `localStorage` because it is not an auth
+  token

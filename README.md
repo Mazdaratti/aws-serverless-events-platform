@@ -87,12 +87,13 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - `examples/basic_usage`
     - module `README.md`
     - Terraform validation CI coverage for the module and example
-  - `infrastructure/envs/dev` wiring for the WAF edge protection baseline
+  - `infrastructure/envs/dev` optional wiring for the WAF edge protection baseline
     - CloudFront-scoped Web ACL created in AWS
     - Web ACL managed through the required `us-east-1` provider path
     - managed rules validated
     - rate-limit rule validated
     - visibility configuration and tags validated
+    - disabled by default in `dev` for cost control until the frontend is actively used
   - `cloudfront` module baseline for edge distribution
     - CloudFront distribution baseline
     - S3 Origin Access Control for private frontend-origin access
@@ -113,7 +114,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - frontend SPA route namespace `/app` and `/app/*` routed to S3
     - targeted CloudFront Function rewrite for eligible browser HTML navigations
     - API Gateway origin attached with the existing `/events` route shape
-    - WAF Web ACL associated with the distribution
+    - optional WAF Web ACL association supported for the distribution
     - HTTPS redirect validated
     - static placeholder delivery through CloudFront validated
     - `/app` SPA deep-link routing through CloudFront validated
@@ -221,7 +222,7 @@ AWS Shield Standard provides automatic edge protection.
 1. Users access the application through **Amazon CloudFront**.
 2. CloudFront securely serves static frontend assets from a private **Amazon S3** bucket.
 3. Frontend browser routes are served under `/app`.
-4. **AWS WAF** filters malicious traffic at the edge before requests reach the backend.
+4. **AWS WAF** can filter malicious traffic at the edge before requests reach the backend when enabled for the environment.
 
 ### Frontend Routing Model
 
@@ -510,7 +511,7 @@ validation in the dev environment.
 ## Security Principles
 
 - Least-privilege IAM access
-- Edge protection using AWS WAF
+- Optional edge protection using AWS WAF
 - Private S3 origin behind CloudFront
 - Managed identity via Amazon Cognito
 - Failure isolation using SQS dead-letter queues where asynchronous processing is used
@@ -525,6 +526,7 @@ The system is designed to operate within:
 - Always-free service limits
 
 No EC2 instances, NAT Gateways, or relational databases are used.
+In `dev`, WAF is disabled by default until active frontend traffic justifies the steady Web ACL and rule cost.
 
 ---
 

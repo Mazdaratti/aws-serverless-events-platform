@@ -105,6 +105,7 @@ module "cloudfront" {
   # This example demonstrates the first edge distribution baseline:
   # - private S3 frontend origin as the default behavior
   # - API Gateway as the /events backend origin
+  # - /app SPA browser navigations rewritten to /index.html
   # - HTTPS redirect at the edge
   # - managed cache policies for static and API behavior
   name_prefix = local.name_prefix

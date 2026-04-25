@@ -351,15 +351,17 @@ module "s3_frontend_bucket" {
 # WAF edge protection baseline
 ############################################
 
-# This environment wires in the reusable CloudFront-scoped WAF module as the
-# next edge-delivery slice after the private frontend origin bucket.
+# This environment can wire in the reusable CloudFront-scoped WAF module when
+# dev needs edge request filtering.
 #
 # CloudFront-scoped WAFv2 resources must be managed through us-east-1, so this
 # module receives the aliased provider from providers.tf explicitly.
 #
-# The Web ACL is created now, but it is not associated with CloudFront yet.
-# That association belongs to the later CloudFront wiring step.
+# WAF stays optional in dev because the Web ACL and managed rules create steady
+# monthly cost before the frontend is actively used.
 module "waf" {
+  count = var.enable_waf ? 1 : 0
+
   source = "../../modules/waf"
 
   providers = {
@@ -381,9 +383,9 @@ module "waf" {
 # This environment wires in the reusable CloudFront module as the public edge
 # entry-point baseline for the platform.
 #
-# CloudFront now composes the private S3 frontend origin, the routed API
-# Gateway backend origin, and the CloudFront-scoped WAF Web ACL that were
-# introduced in earlier edge-delivery slices.
+# CloudFront now composes the private S3 frontend origin and the routed API
+# Gateway backend origin. In dev, the CloudFront-scoped WAF Web ACL can be
+# attached when enable_waf is set to true.
 module "cloudfront" {
   source = "../../modules/cloudfront"
 
@@ -399,8 +401,8 @@ module "cloudfront" {
   api_origin_domain_name = replace(module.api_gateway.api_endpoint, "https://", "")
   api_origin_path        = "/${module.api_gateway.stage_name}"
 
-  # Attach the already-created CloudFront-scoped WAF baseline at the edge.
-  web_acl_arn = module.waf.web_acl_arn
+  # Attach WAF only when dev explicitly enables it for cost-aware operation.
+  web_acl_arn = var.enable_waf ? module.waf[0].web_acl_arn : null
 
   price_class         = "PriceClass_100"
   enabled             = true

@@ -22,6 +22,16 @@ output "distribution_hosted_zone_id" {
   value       = module.cloudfront.distribution_hosted_zone_id
 }
 
+output "spa_rewrite_function_arn" {
+  description = "ARN of the CloudFront Function that rewrites eligible /app SPA navigations."
+  value       = module.cloudfront.spa_rewrite_function_arn
+}
+
+output "spa_rewrite_function_name" {
+  description = "Name of the CloudFront Function that rewrites eligible /app SPA navigations."
+  value       = module.cloudfront.spa_rewrite_function_name
+}
+
 output "s3_origin_access_control_id" {
   description = "ID of the Origin Access Control created by the example."
   value       = module.cloudfront.s3_origin_access_control_id

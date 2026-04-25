@@ -45,3 +45,9 @@ variable "dynamodb_point_in_time_recovery_enabled" {
   type        = bool
   default     = false
 }
+
+variable "enable_waf" {
+  description = "Whether to create and attach the CloudFront-scoped WAF Web ACL in this dev environment."
+  type        = bool
+  default     = false
+}

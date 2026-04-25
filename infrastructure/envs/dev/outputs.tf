@@ -184,22 +184,21 @@ output "frontend_bucket_regional_domain_name" {
 # WAF edge protection baseline outputs
 ############################################
 
-# These outputs expose the CloudFront-scoped Web ACL values that later
-# CloudFront wiring will need, without requiring callers to inspect the waf
-# module internals directly.
+# These outputs expose the CloudFront-scoped Web ACL values when WAF is enabled
+# in dev. They return null when WAF is disabled for cost-aware operation.
 output "waf_web_acl_arn" {
-  description = "ARN of the CloudFront-scoped Web ACL created for the dev environment."
-  value       = module.waf.web_acl_arn
+  description = "ARN of the CloudFront-scoped Web ACL created for the dev environment, or null when WAF is disabled."
+  value       = var.enable_waf ? module.waf[0].web_acl_arn : null
 }
 
 output "waf_web_acl_id" {
-  description = "ID of the CloudFront-scoped Web ACL created for the dev environment."
-  value       = module.waf.web_acl_id
+  description = "ID of the CloudFront-scoped Web ACL created for the dev environment, or null when WAF is disabled."
+  value       = var.enable_waf ? module.waf[0].web_acl_id : null
 }
 
 output "waf_web_acl_name" {
-  description = "Name of the CloudFront-scoped Web ACL created for the dev environment."
-  value       = module.waf.web_acl_name
+  description = "Name of the CloudFront-scoped Web ACL created for the dev environment, or null when WAF is disabled."
+  value       = var.enable_waf ? module.waf[0].web_acl_name : null
 }
 
 ############################################

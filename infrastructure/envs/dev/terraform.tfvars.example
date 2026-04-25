@@ -22,3 +22,7 @@ aws_region = "eu-central-1"
 
 # Keep PITR disabled in dev to reduce always-on test-environment cost.
 dynamodb_point_in_time_recovery_enabled = false
+
+# Keep WAF disabled in dev until the frontend is actively used to avoid steady
+# Web ACL and rule charges in this portfolio environment.
+enable_waf = false

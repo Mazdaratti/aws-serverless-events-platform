@@ -14,6 +14,9 @@ interface ErrorBody {
   message?: unknown;
 }
 
+// All browser API traffic goes through CloudFront using same-origin relative
+// paths. Callers pass only the locked /events route family here; no raw API
+// Gateway URL, /api prefix, or frontend /app path belongs in this client.
 export async function apiRequest<TResponse>(
   path: string,
   options: ApiRequestOptions
@@ -68,6 +71,8 @@ async function resolveToken(authMode: AuthMode): Promise<string | null> {
   return getValidatedBearerToken();
 }
 
+// Successful backend responses are JSON today, but this keeps the client
+// tolerant of empty bodies and still preserves unexpected text for debugging.
 async function parseResponseBody(response: Response): Promise<unknown> {
   if (response.status === 204) {
     return null;
@@ -98,12 +103,22 @@ function isErrorBody(body: unknown): body is ErrorBody {
   return typeof body === "object" && body !== null && "message" in body;
 }
 
+// Validate the path portion separately from the query string. /events with
+// ?next_cursor=... is valid, but /eventsXYZ and /events-not-real are not part
+// of the locked backend route family.
 function validateRelativeApiPath(path: string): void {
-  if (path.startsWith("/app")) {
+  const url = new URL(path, window.location.origin);
+  const pathname = url.pathname;
+
+  if (url.origin !== window.location.origin) {
+    throw new Error("API requests must use same-origin relative paths.");
+  }
+
+  if (pathname.startsWith("/app")) {
     throw new Error("API requests must not use the frontend /app namespace.");
   }
 
-  if (path !== "/events" && !path.startsWith("/events/")) {
+  if (pathname !== "/events" && !pathname.startsWith("/events/")) {
     throw new Error("API requests must use the locked /events route family.");
   }
 }

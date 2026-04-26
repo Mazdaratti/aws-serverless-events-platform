@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { Layout } from "./components/Layout";
+import { EventListPage } from "./routes/EventListPage";
 
 // Temporary route content keeps the router working while each page is promoted
 // into a real component during the frontend foundation build-out.
@@ -20,7 +21,7 @@ export function App() {
           different: fetch must still call same-origin /events, not /app/events. */}
       <Route element={<Layout />}>
         <Route path="/" element={<Navigate to="/events" replace />} />
-        <Route path="/events" element={<PlaceholderPage title="Events" />} />
+        <Route path="/events" element={<EventListPage />} />
         <Route
           path="/events/:eventId"
           element={<PlaceholderPage title="Event details" />}

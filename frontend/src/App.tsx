@@ -1,5 +1,7 @@
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 
+// Temporary route content keeps the router working while each page is promoted
+// into a real component during the frontend foundation build-out.
 function PlaceholderPage({ title }: { title: string }) {
   return (
     <main>
@@ -19,7 +21,10 @@ export function App() {
         </nav>
       </header>
 
-      {/* BrowserRouter adds /app to these UI routes. API calls must still use /events. */}
+      {/* These are internal React routes. BrowserRouter adds /app in the
+          address bar, so this /events route renders at /app/events. API calls
+          are different: fetch must still call same-origin /events, not
+          /app/events. */}
       <Routes>
         <Route path="/" element={<Navigate to="/events" replace />} />
         <Route path="/events" element={<PlaceholderPage title="Events" />} />

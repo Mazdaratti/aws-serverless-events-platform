@@ -3,6 +3,12 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 
 import { App } from "./App";
+import { configureAmplify } from "./auth/amplify";
+
+// Configure Amplify before any auth/session code can run. This keeps Cognito
+// setup explicit and ensures token storage is switched to sessionStorage before
+// users sign in.
+configureAmplify();
 
 const rootElement = document.getElementById("root");
 

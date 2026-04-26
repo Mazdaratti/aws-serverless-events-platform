@@ -12,6 +12,9 @@ if (!rootElement) {
 
 ReactDOM.createRoot(rootElement).render(
   <StrictMode>
+    {/* CloudFront serves the SPA under /app, so React Router owns that browser
+        prefix here. This does not change API paths: fetch calls still go to
+        same-origin /events routes, not /app/events. */}
     <BrowserRouter basename="/app">
       <App />
     </BrowserRouter>

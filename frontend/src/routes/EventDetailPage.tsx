@@ -3,7 +3,8 @@ import { Link, useParams } from "react-router-dom";
 
 import { getApiErrorMessage } from "../api/errors";
 import { getEvent } from "../api/events";
-import type { PublicEvent } from "../api/types";
+import type { PublicEvent, RsvpResponse } from "../api/types";
+import { RsvpPanel } from "../components/RsvpPanel";
 
 type LoadState =
   | { status: "loading"; event: null }
@@ -18,6 +19,23 @@ const initialState: LoadState = {
 export function EventDetailPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const [state, setState] = useState<LoadState>(initialState);
+
+  const handleRsvpSuccess = (response: RsvpResponse) => {
+    setState((previousState) => {
+      if (previousState.status !== "ready") {
+        return previousState;
+      }
+
+      return {
+        status: "ready",
+        event: {
+          ...previousState.event,
+          rsvp_count: response.event_summary.rsvp_count,
+          attending_count: response.event_summary.attending_count
+        }
+      };
+    });
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -99,6 +117,11 @@ export function EventDetailPage() {
           {event.attending_count} attending / {event.rsvp_count} total
         </dd>
       </dl>
+
+      <RsvpPanel
+        eventId={event.event_id}
+        onRsvpSuccess={handleRsvpSuccess}
+      />
     </>
   );
 }

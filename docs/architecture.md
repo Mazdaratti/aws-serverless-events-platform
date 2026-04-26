@@ -179,13 +179,36 @@ browser access.
 
 Frontend deployment is expected to follow this flow:
 
-1. build frontend assets
-2. upload build artifacts into the private frontend bucket
-3. invalidate CloudFront cache as needed
-4. serve the new frontend version through CloudFront
+1. read required public frontend configuration from Terraform outputs
+2. provide those values to the frontend build as `VITE_*` environment variables
+3. build frontend assets
+4. upload build artifacts into the private frontend bucket
+5. invalidate CloudFront cache as needed
+6. serve the new frontend version through CloudFront
 
 This keeps frontend deployment separate from backend Lambda deployment while
 still presenting one public product entry point.
+
+Frontend build configuration must be supplied by CI/CD.
+
+The CI/CD deployment workflow must read the deployed environment outputs and
+provide only public frontend values to `npm run build`, such as:
+
+- `VITE_AWS_REGION`
+- `VITE_COGNITO_USER_POOL_ID`
+- `VITE_COGNITO_USER_POOL_CLIENT_ID`
+
+These values identify public Cognito client resources and are safe to include
+in browser JavaScript.
+
+The frontend build must not receive:
+
+- raw API Gateway invoke URLs
+- API Gateway stage URLs
+- server-side secrets
+
+API calls remain same-origin relative requests through CloudFront, using paths
+such as `/events`.
 
 ---
 

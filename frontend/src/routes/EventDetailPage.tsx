@@ -118,7 +118,7 @@ export function EventDetailPage() {
   return (
     <>
       <Link to="/events">Back to events</Link>
-      <h1>{event.title}</h1>
+      <h1>{event.title || "Untitled event"}</h1>
       {/* Visibility labels explain the public DTO flags in user-facing terms.
           Backend authorization is still the source of truth for what actions
           are actually allowed. */}

@@ -2,6 +2,9 @@ import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { signUp } from "aws-amplify/auth";
 
+import { ErrorMessage } from "../components/ErrorMessage";
+import { SuccessMessage } from "../components/SuccessMessage";
+
 type SubmitState =
   | { status: "idle"; message: null }
   | { status: "submitting"; message: null }
@@ -124,10 +127,12 @@ export function RegisterPage() {
         </button>
       </form>
 
-      {submitState.message ? (
-        <p role={submitState.status === "error" ? "alert" : "status"}>
-          {submitState.message}
-        </p>
+      {submitState.status === "error" ? (
+        <ErrorMessage message={submitState.message} />
+      ) : null}
+
+      {submitState.status === "success" ? (
+        <SuccessMessage message={submitState.message} />
       ) : null}
 
       <p>

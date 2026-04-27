@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import { getApiErrorMessage } from "../api/errors";
 import { listEvents } from "../api/events";
 import type { NextCursor, PublicEvent } from "../api/types";
+import { ErrorMessage } from "../components/ErrorMessage";
+import { LoadingState } from "../components/LoadingState";
 
 type LoadState =
   | { status: "loading"; items: PublicEvent[]; nextCursor: NextCursor }
@@ -93,9 +95,13 @@ export function EventListPage() {
     <>
       <h1>Events</h1>
 
-      {state.status === "loading" ? <p>Loading events...</p> : null}
+      {state.status === "loading" ? (
+        <LoadingState message="Loading events..." />
+      ) : null}
 
-      {state.status === "error" ? <p role="alert">{state.message}</p> : null}
+      {state.status === "error" ? (
+        <ErrorMessage message={state.message} />
+      ) : null}
 
       {state.items.length === 0 && state.status !== "loading" ? (
         <p>No events found.</p>

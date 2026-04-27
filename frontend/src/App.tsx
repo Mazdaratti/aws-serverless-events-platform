@@ -4,6 +4,7 @@ import { Layout } from "./components/Layout";
 import { EventDetailPage } from "./routes/EventDetailPage";
 import { EventListPage } from "./routes/EventListPage";
 import { LoginPage } from "./routes/LoginPage";
+import { RegisterPage } from "./routes/RegisterPage";
 
 // Temporary route content keeps the router working while each page is promoted
 // into a real component during the frontend foundation build-out.
@@ -26,10 +27,7 @@ export function App() {
         <Route path="/events" element={<EventListPage />} />
         <Route path="/events/:eventId" element={<EventDetailPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/register"
-          element={<PlaceholderPage title="Register" />}
-        />
+        <Route path="/register" element={<RegisterPage />} />
         <Route
           path="/confirm-register"
           element={<PlaceholderPage title="Confirm registration" />}

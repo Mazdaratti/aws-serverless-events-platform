@@ -5,17 +5,8 @@ import { ConfirmRegisterPage } from "./routes/ConfirmRegisterPage";
 import { EventDetailPage } from "./routes/EventDetailPage";
 import { EventListPage } from "./routes/EventListPage";
 import { LoginPage } from "./routes/LoginPage";
+import { NotFoundPage } from "./routes/NotFoundPage";
 import { RegisterPage } from "./routes/RegisterPage";
-
-// Temporary route content keeps the router working while each page is promoted
-// into a real component during the frontend foundation build-out.
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <>
-      <h1>{title}</h1>
-    </>
-  );
-}
 
 export function App() {
   return (
@@ -30,7 +21,7 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/confirm-register" element={<ConfirmRegisterPage />} />
-        <Route path="*" element={<PlaceholderPage title="Page not found" />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );

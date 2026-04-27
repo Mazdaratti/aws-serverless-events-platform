@@ -2,6 +2,9 @@ import { type FormEvent, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { confirmSignUp, resendSignUpCode } from "aws-amplify/auth";
 
+import { ErrorMessage } from "../components/ErrorMessage";
+import { SuccessMessage } from "../components/SuccessMessage";
+
 type LocationState = {
   username?: string;
 };
@@ -128,10 +131,12 @@ export function ConfirmRegisterPage() {
         </button>
       </form>
 
-      {submitState.message ? (
-        <p role={submitState.status === "error" ? "alert" : "status"}>
-          {submitState.message}
-        </p>
+      {submitState.status === "error" ? (
+        <ErrorMessage message={submitState.message} />
+      ) : null}
+
+      {submitState.status === "success" ? (
+        <SuccessMessage message={submitState.message} />
       ) : null}
 
       <p>

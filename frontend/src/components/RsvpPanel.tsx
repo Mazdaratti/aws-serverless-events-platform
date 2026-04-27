@@ -5,6 +5,9 @@ import { rsvpToEvent } from "../api/events";
 import type { RsvpResponse } from "../api/types";
 import { useAuth } from "../auth/AuthProvider";
 import { getAnonymousRsvpToken } from "../utils/anonymousRsvpToken";
+import { ErrorMessage } from "./ErrorMessage";
+import { LoadingState } from "./LoadingState";
+import { SuccessMessage } from "./SuccessMessage";
 
 interface RsvpPanelProps {
   eventId: string;
@@ -73,7 +76,9 @@ export function RsvpPanel({ eventId, onRsvpSuccess }: RsvpPanelProps) {
     <section aria-labelledby="rsvp-heading">
       <h2 id="rsvp-heading">RSVP</h2>
 
-      {isSessionLoading ? <p>Checking session before RSVP...</p> : null}
+      {isSessionLoading ? (
+        <LoadingState message="Checking session before RSVP..." />
+      ) : null}
 
       {authStatus === "anonymous" ? (
         <p>
@@ -104,10 +109,12 @@ export function RsvpPanel({ eventId, onRsvpSuccess }: RsvpPanelProps) {
         Not attending
       </button>
 
-      {submitState.message ? (
-        <p role={submitState.status === "error" ? "alert" : "status"}>
-          {submitState.message}
-        </p>
+      {submitState.status === "error" ? (
+        <ErrorMessage message={submitState.message} />
+      ) : null}
+
+      {submitState.status === "success" ? (
+        <SuccessMessage message={submitState.message} />
       ) : null}
     </section>
   );

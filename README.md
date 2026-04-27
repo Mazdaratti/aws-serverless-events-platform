@@ -27,13 +27,10 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Frontend Foundation
-  - build the first real browser application on top of the completed edge-delivery baseline
-  - use CloudFront as the intended public entry point
-  - serve frontend assets from the private S3 origin through CloudFront
-  - serve frontend browser routes under `/app`
-  - call the existing routed backend through the CloudFront `/events` and `/events/*` route family
-  - keep frontend implementation separate from deployment automation
+- Frontend Deployment Integration
+  - define the production deployment path for the built React/Vite frontend
+  - keep CloudFront as the only browser-facing entry point
+  - wire artifact upload and cache invalidation without changing the `/app` and `/events` route contract
 
 ### Completed milestones
 
@@ -175,6 +172,22 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - `envs/dev` wiring
     - AWS validation and deployment evidence
     - mixed anonymous/authenticated caller projection for routed RSVP
+- Frontend Foundation
+  - React + Vite + TypeScript app under `frontend/`
+  - React Router `BrowserRouter` with `/app` basename
+  - Amplify Auth modular Cognito configuration
+  - Cognito token storage explicitly configured to `sessionStorage`
+  - build-time `VITE_*` public frontend configuration
+  - fetch-based API client using same-origin relative `/events` paths
+  - public event list page using `GET /events`
+  - public event detail page using `GET /events/{event_id}`
+  - anonymous RSVP token helper using non-auth `localStorage`
+  - mixed-mode RSVP panel using `POST /events/{event_id}/rsvp`
+  - register, confirm registration, login, and logout flow
+  - reusable loading, status, success, and error message components
+  - event visibility labels for public, protected, and admin-only events
+  - local typecheck/build validation completed
+  - manual CloudFront runtime validation completed (no deployment automation added in this phase)
 - Validation and developer workflow
   - external Lambda artifact packaging workflow via `scripts/package_lambda.py`
   - Python handler validation for implemented Lambda handlers
@@ -185,7 +198,6 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Next milestones
 
-- Frontend Deployment Integration
 - EventBridge + SNS integration
 - `notification-worker`
 - Observability baseline
@@ -349,9 +361,21 @@ aws-serverless-events-platform/
 |
 |-- frontend/
 |   |-- public/
-|   |   `-- .gitkeep
-|   `-- src/
-|       `-- .gitkeep
+|   |   `-- favicon.ico
+|   |-- src/
+|   |   |-- api/
+|   |   |-- auth/
+|   |   |-- components/
+|   |   |-- routes/
+|   |   |-- utils/
+|   |   |-- App.tsx
+|   |   `-- main.tsx
+|   |-- .env.example
+|   |-- index.html
+|   |-- package-lock.json
+|   |-- package.json
+|   |-- tsconfig.json
+|   `-- vite.config.ts
 |
 |-- infrastructure/
 |   |-- bootstrap/
@@ -489,7 +513,7 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - `infrastructure/envs/dev` wiring for the CloudFront baseline ✅
    - `/app` SPA routing namespace and CloudFront Function rewrite ✅
 
-14. Frontend Foundation ⏳
+14. Frontend Foundation ✅
 15. Frontend Deployment Integration
 16. EventBridge and SNS integration
 17. `notification-worker`
@@ -552,15 +576,17 @@ Detailed architecture description:
 
 ## Developer Tooling
 
-The current local backend and infrastructure workflow expects:
+The current local workflow expects:
 
 - Python
 - Docker
 - Terraform
 - `tflint`
 - `terraform-docs`
+- Node.js
+- npm
 
-Frontend implementation will use:
+The frontend implementation uses:
 
 - React + Vite + TypeScript
 - React Router with `BrowserRouter` and `/app` as the route basename

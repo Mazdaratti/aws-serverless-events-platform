@@ -19,6 +19,18 @@ const initialState: LoadState = {
   event: null
 };
 
+function getVisibilityLabel(event: PublicEvent): string {
+  if (event.requires_admin) {
+    return "Admin-only";
+  }
+
+  if (!event.is_public) {
+    return "Protected";
+  }
+
+  return "Public";
+}
+
 export function EventDetailPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const [state, setState] = useState<LoadState>(initialState);
@@ -101,11 +113,19 @@ export function EventDetailPage() {
   }
 
   const event = state.event;
+  const visibilityLabel = getVisibilityLabel(event);
 
   return (
     <>
       <Link to="/events">Back to events</Link>
       <h1>{event.title}</h1>
+      {/* Visibility labels explain the public DTO flags in user-facing terms.
+          Backend authorization is still the source of truth for what actions
+          are actually allowed. */}
+      <p aria-label="Event visibility">
+        <strong>{visibilityLabel}</strong>
+      </p>
+
       <dl>
         <dt>Date</dt>
         <dd>{formatEventDate(event.date)}</dd>

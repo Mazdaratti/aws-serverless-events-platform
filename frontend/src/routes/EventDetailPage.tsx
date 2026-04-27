@@ -4,6 +4,8 @@ import { Link, useParams } from "react-router-dom";
 import { getApiErrorMessage } from "../api/errors";
 import { getEvent } from "../api/events";
 import type { PublicEvent, RsvpResponse } from "../api/types";
+import { ErrorMessage } from "../components/ErrorMessage";
+import { LoadingState } from "../components/LoadingState";
 import { RsvpPanel } from "../components/RsvpPanel";
 
 type LoadState =
@@ -85,13 +87,13 @@ export function EventDetailPage() {
   }, [eventId]);
 
   if (state.status === "loading") {
-    return <p>Loading event...</p>;
+    return <LoadingState message="Loading event..." />;
   }
 
   if (state.status === "error") {
     return (
       <>
-        <p role="alert">{state.message}</p>
+        <ErrorMessage message={state.message} />
         <Link to="/events">Back to events</Link>
       </>
     );

@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 
 import { getApiErrorMessage } from "../api/errors";
 import { listEvents } from "../api/events";
 import type { NextCursor, PublicEvent } from "../api/types";
+import { EventCard } from "../components/EventCard";
 import { ErrorMessage } from "../components/ErrorMessage";
 import { LoadingState } from "../components/LoadingState";
-import { formatEventDate } from "../utils/dates";
 
 type LoadState =
   | { status: "loading"; items: PublicEvent[]; nextCursor: NextCursor }
@@ -111,9 +110,7 @@ export function EventListPage() {
       <ul>
         {state.items.map((event) => (
           <li key={event.event_id}>
-            <Link to={`/events/${event.event_id}`}>{event.title}</Link>
-            <div>{formatEventDate(event.date)}</div>
-            <div>{event.location}</div>
+            <EventCard event={event} />
           </li>
         ))}
       </ul>

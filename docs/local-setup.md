@@ -122,10 +122,22 @@ The frontend app lives under:
 
 Local frontend validation should run from that directory:
 
-- `npm install`
+- `npm ci`
 - `npm run typecheck`
 - `npm run build`
 - `npm run dev` (optional for local development)
+
+Use `npm ci` for PR validation because `frontend/package-lock.json` is now
+committed and represents the reproducible dependency install plan.
+
+For local browser testing, copy the example environment file and provide the
+public Cognito values for the active environment:
+
+- `frontend/.env.example`
+- `frontend/.env`
+
+Only public `VITE_*` values belong in the frontend environment file. Do not add
+API Gateway invoke URLs or secrets.
 
 The frontend is built as a static SPA for the CloudFront/S3 delivery model.
 

@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { Layout } from "./components/Layout";
+import { ConfirmRegisterPage } from "./routes/ConfirmRegisterPage";
 import { EventDetailPage } from "./routes/EventDetailPage";
 import { EventListPage } from "./routes/EventListPage";
 import { LoginPage } from "./routes/LoginPage";
@@ -28,10 +29,7 @@ export function App() {
         <Route path="/events/:eventId" element={<EventDetailPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route
-          path="/confirm-register"
-          element={<PlaceholderPage title="Confirm registration" />}
-        />
+        <Route path="/confirm-register" element={<ConfirmRegisterPage />} />
         <Route path="*" element={<PlaceholderPage title="Page not found" />} />
       </Route>
     </Routes>

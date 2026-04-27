@@ -7,6 +7,7 @@ import type { PublicEvent, RsvpResponse } from "../api/types";
 import { ErrorMessage } from "../components/ErrorMessage";
 import { LoadingState } from "../components/LoadingState";
 import { RsvpPanel } from "../components/RsvpPanel";
+import { formatEventDate } from "../utils/dates";
 
 type LoadState =
   | { status: "loading"; event: null }
@@ -107,7 +108,7 @@ export function EventDetailPage() {
       <h1>{event.title}</h1>
       <dl>
         <dt>Date</dt>
-        <dd>{new Date(event.date).toLocaleString()}</dd>
+        <dd>{formatEventDate(event.date)}</dd>
         <dt>Location</dt>
         <dd>{event.location}</dd>
         <dt>Description</dt>

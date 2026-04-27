@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { EventDetailPage } from "./routes/EventDetailPage";
 import { EventListPage } from "./routes/EventListPage";
+import { LoginPage } from "./routes/LoginPage";
 
 // Temporary route content keeps the router working while each page is promoted
 // into a real component during the frontend foundation build-out.
@@ -24,7 +25,7 @@ export function App() {
         <Route path="/" element={<Navigate to="/events" replace />} />
         <Route path="/events" element={<EventListPage />} />
         <Route path="/events/:eventId" element={<EventDetailPage />} />
-        <Route path="/login" element={<PlaceholderPage title="Login" />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route
           path="/register"
           element={<PlaceholderPage title="Register" />}

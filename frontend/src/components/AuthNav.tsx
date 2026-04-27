@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
+import { LoadingState } from "./LoadingState";
+import { StatusMessage } from "./StatusMessage";
 
 export function AuthNav() {
   const { logout, status, user } = useAuth();
@@ -10,7 +12,7 @@ export function AuthNav() {
   };
 
   if (status === "loading") {
-    return <span aria-live="polite">Checking session...</span>;
+    return <LoadingState message="Checking session..." />;
   }
 
   if (status === "authenticated" && user) {
@@ -31,7 +33,7 @@ export function AuthNav() {
       {/* Expired is different from anonymous: the user had a session, but it no
           longer has the token type the backend authorizers validate. */}
       {status === "expired" ? (
-        <span aria-live="polite">Session expired</span>
+        <StatusMessage message="Session expired" />
       ) : null}{" "}
       <Link to="/login">Login</Link>{" "}
       <Link to="/register">Register</Link>

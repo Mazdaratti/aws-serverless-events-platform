@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { ConfirmRegisterPage } from "./routes/ConfirmRegisterPage";
 import { CreateEventPage } from "./routes/CreateEventPage";
+import { EditEventPage } from "./routes/EditEventPage";
 import { EventDetailPage } from "./routes/EventDetailPage";
 import { EventListPage } from "./routes/EventListPage";
 import { LoginPage } from "./routes/LoginPage";
@@ -20,6 +21,7 @@ export function App() {
         <Route path="/events" element={<EventListPage />} />
         <Route path="/create-event" element={<CreateEventPage />} />
         <Route path="/events/:eventId" element={<EventDetailPage />} />
+        <Route path="/events/:eventId/edit" element={<EditEventPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/confirm-register" element={<ConfirmRegisterPage />} />

@@ -10,6 +10,7 @@ export function Layout() {
           {/* These links are React routes. BrowserRouter adds /app in the
               address bar, so /events here renders as /app/events. */}
           <Link to="/events">Events</Link>{" "}
+          <Link to="/create-event">Create event</Link>{" "}
           <AuthNav />
         </nav>
       </header>

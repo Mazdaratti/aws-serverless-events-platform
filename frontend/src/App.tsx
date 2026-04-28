@@ -7,6 +7,7 @@ import { EditEventPage } from "./routes/EditEventPage";
 import { EventDetailPage } from "./routes/EventDetailPage";
 import { EventListPage } from "./routes/EventListPage";
 import { LoginPage } from "./routes/LoginPage";
+import { MyEventsPage } from "./routes/MyEventsPage";
 import { NotFoundPage } from "./routes/NotFoundPage";
 import { RegisterPage } from "./routes/RegisterPage";
 
@@ -22,6 +23,7 @@ export function App() {
         <Route path="/create-event" element={<CreateEventPage />} />
         <Route path="/events/:eventId" element={<EventDetailPage />} />
         <Route path="/events/:eventId/edit" element={<EditEventPage />} />
+        <Route path="/my-events" element={<MyEventsPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/confirm-register" element={<ConfirmRegisterPage />} />

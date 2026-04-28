@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { Layout } from "./components/Layout";
 import { ConfirmRegisterPage } from "./routes/ConfirmRegisterPage";
+import { CreateEventPage } from "./routes/CreateEventPage";
 import { EventDetailPage } from "./routes/EventDetailPage";
 import { EventListPage } from "./routes/EventListPage";
 import { LoginPage } from "./routes/LoginPage";
@@ -17,6 +18,7 @@ export function App() {
       <Route element={<Layout />}>
         <Route path="/" element={<Navigate to="/events" replace />} />
         <Route path="/events" element={<EventListPage />} />
+        <Route path="/create-event" element={<CreateEventPage />} />
         <Route path="/events/:eventId" element={<EventDetailPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

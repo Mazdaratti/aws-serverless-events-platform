@@ -172,7 +172,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - `envs/dev` wiring
     - AWS validation and deployment evidence
     - mixed anonymous/authenticated caller projection for routed RSVP
-- Frontend Foundation
+- Frontend foundation and product functionality
   - React + Vite + TypeScript app under `frontend/`
   - React Router `BrowserRouter` with `/app` basename
   - Amplify Auth modular Cognito configuration
@@ -183,11 +183,20 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - public event detail page using `GET /events/{event_id}`
   - anonymous RSVP token helper using non-auth `localStorage`
   - mixed-mode RSVP panel using `POST /events/{event_id}/rsvp`
+  - authenticated create-event page using `POST /events`
+  - authenticated edit-event page using `PATCH /events/{event_id}`
+  - authenticated cancel workflow using `POST /events/{event_id}/cancel`
+  - authenticated my-events page using `GET /events/mine`
+  - creator/admin RSVP list page using `GET /events/{event_id}/rsvps`
   - register, confirm registration, login, and logout flow
   - reusable loading, status, success, and error message components
   - event visibility labels for public, protected, and admin-only events
+  - client-side search, sort, event-state, visibility, and RSVP availability controls
+    for already loaded event lists
+  - light plain-CSS visual polish for layout, forms, buttons, messages, and cards
   - local typecheck/build validation completed
-  - manual CloudFront runtime validation completed (no deployment automation added in this phase)
+  - manual CloudFront runtime validation completed in the frontend foundation phase
+  - no frontend deployment automation added yet
 - Validation and developer workflow
   - external Lambda artifact packaging workflow via `scripts/package_lambda.py`
   - Python handler validation for implemented Lambda handlers
@@ -369,7 +378,8 @@ aws-serverless-events-platform/
 |   |   |-- routes/
 |   |   |-- utils/
 |   |   |-- App.tsx
-|   |   `-- main.tsx
+|   |   |-- main.tsx
+|   |   `-- styles.css
 |   |-- .env.example
 |   |-- index.html
 |   |-- package-lock.json
@@ -514,12 +524,13 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - `/app` SPA routing namespace and CloudFront Function rewrite ✅
 
 14. Frontend Foundation ✅
-15. Frontend Deployment Integration
-16. EventBridge and SNS integration
-17. `notification-worker`
-18. CloudWatch observability and X-Ray tracing
-19. Remote Terraform backend and GitHub OIDC
-20. CI/CD deployment workflow
+15. Frontend Product Functionality Layer ✅
+16. Frontend Deployment Integration
+17. EventBridge and SNS integration
+18. `notification-worker`
+19. CloudWatch observability and X-Ray tracing
+20. Remote Terraform backend and GitHub OIDC
+21. CI/CD deployment workflow
 
 
 The repository now also includes Terraform validation coverage for the currently

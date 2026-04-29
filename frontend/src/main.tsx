@@ -5,6 +5,7 @@ import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { configureAmplify } from "./auth/amplify";
 import { AuthProvider } from "./auth/AuthProvider";
+import "./styles.css";
 
 // Configure Amplify before any auth/session code can run. This keeps Cognito
 // setup explicit and ensures token storage is switched to sessionStorage before

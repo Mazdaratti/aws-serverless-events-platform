@@ -283,15 +283,25 @@ Locked initial browser-facing API surface:
 
 The frontend must not assume unimplemented routes exist.
 
-Current frontend foundation implementation (non-exhaustive subset of the
-contract):
+Current frontend implementation (non-exhaustive subset of the contract):
 
-- the first frontend implementation covers:
+- the frontend foundation covers:
   - public event listing with `GET /events`
   - public event detail with `GET /events/{event_id}`
   - mixed-mode RSVP with `POST /events/{event_id}/rsvp`
   - Cognito-backed register, confirmation, login, logout, and session restore
-- authenticated event management UI remains intentionally deferred
+- the product functionality layer covers:
+  - event creation with `POST /events`
+  - event editing with `PATCH /events/{event_id}`
+  - event cancellation with `POST /events/{event_id}/cancel`
+  - creator-scoped event listing with `GET /events/mine`
+  - creator/admin RSVP list viewing with `GET /events/{event_id}/rsvps`
+  - client-side search, sort, event-state, visibility, and RSVP availability
+    controls over already loaded event DTOs
+
+These client-side list controls must remain presentation behavior only. They
+must not introduce backend query parameters or change the routed API contract.
+
 - admin account management remains intentionally deferred until backend admin
   account APIs exist
 - frontend deployment automation remains intentionally deferred to the

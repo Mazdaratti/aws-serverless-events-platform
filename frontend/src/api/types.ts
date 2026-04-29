@@ -53,6 +53,8 @@ export interface CreateEventRequest {
   requires_admin: boolean;
 }
 
+export type UpdateEventRequest = Partial<CreateEventRequest>;
+
 export type RsvpOperation = "created" | "updated";
 export type RsvpSubjectType = "USER" | "ANON";
 

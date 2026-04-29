@@ -1,18 +1,28 @@
 import { apiRequest } from "./client";
 import type {
+  CreateEventRequest,
+  EventRsvpsResponse,
   GetEventResponse,
   ListEventsResponse,
   RsvpRequest,
-  RsvpResponse
+  RsvpResponse,
+  UpdateEventRequest
 } from "./types";
 
 export interface ListEventsParams {
   nextCursor?: string;
 }
 
-// PR 16B only uses the public list/detail routes and the mixed-mode RSVP route.
-// The create/edit/cancel/my-events/RSVP-list API wrappers will be added with
-// the authenticated management UI in PR 16C.
+export interface ListMyEventsParams {
+  nextCursor?: string;
+  limit?: number;
+}
+
+export interface GetEventRsvpsParams {
+  nextCursor?: string;
+  limit?: number;
+}
+
 export function listEvents(
   params: ListEventsParams = {},
   signal?: AbortSignal
@@ -59,4 +69,81 @@ export function rsvpToEvent(
     method: "POST",
     body: request
   });
+}
+
+export function createEvent(
+  request: CreateEventRequest
+): Promise<GetEventResponse> {
+  return apiRequest<GetEventResponse>("/events", {
+    authMode: "required",
+    method: "POST",
+    body: request
+  });
+}
+
+export function updateEvent(
+  eventId: string,
+  request: UpdateEventRequest
+): Promise<GetEventResponse> {
+  return apiRequest<GetEventResponse>(`/events/${encodeURIComponent(eventId)}`, {
+    authMode: "required",
+    method: "PATCH",
+    body: request
+  });
+}
+
+export function cancelEvent(eventId: string): Promise<GetEventResponse> {
+  return apiRequest<GetEventResponse>(
+    `/events/${encodeURIComponent(eventId)}/cancel`,
+    {
+      authMode: "required",
+      method: "POST"
+    }
+  );
+}
+
+export function listMyEvents(
+  params: ListMyEventsParams = {},
+  signal?: AbortSignal
+): Promise<ListEventsResponse> {
+  const path = buildListPath("/events/mine", params);
+
+  return apiRequest<ListEventsResponse>(path, {
+    authMode: "required",
+    signal
+  });
+}
+
+export function getEventRsvps(
+  eventId: string,
+  params: GetEventRsvpsParams = {},
+  signal?: AbortSignal
+): Promise<EventRsvpsResponse> {
+  const path = buildListPath(
+    `/events/${encodeURIComponent(eventId)}/rsvps`,
+    params
+  );
+
+  return apiRequest<EventRsvpsResponse>(path, {
+    authMode: "required",
+    signal
+  });
+}
+
+function buildListPath(
+  basePath: string,
+  params: { nextCursor?: string; limit?: number }
+): string {
+  const searchParams = new URLSearchParams();
+
+  if (params.nextCursor) {
+    searchParams.set("next_cursor", params.nextCursor);
+  }
+
+  if (params.limit !== undefined) {
+    searchParams.set("limit", String(params.limit));
+  }
+
+  const query = searchParams.toString();
+  return query ? `${basePath}?${query}` : basePath;
 }

@@ -46,6 +46,11 @@ export function EventCard({ event }: EventCardProps) {
         <dt>Location</dt>
         <dd>{event.location || "Location not specified"}</dd>
 
+        <dt>Created</dt>
+        {/* Public event DTOs expose created_at, not updated_at. Show the real
+            available timestamp instead of inventing a last-updated field. */}
+        <dd>{formatEventDate(event.created_at)}</dd>
+
         <dt>RSVPs</dt>
         <dd>
           {event.attending_count} attending / {event.rsvp_count} total

@@ -219,7 +219,10 @@ export function MyEventsPage() {
           <li key={event.event_id}>
             <EventCard event={event} />
             <p>
-              <Link to={`/events/${event.event_id}/edit`}>Edit</Link>
+              <Link to={`/events/${event.event_id}/edit`}>Edit</Link> {" | "}
+              {/* RSVP-list access is checked by the backend. This owner page
+                  only provides a convenient management shortcut. */}
+              <Link to={`/events/${event.event_id}/rsvps`}>View RSVPs</Link>
             </p>
 
             {event.status === "CANCELLED" ? (

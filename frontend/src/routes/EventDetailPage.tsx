@@ -121,7 +121,10 @@ export function EventDetailPage() {
         <Link to="/events">Back to events</Link> {" | "}
         {/* This link is only a management shortcut. The edit page and backend
             still decide whether the current caller can update this event. */}
-        <Link to={`/events/${event.event_id}/edit`}>Edit event</Link>
+        <Link to={`/events/${event.event_id}/edit`}>Edit event</Link> {" | "}
+        {/* RSVP-list access is also backend-authorized. The frontend link is
+            just a shortcut for creators/admins who are allowed through. */}
+        <Link to={`/events/${event.event_id}/rsvps`}>View RSVPs</Link>
       </p>
       <h1>{event.title || "Untitled event"}</h1>
       {/* Visibility labels explain the public DTO flags in user-facing terms.

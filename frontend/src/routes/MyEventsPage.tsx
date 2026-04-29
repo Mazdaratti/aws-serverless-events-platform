@@ -10,6 +10,12 @@ import { EventCard } from "../components/EventCard";
 import { LoadingState } from "../components/LoadingState";
 import { StatusMessage } from "../components/StatusMessage";
 import { SuccessMessage } from "../components/SuccessMessage";
+import {
+  applyEventListControls,
+  hasActiveEventListControls,
+  myEventsDefaultControls,
+  type EventListControls
+} from "../utils/eventListControls";
 
 type LoadState =
   | { status: "loading"; items: PublicEvent[]; nextCursor: NextCursor }
@@ -45,6 +51,7 @@ export function MyEventsPage() {
   const [loadState, setLoadState] = useState<LoadState>(initialLoadState);
   const [cancelState, setCancelState] = useState<CancelState>(initialCancelState);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [controls, setControls] = useState<EventListControls>(myEventsDefaultControls);
 
   useEffect(() => {
     if (status !== "authenticated") {
@@ -168,6 +175,14 @@ export function MyEventsPage() {
     }
   };
 
+  // My events uses the same client-side control rules as public discovery, but
+  // its default keeps all owned events visible for management.
+  const visibleEvents = applyEventListControls(loadState.items, controls);
+  const hasActiveControls = hasActiveEventListControls(
+    controls,
+    myEventsDefaultControls
+  );
+
   if (status === "loading") {
     return <LoadingState message="Checking session..." />;
   }
@@ -194,6 +209,17 @@ export function MyEventsPage() {
         <Link to="/create-event">Create event</Link>
       </p>
 
+      <MyEventsControlsForm controls={controls} setControls={setControls} />
+
+      {hasActiveControls ? (
+        <button
+          type="button"
+          onClick={() => setControls(myEventsDefaultControls)}
+        >
+          Reset controls
+        </button>
+      ) : null}
+
       {loadState.status === "loading" ? (
         <LoadingState message="Loading your events..." />
       ) : null}
@@ -210,12 +236,22 @@ export function MyEventsPage() {
         <ErrorMessage message={cancelState.message} />
       ) : null}
 
+      {loadState.status !== "loading" ? (
+        <p>
+          Showing {visibleEvents.length} of {loadState.items.length} loaded events.
+        </p>
+      ) : null}
+
       {loadState.items.length === 0 && loadState.status !== "loading" ? (
         <StatusMessage message="No events yet." />
       ) : null}
 
+      {loadState.items.length > 0 && visibleEvents.length === 0 ? (
+        <StatusMessage message="No events match the current controls." />
+      ) : null}
+
       <ul>
-        {loadState.items.map((event) => (
+        {visibleEvents.map((event) => (
           <li key={event.event_id}>
             <EventCard event={event} />
             <p>
@@ -260,5 +296,122 @@ export function MyEventsPage() {
         </button>
       ) : null}
     </>
+  );
+}
+
+interface MyEventsControlsFormProps {
+  controls: EventListControls;
+  setControls: (controls: EventListControls) => void;
+}
+
+function MyEventsControlsForm({
+  controls,
+  setControls
+}: MyEventsControlsFormProps) {
+  return (
+    <section aria-labelledby="my-events-controls">
+      <h2 id="my-events-controls">Find my events</h2>
+
+      <div>
+        <label htmlFor="my-events-search">Search</label>
+        <input
+          id="my-events-search"
+          name="search"
+          value={controls.search}
+          onChange={(event) =>
+            setControls({
+              ...controls,
+              search: event.target.value
+            })
+          }
+          placeholder="Title, description, or location"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="my-events-state-filter">Event state</label>
+        <select
+          id="my-events-state-filter"
+          name="eventState"
+          value={controls.eventState}
+          onChange={(event) =>
+            setControls({
+              ...controls,
+              eventState: event.target.value as EventListControls["eventState"]
+            })
+          }
+        >
+          <option value="all">All</option>
+          <option value="ongoing">Ongoing</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="outdated">Outdated</option>
+        </select>
+      </div>
+
+      <div>
+        <label htmlFor="my-events-visibility-filter">Visibility</label>
+        <select
+          id="my-events-visibility-filter"
+          name="visibility"
+          value={controls.visibility}
+          onChange={(event) =>
+            setControls({
+              ...controls,
+              visibility: event.target.value as EventListControls["visibility"]
+            })
+          }
+        >
+          <option value="all">All</option>
+          <option value="public">Public</option>
+          <option value="protected">Protected</option>
+          <option value="admin">Admin-only</option>
+        </select>
+      </div>
+
+      <div>
+        <label htmlFor="my-events-capacity-filter">RSVP availability</label>
+        <select
+          id="my-events-capacity-filter"
+          name="capacity"
+          value={controls.capacity}
+          onChange={(event) =>
+            setControls({
+              ...controls,
+              capacity: event.target.value as EventListControls["capacity"]
+            })
+          }
+        >
+          <option value="all">All</option>
+          <option value="unlimited">Unlimited capacity</option>
+          <option value="limited">Has capacity limit</option>
+          <option value="full">Full</option>
+          <option value="available">Spots available</option>
+        </select>
+      </div>
+
+      <div>
+        <label htmlFor="my-events-sort">Sort</label>
+        <select
+          id="my-events-sort"
+          name="sort"
+          value={controls.sort}
+          onChange={(event) =>
+            setControls({
+              ...controls,
+              sort: event.target.value as EventListControls["sort"]
+            })
+          }
+        >
+          <option value="date-asc">Event date: soonest first</option>
+          <option value="date-desc">Event date: latest first</option>
+          <option value="title-asc">Title: A-Z</option>
+          <option value="title-desc">Title: Z-A</option>
+          <option value="status-active-first">Status: active first</option>
+          <option value="status-cancelled-first">Status: cancelled first</option>
+          <option value="created-desc">Created: newest first</option>
+          <option value="created-asc">Created: oldest first</option>
+        </select>
+      </div>
+    </section>
   );
 }

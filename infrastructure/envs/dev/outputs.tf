@@ -1,4 +1,16 @@
 ############################################
+# Environment deployment context outputs
+############################################
+
+# Frontend deployment helpers need the selected regional AWS provider context
+# so they can build public Vite config and run regional S3 commands without
+# hardcoding an environment-specific value outside Terraform.
+output "aws_region" {
+  description = "AWS region selected for regional resources in the dev environment."
+  value       = var.aws_region
+}
+
+############################################
 # DynamoDB data layer outputs
 ############################################
 

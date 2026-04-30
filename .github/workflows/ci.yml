@@ -1,4 +1,4 @@
-name: Terraform Validation
+name: CI Validation
 
 on:
   workflow_dispatch:
@@ -68,6 +68,40 @@ jobs:
 
       - name: Run Lambda handler tests
         run: python -m pytest tests/lambdas
+
+  frontend-validate:
+    name: Validate Frontend
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: frontend
+
+    env:
+      VITE_AWS_REGION: eu-central-1
+      VITE_COGNITO_USER_POOL_ID: eu-central-1_example
+      VITE_COGNITO_USER_POOL_CLIENT_ID: exampleclientid
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Typecheck frontend
+        run: npm run typecheck
+
+      - name: Build frontend
+        run: npm run build
 
   terraform-validate-and-lint:
     name: Validate ${{ matrix.directory }}

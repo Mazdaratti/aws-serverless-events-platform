@@ -304,8 +304,10 @@ must not introduce backend query parameters or change the routed API contract.
 
 - admin account management remains intentionally deferred until backend admin
   account APIs exist
-- frontend deployment automation remains intentionally deferred to the
-  Frontend Deployment Integration milestone
+- local/manual frontend deployment is implemented through
+  `scripts/deploy_frontend.py`
+- CI/CD frontend deployment automation remains intentionally deferred until
+  GitHub OIDC and separate deployment workflows exist
 
 ### Frontend error-handling direction
 

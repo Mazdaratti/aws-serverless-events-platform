@@ -175,9 +175,9 @@ Because of that, API Gateway CORS is expected to remain disabled unless a
 specific environment or integration case genuinely requires cross-origin
 browser access.
 
-### Future Frontend Deployment Direction
+### Frontend Deployment Direction
 
-Frontend deployment is expected to follow this flow:
+Frontend deployment follows this production-shaped flow:
 
 1. read required public frontend configuration from Terraform outputs
 2. provide those values to the frontend build as `VITE_*` environment variables
@@ -189,10 +189,12 @@ Frontend deployment is expected to follow this flow:
 This keeps frontend deployment separate from backend Lambda deployment while
 still presenting one public product entry point.
 
-Frontend build configuration must be supplied by CI/CD.
+The current local/manual deployment path is implemented by:
 
-The CI/CD deployment workflow must read the deployed environment outputs and
-provide only public frontend values to `npm run build`, such as:
+- `scripts/deploy_frontend.py`
+
+That helper reads the deployed environment outputs and provides only public
+frontend values to the Vite production build, such as:
 
 - `VITE_AWS_REGION`
 - `VITE_COGNITO_USER_POOL_ID`
@@ -209,6 +211,9 @@ The frontend build must not receive:
 
 API calls remain same-origin relative requests through CloudFront, using paths
 such as `/events`.
+
+CI/CD automation for frontend deployment is intentionally deferred until the
+repository has GitHub OIDC and separate deployment workflows.
 
 ---
 

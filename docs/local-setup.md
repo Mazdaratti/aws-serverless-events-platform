@@ -16,6 +16,7 @@ The current local workflow expects these tools to be available:
 - Terraform
 - `tflint`
 - `terraform-docs`
+- AWS CLI
 - Node.js
 - npm
 
@@ -28,6 +29,8 @@ workflow:
 - Terraform is used for infrastructure validation, planning, and deployment
 - `tflint` is used for Terraform linting
 - `terraform-docs` is used to refresh generated module and environment README sections
+- AWS CLI is used by local deployment helpers for S3 uploads and CloudFront
+  cache invalidation
 - Node.js and npm are used for the React/Vite frontend application under
   `frontend/`
 
@@ -103,6 +106,18 @@ for:
 It is used to refresh generated input/output/reference sections in README files
 after interface changes.
 
+## AWS CLI
+
+The AWS CLI is required for local application artifact deployment workflows.
+
+For the current frontend deployment helper, the AWS CLI must be able to access
+the same AWS account and permissions used for the dev environment.
+
+The helper uses AWS CLI commands for:
+
+- previewing and syncing `frontend/dist/` to the private frontend S3 bucket
+- creating a CloudFront cache invalidation after a real frontend upload
+
 ## Frontend
 
 Frontend implementation is now an active implementation track.
@@ -150,6 +165,85 @@ Runtime routing and API integration rules:
 - API calls must use same-origin relative paths such as `/events`
 - API calls must not use a direct API Gateway URL
 - API calls must not use a `/api` prefix
+
+### Frontend Deployment Helper
+
+The local frontend deployment helper is:
+
+- `scripts/deploy_frontend.py`
+
+The helper is the current production-shaped manual deployment path for the
+React/Vite frontend. It reads public frontend deployment values from Terraform
+outputs in:
+
+- `infrastructure/envs/dev`
+
+Before using the helper, make sure the dev Terraform state is current and
+includes the frontend deployment outputs:
+
+- `aws_region`
+- `frontend_bucket_name`
+- `cloudfront_distribution_id`
+- `cloudfront_distribution_domain_name`
+- `cognito_user_pool_id`
+- `cognito_user_pool_client_id`
+
+Run a safe dry-run first from the repository root:
+
+```bash
+python scripts/deploy_frontend.py --dry-run
+```
+
+Dry-run mode:
+
+- reads `terraform output -json`
+- writes a temporary `frontend/.env.production.local`
+- injects only approved public `VITE_*` values
+- runs `npm ci`
+- runs `npm run typecheck`
+- runs `npm run build`
+- verifies `frontend/dist/` exists
+- previews the S3 upload with `aws s3 sync --dryrun`
+- does not upload files
+- does not invalidate CloudFront
+
+For a real frontend deployment, run:
+
+```bash
+python scripts/deploy_frontend.py --apply
+```
+
+Apply mode performs the same validation and S3 dry-run first, then:
+
+- syncs `frontend/dist/` to the private frontend S3 bucket with `--delete`
+- creates a CloudFront invalidation for `/*`
+- prints the CloudFront frontend URLs to validate
+
+The helper writes only these public browser build values:
+
+- `VITE_AWS_REGION`
+- `VITE_COGNITO_USER_POOL_ID`
+- `VITE_COGNITO_USER_POOL_CLIENT_ID`
+
+Do not add an API Gateway URL, secrets, AWS credentials, or non-public
+configuration to frontend Vite environment files.
+
+The helper restores any existing `frontend/.env.production.local` file after
+the build. If that file did not exist before the helper ran, it is removed.
+
+After a real deployment, validate through CloudFront:
+
+- `https://<cloudfront-domain>/app`
+- `https://<cloudfront-domain>/app/events`
+- `https://<cloudfront-domain>/app/create-event`
+- `https://<cloudfront-domain>/events`
+
+Also refresh a frontend deep link directly in the browser, such as:
+
+- `https://<cloudfront-domain>/app/events`
+
+The refresh should return the SPA entrypoint through CloudFront. API routes
+under `/events` should continue to return API responses, not frontend HTML.
 
 Authentication uses Cognito through the frontend Amplify Auth SDK.
 

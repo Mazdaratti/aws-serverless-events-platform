@@ -27,10 +27,10 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Frontend Deployment Integration
-  - define the production deployment path for the built React/Vite frontend
-  - keep CloudFront as the only browser-facing entry point
-  - wire artifact upload and cache invalidation without changing the `/app` and `/events` route contract
+- Frontend UX + Performance Hardening
+  - improve responsive layout and reusable frontend structure
+  - improve accessibility and route-level loading behavior
+  - optimize frontend lists and build output without changing the `/app` and `/events` route contract
 
 ### Completed milestones
 
@@ -196,7 +196,17 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - light plain-CSS visual polish for layout, forms, buttons, messages, and cards
   - local typecheck/build validation completed
   - manual CloudFront runtime validation completed in the frontend foundation phase
-  - no frontend deployment automation added yet
+- Frontend deployment integration
+  - `infrastructure/envs/dev` exposes the public outputs needed for frontend deployment
+  - local/manual deployment helper added at `scripts/deploy_frontend.py`
+  - helper reads Terraform outputs and injects only public `VITE_*` values
+  - helper runs `npm ci`, `npm run typecheck`, and `npm run build`
+  - helper previews S3 upload with `aws s3 sync --dryrun`
+  - `--apply` syncs `frontend/dist/` to the private S3 frontend bucket
+  - `--apply` creates a CloudFront invalidation after upload
+  - CloudFront runtime validation completed for frontend routes, API forwarding,
+    and SPA refresh/deep-link behavior
+  - no backend, Lambda, Cognito, API Gateway, or route model changes were made
 - Validation and developer workflow
   - external Lambda artifact packaging workflow via `scripts/package_lambda.py`
   - Python handler validation for implemented Lambda handlers
@@ -207,6 +217,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Next milestones
 
+- Frontend UX + Performance Hardening
 - EventBridge + SNS integration
 - `notification-worker`
 - Observability baseline
@@ -525,12 +536,63 @@ Infrastructure is implemented using modular Terraform design with environment-sp
 
 14. Frontend Foundation ✅
 15. Frontend Product Functionality Layer ✅
-16. Frontend Deployment Integration
-17. EventBridge and SNS integration
-18. `notification-worker`
-19. CloudWatch observability and X-Ray tracing
-20. Remote Terraform backend and GitHub OIDC
-21. CI/CD deployment workflow
+16. Frontend Deployment Integration ✅
+   - local/manual frontend deployment path ✅
+   - read required public frontend values from Terraform outputs ✅
+   - build the React/Vite frontend with public `VITE_*` values only ✅
+   - sync `frontend/dist/` to the private S3 frontend bucket ✅
+   - invalidate CloudFront after frontend artifact upload ✅
+   - keep CloudFront as the only browser-facing entry point ✅
+   - no backend, Lambda, API Gateway, or routing behavior changes ✅
+
+17. Frontend UX + Performance Hardening
+   - responsive design pass
+   - reusable layout primitives
+   - improved visual system
+   - accessibility improvements
+   - route-level lazy loading
+   - pagination UX improvements
+   - list rendering optimization
+   - bundle/build optimization
+
+18. EventBridge and SNS integration
+   - publish domain events only after durable business writes succeed
+   - introduce notification fanout without changing synchronous API outcomes
+
+19. `notification-worker`
+   - consume asynchronous notification work
+   - keep user-facing API responses independent from notification delivery
+
+20. CloudWatch observability and X-Ray tracing
+   - add production-oriented logs, metrics, tracing, and validation evidence
+
+21. Remote Terraform backend and GitHub OIDC
+   - introduce remote Terraform state
+   - add GitHub Actions AWS authentication through OIDC
+   - keep this separate from application deployment workflows
+
+22. CI validation workflow hardening
+   - keep CI read-only and validation-focused
+   - add frontend validation to CI:
+     - `npm ci`
+     - `npm run typecheck`
+     - `npm run build`
+   - keep Terraform validation detached from real AWS state
+   - do not deploy from CI validation jobs
+
+23. CI/CD deployment workflows
+   - add separate provisioning and deployment workflows after OIDC exists
+   - keep provisioning responsible for Terraform infrastructure changes
+   - keep deployment responsible for application artifacts
+   - add frontend deployment workflow for S3 sync and CloudFront invalidation
+   - keep Lambda deployment Terraform-managed initially
+
+24. Optional Lambda code deployment separation
+   - prepare for a future model where Terraform creates Lambda shell/config
+   - move Lambda ZIP artifact publishing to deployment automation
+   - update Lambda code with `aws lambda update-function-code`
+   - keep IAM, environment variables, log groups, and API wiring in Terraform
+   - add versions/aliases only after the basic split is validated
 
 
 The repository now also includes Terraform validation coverage for the currently

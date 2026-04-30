@@ -27,10 +27,10 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Frontend Deployment Integration
-  - define the production deployment path for the built React/Vite frontend
-  - keep CloudFront as the only browser-facing entry point
-  - wire artifact upload and cache invalidation without changing the `/app` and `/events` route contract
+- Frontend UX + Performance Hardening
+  - improve responsive layout and reusable frontend structure
+  - improve accessibility and route-level loading behavior
+  - optimize frontend lists and build output without changing the `/app` and `/events` route contract
 
 ### Completed milestones
 
@@ -196,7 +196,17 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - light plain-CSS visual polish for layout, forms, buttons, messages, and cards
   - local typecheck/build validation completed
   - manual CloudFront runtime validation completed in the frontend foundation phase
-  - no frontend deployment automation added yet
+- Frontend deployment integration
+  - `infrastructure/envs/dev` exposes the public outputs needed for frontend deployment
+  - local/manual deployment helper added at `scripts/deploy_frontend.py`
+  - helper reads Terraform outputs and injects only public `VITE_*` values
+  - helper runs `npm ci`, `npm run typecheck`, and `npm run build`
+  - helper previews S3 upload with `aws s3 sync --dryrun`
+  - `--apply` syncs `frontend/dist/` to the private S3 frontend bucket
+  - `--apply` creates a CloudFront invalidation after upload
+  - CloudFront runtime validation completed for frontend routes, API forwarding,
+    and SPA refresh/deep-link behavior
+  - no backend, Lambda, Cognito, API Gateway, or route model changes were made
 - Validation and developer workflow
   - external Lambda artifact packaging workflow via `scripts/package_lambda.py`
   - Python handler validation for implemented Lambda handlers
@@ -207,6 +217,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Next milestones
 
+- Frontend UX + Performance Hardening
 - EventBridge + SNS integration
 - `notification-worker`
 - Observability baseline

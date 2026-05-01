@@ -1,39 +1,30 @@
-import { Link, Outlet } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 
 import { AuthNav } from "./AuthNav";
 
 export function Layout() {
   return (
     <>
-      <header className="border-b border-slate-200 bg-white">
+      <header className="border-b border-slate-200 bg-white shadow-sm">
         <nav
           aria-label="Primary navigation"
-          className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3"
+          className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-4 py-3"
         >
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {/* These links are React routes. BrowserRouter adds /app in the
                 address bar, so /events here renders as /app/events. */}
-            <Link
-              className="rounded-md px-2 py-1 font-semibold text-slate-950 hover:bg-slate-100 hover:text-blue-700"
-              to="/events"
-            >
+            <NavLink className={getNavLinkClassName} to="/events">
               Events
-            </Link>
-            <Link
-              className="rounded-md px-2 py-1 font-medium text-slate-700 hover:bg-slate-100 hover:text-blue-700"
-              to="/my-events"
-            >
+            </NavLink>
+            <NavLink className={getNavLinkClassName} to="/my-events">
               My events
-            </Link>
-            <Link
-              className="rounded-md px-2 py-1 font-medium text-slate-700 hover:bg-slate-100 hover:text-blue-700"
-              to="/create-event"
-            >
+            </NavLink>
+            <NavLink className={getNavLinkClassName} to="/create-event">
               Create event
-            </Link>
+            </NavLink>
           </div>
 
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center">
             <AuthNav />
           </div>
         </nav>
@@ -44,4 +35,13 @@ export function Layout() {
       </main>
     </>
   );
+}
+
+function getNavLinkClassName({ isActive }: { isActive: boolean }): string {
+  const baseClassName =
+    "rounded-md px-2.5 py-1.5 text-sm font-medium hover:bg-slate-100 hover:text-blue-700";
+
+  return isActive
+    ? `${baseClassName} bg-blue-50 text-blue-700`
+    : `${baseClassName} text-slate-700`;
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { getApiErrorMessage } from "../api/errors";
 import { listEvents } from "../api/events";
@@ -154,15 +155,31 @@ export function EventListPage() {
       </p>
 
       {loadedEvents.length === 0 ? (
-        <Panel>
-          <p className="m-0 text-sm text-slate-600">No events found.</p>
+        <Panel className="text-center">
+          <p className="m-0 text-sm font-semibold text-slate-700">
+            No events found.
+          </p>
+          <p className="mt-2 text-sm text-slate-500">
+            Try adjusting your filters or create a new event.
+          </p>
+          <div className="mt-3">
+            <Link
+              className="inline-block rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              to="/create-event"
+            >
+              Create event
+            </Link>
+          </div>
         </Panel>
       ) : null}
 
       {loadedEvents.length > 0 && visibleEvents.length === 0 ? (
-        <Panel>
-          <p className="m-0 text-sm text-slate-600">
+        <Panel className="text-center">
+          <p className="m-0 text-sm font-semibold text-slate-700">
             No events match the current controls.
+          </p>
+          <p className="mt-2 text-sm text-slate-500">
+            Try changing your search, filters, or sort order.
           </p>
         </Panel>
       ) : null}

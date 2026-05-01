@@ -259,7 +259,7 @@ function EventListControlsForm({
                 eventState: event.target.value as EventListControls["eventState"]
               })
             }
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
+            className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
           >
             <option value="all">All</option>
             <option value="ongoing">Ongoing</option>
@@ -280,7 +280,7 @@ function EventListControlsForm({
                 visibility: event.target.value as EventListControls["visibility"]
               })
             }
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
+            className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
           >
             <option value="all">All</option>
             <option value="public">Public</option>
@@ -301,7 +301,7 @@ function EventListControlsForm({
                 capacity: event.target.value as EventListControls["capacity"]
               })
             }
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
+            className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
           >
             <option value="all">All</option>
             <option value="unlimited">Unlimited capacity</option>
@@ -323,7 +323,7 @@ function EventListControlsForm({
                 sort: event.target.value as EventListControls["sort"]
               })
             }
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
+            className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
           >
             <option value="date-asc">Event date: soonest first</option>
             <option value="date-desc">Event date: latest first</option>

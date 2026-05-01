@@ -39,22 +39,13 @@ export function Layout() {
 
 function getNavLinkClassName({ isActive }: { isActive: boolean }): string {
   const baseClassName =
-    "rounded-md px-2.5 py-1.5 text-sm font-medium hover:bg-slate-100 hover:text-blue-700";
+    "rounded-md px-2.5 py-1.5 text-sm font-medium hover:bg-slate-100 hover:text-slate-950";
 
   return isActive
-    ? `${baseClassName} bg-blue-50 text-blue-700`
+    ? `${baseClassName} bg-slate-100 text-slate-950`
     : `${baseClassName} text-slate-700`;
 }
 
-function getCreateEventLinkClassName({
-  isActive
-}: {
-  isActive: boolean;
-}): string {
-  const baseClassName =
-    "rounded-md px-3 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2";
-
-  return isActive
-    ? `${baseClassName} bg-blue-700 text-white hover:text-white`
-    : `${baseClassName} bg-blue-600 text-white hover:bg-blue-700 hover:text-white`;
+function getCreateEventLinkClassName(): string {
+  return "rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2";
 }

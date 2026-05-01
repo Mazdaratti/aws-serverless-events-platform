@@ -23,12 +23,12 @@ export function EventCard({ event }: EventCardProps) {
   const visibilityLabel = getVisibilityLabel(event);
 
   return (
-    <article className="grid h-full gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-blue-200 hover:shadow-md">
+    <article className="grid h-full gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors transition-shadow hover:border-slate-300 hover:shadow-md">
       {/* EventCard receives only the public backend DTO. It should not know
           anything about DynamoDB item shape or private backend fields. */}
-      <h2 className="m-0 text-xl font-semibold leading-tight text-slate-950">
+      <h2 className="m-0 text-xl font-semibold leading-tight text-slate-900">
         <Link
-          className="text-slate-950 hover:text-blue-700"
+          className="text-slate-900 hover:text-slate-700"
           to={`/events/${event.event_id}`}
         >
           {event.title || "Untitled event"}
@@ -39,7 +39,7 @@ export function EventCard({ event }: EventCardProps) {
           Backend authorization is still the source of truth for what actions
           are actually allowed. */}
       <p aria-label="Event visibility" className="m-0">
-        <strong className="inline-flex w-fit rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800">
+        <strong className="inline-flex w-fit rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
           {visibilityLabel}
         </strong>
       </p>

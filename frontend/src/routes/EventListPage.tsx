@@ -150,7 +150,9 @@ export function EventListPage() {
         <ErrorMessage message={state.message} />
       ) : null}
 
-      <div className="mt-3 grid gap-3">
+      <div className="border-t border-slate-200" />
+
+      <div className="mt-5 grid gap-4">
         <p className="m-0 text-sm text-slate-500">
           Showing {visibleEvents.length} of {loadedEvents.length} loaded events.
         </p>
@@ -219,7 +221,10 @@ function EventListControlsForm({
   setControls
 }: EventListControlsFormProps) {
   return (
-    <section aria-labelledby="event-list-controls" className="grid gap-3">
+    <section
+      aria-labelledby="event-list-controls"
+      className="grid max-w-4xl gap-3"
+    >
       <h2 id="event-list-controls" className="sr-only">
         Find events
       </h2>
@@ -237,6 +242,7 @@ function EventListControlsForm({
                 search: event.target.value
               })
             }
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
             placeholder="Title, description, or location"
           />
         </div>
@@ -253,6 +259,7 @@ function EventListControlsForm({
                 eventState: event.target.value as EventListControls["eventState"]
               })
             }
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
           >
             <option value="all">All</option>
             <option value="ongoing">Ongoing</option>
@@ -273,6 +280,7 @@ function EventListControlsForm({
                 visibility: event.target.value as EventListControls["visibility"]
               })
             }
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
           >
             <option value="all">All</option>
             <option value="public">Public</option>
@@ -293,6 +301,7 @@ function EventListControlsForm({
                 capacity: event.target.value as EventListControls["capacity"]
               })
             }
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
           >
             <option value="all">All</option>
             <option value="unlimited">Unlimited capacity</option>
@@ -314,6 +323,7 @@ function EventListControlsForm({
                 sort: event.target.value as EventListControls["sort"]
               })
             }
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
           >
             <option value="date-asc">Event date: soonest first</option>
             <option value="date-desc">Event date: latest first</option>

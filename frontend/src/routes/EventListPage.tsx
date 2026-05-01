@@ -5,6 +5,13 @@ import { listEvents } from "../api/events";
 import type { NextCursor, PublicEvent } from "../api/types";
 import { EventCard } from "../components/EventCard";
 import { ErrorMessage } from "../components/ErrorMessage";
+import {
+  ItemGrid,
+  PageActions,
+  PageHeader,
+  PageLayout,
+  Panel
+} from "../components/LayoutPrimitives";
 import { LoadingState } from "../components/LoadingState";
 import {
   applyEventListControls,
@@ -107,36 +114,38 @@ export function EventListPage() {
     publicEventListDefaultControls
   );
 
+  if (state.status === "loading") {
+    return <LoadingState message="Loading events..." />;
+  }
+
   return (
-    <>
-      <h1>Events</h1>
+    <PageLayout>
+      <PageHeader>
+        <h1>Events</h1>
+
+        <PageActions>
+          {hasActiveControls ? (
+            <button
+              type="button"
+              onClick={() => setControls(publicEventListDefaultControls)}
+            >
+              Reset controls
+            </button>
+          ) : null}
+        </PageActions>
+      </PageHeader>
 
       <EventListControlsForm controls={controls} setControls={setControls} />
-
-      {hasActiveControls ? (
-        <button
-          type="button"
-          onClick={() => setControls(publicEventListDefaultControls)}
-        >
-          Reset controls
-        </button>
-      ) : null}
-
-      {state.status === "loading" ? (
-        <LoadingState message="Loading events..." />
-      ) : null}
 
       {state.status === "error" ? (
         <ErrorMessage message={state.message} />
       ) : null}
 
-      {state.status !== "loading" ? (
-        <p>
-          Showing {visibleEvents.length} of {state.items.length} loaded events.
-        </p>
-      ) : null}
+      <p>
+        Showing {visibleEvents.length} of {state.items.length} loaded events.
+      </p>
 
-      {state.items.length === 0 && state.status !== "loading" ? (
+      {state.items.length === 0 ? (
         <p>No events found.</p>
       ) : null}
 
@@ -144,24 +153,26 @@ export function EventListPage() {
         <p>No events match the current controls.</p>
       ) : null}
 
-      <ul>
+      <ItemGrid>
         {visibleEvents.map((event) => (
           <li key={event.event_id}>
             <EventCard event={event} />
           </li>
         ))}
-      </ul>
+      </ItemGrid>
 
       {state.nextCursor ? (
-        <button
-          type="button"
-          disabled={isLoadingMore}
-          onClick={() => void loadMore()}
-        >
-          {isLoadingMore ? "Loading..." : "Load more"}
-        </button>
+        <PageActions>
+          <button
+            type="button"
+            disabled={isLoadingMore}
+            onClick={() => void loadMore()}
+          >
+            {isLoadingMore ? "Loading..." : "Load more"}
+          </button>
+        </PageActions>
       ) : null}
-    </>
+    </PageLayout>
   );
 }
 
@@ -175,7 +186,7 @@ function EventListControlsForm({
   setControls
 }: EventListControlsFormProps) {
   return (
-    <section aria-labelledby="event-list-controls">
+    <Panel aria-labelledby="event-list-controls">
       <h2 id="event-list-controls">Find events</h2>
 
       <div>
@@ -278,6 +289,6 @@ function EventListControlsForm({
           <option value="created-asc">Created: oldest first</option>
         </select>
       </div>
-    </section>
+    </Panel>
   );
 }

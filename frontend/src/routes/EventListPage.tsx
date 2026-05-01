@@ -76,6 +76,8 @@ export function EventListPage() {
     };
   }, []);
 
+  const loadedEvents = state.items ?? [];
+
   const loadMore = async () => {
     if (!state.nextCursor || isLoadingMore) {
       return;
@@ -88,18 +90,18 @@ export function EventListPage() {
       // through listEvents(); it never tries to decode backend pagination state.
       const response = await listEvents({ nextCursor: state.nextCursor });
 
-      setState({
+      setState((prev) => ({
         status: "ready",
-        items: [...state.items, ...response.items],
+        items: [...(prev.items ?? []), ...(response.items ?? [])],
         nextCursor: response.next_cursor
-      });
+      }));
     } catch (error) {
-      setState({
+      setState((prev) => ({
         status: "error",
-        items: state.items,
-        nextCursor: state.nextCursor,
+        items: prev.items ?? [],
+        nextCursor: prev.nextCursor,
         message: getApiErrorMessage(error)
-      });
+      }));
     } finally {
       setIsLoadingMore(false);
     }
@@ -108,7 +110,7 @@ export function EventListPage() {
   // Filtering and sorting are intentionally client-side only. The API request
   // still loads the same public event pages; these controls only rearrange the
   // events already present in local component state.
-  const visibleEvents = applyEventListControls(state.items, controls);
+  const visibleEvents = applyEventListControls(loadedEvents, controls);
   const hasActiveControls = hasActiveEventListControls(
     controls,
     publicEventListDefaultControls
@@ -142,14 +144,14 @@ export function EventListPage() {
       ) : null}
 
       <p>
-        Showing {visibleEvents.length} of {state.items.length} loaded events.
+        Showing {visibleEvents.length} of {loadedEvents.length} loaded events.
       </p>
 
-      {state.items.length === 0 ? (
+      {loadedEvents.length === 0 ? (
         <p>No events found.</p>
       ) : null}
 
-      {state.items.length > 0 && visibleEvents.length === 0 ? (
+      {loadedEvents.length > 0 && visibleEvents.length === 0 ? (
         <p>No events match the current controls.</p>
       ) : null}
 

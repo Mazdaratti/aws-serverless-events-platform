@@ -123,7 +123,13 @@ export function EventListPage() {
   return (
     <PageLayout>
       <PageHeader>
-        <h1>Events</h1>
+        <div>
+          <h1>Events</h1>
+          <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+            Discover upcoming events and narrow the list by status, visibility,
+            availability, or date.
+          </p>
+        </div>
 
         <PageActions>
           {hasActiveControls ? (
@@ -143,16 +149,22 @@ export function EventListPage() {
         <ErrorMessage message={state.message} />
       ) : null}
 
-      <p>
+      <p className="m-0 text-sm text-slate-500">
         Showing {visibleEvents.length} of {loadedEvents.length} loaded events.
       </p>
 
       {loadedEvents.length === 0 ? (
-        <p>No events found.</p>
+        <Panel>
+          <p className="m-0 text-sm text-slate-600">No events found.</p>
+        </Panel>
       ) : null}
 
       {loadedEvents.length > 0 && visibleEvents.length === 0 ? (
-        <p>No events match the current controls.</p>
+        <Panel>
+          <p className="m-0 text-sm text-slate-600">
+            No events match the current controls.
+          </p>
+        </Panel>
       ) : null}
 
       <ItemGrid>
@@ -189,107 +201,118 @@ function EventListControlsForm({
 }: EventListControlsFormProps) {
   return (
     <Panel aria-labelledby="event-list-controls">
-      <h2 id="event-list-controls">Find events</h2>
-
-      <div>
-        <label htmlFor="event-search">Search</label>
-        <input
-          id="event-search"
-          name="search"
-          value={controls.search}
-          onChange={(event) =>
-            setControls({
-              ...controls,
-              search: event.target.value
-            })
-          }
-          placeholder="Title, description, or location"
-        />
-      </div>
-
-      <div>
-        <label htmlFor="event-state-filter">Event state</label>
-        <select
-          id="event-state-filter"
-          name="eventState"
-          value={controls.eventState}
-          onChange={(event) =>
-            setControls({
-              ...controls,
-              eventState: event.target.value as EventListControls["eventState"]
-            })
-          }
+      <div className="grid gap-4">
+        <h2
+          id="event-list-controls"
+          className="m-0 text-lg font-semibold text-slate-950"
         >
-          <option value="all">All</option>
-          <option value="ongoing">Ongoing</option>
-          <option value="cancelled">Cancelled</option>
-          <option value="outdated">Outdated</option>
-        </select>
-      </div>
+          Find events
+        </h2>
 
-      <div>
-        <label htmlFor="event-visibility-filter">Visibility</label>
-        <select
-          id="event-visibility-filter"
-          name="visibility"
-          value={controls.visibility}
-          onChange={(event) =>
-            setControls({
-              ...controls,
-              visibility: event.target.value as EventListControls["visibility"]
-            })
-          }
-        >
-          <option value="all">All</option>
-          <option value="public">Public</option>
-          <option value="protected">Protected</option>
-          <option value="admin">Admin-only</option>
-        </select>
-      </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-1.5 md:col-span-2">
+            <label htmlFor="event-search">Search</label>
+            <input
+              id="event-search"
+              name="search"
+              value={controls.search}
+              onChange={(event) =>
+                setControls({
+                  ...controls,
+                  search: event.target.value
+                })
+              }
+              placeholder="Title, description, or location"
+            />
+          </div>
 
-      <div>
-        <label htmlFor="event-capacity-filter">RSVP availability</label>
-        <select
-          id="event-capacity-filter"
-          name="capacity"
-          value={controls.capacity}
-          onChange={(event) =>
-            setControls({
-              ...controls,
-              capacity: event.target.value as EventListControls["capacity"]
-            })
-          }
-        >
-          <option value="all">All</option>
-          <option value="unlimited">Unlimited capacity</option>
-          <option value="limited">Has capacity limit</option>
-          <option value="full">Full</option>
-          <option value="available">Spots available</option>
-        </select>
-      </div>
+          <div className="grid gap-1.5">
+            <label htmlFor="event-state-filter">Event state</label>
+            <select
+              id="event-state-filter"
+              name="eventState"
+              value={controls.eventState}
+              onChange={(event) =>
+                setControls({
+                  ...controls,
+                  eventState: event.target.value as EventListControls["eventState"]
+                })
+              }
+            >
+              <option value="all">All</option>
+              <option value="ongoing">Ongoing</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="outdated">Outdated</option>
+            </select>
+          </div>
 
-      <div>
-        <label htmlFor="event-sort">Sort</label>
-        <select
-          id="event-sort"
-          name="sort"
-          value={controls.sort}
-          onChange={(event) =>
-            setControls({
-              ...controls,
-              sort: event.target.value as EventListControls["sort"]
-            })
-          }
-        >
-          <option value="date-asc">Event date: soonest first</option>
-          <option value="date-desc">Event date: latest first</option>
-          <option value="title-asc">Title: A-Z</option>
-          <option value="title-desc">Title: Z-A</option>
-          <option value="status-active-first">Status: active first</option>
-          <option value="status-cancelled-first">Status: cancelled first</option>
-          <option value="created-desc">Created: newest first</option>
-          <option value="created-asc">Created: oldest first</option>
-        </select>
+          <div className="grid gap-1.5">
+            <label htmlFor="event-visibility-filter">Visibility</label>
+            <select
+              id="event-visibility-filter"
+              name="visibility"
+              value={controls.visibility}
+              onChange={(event) =>
+                setControls({
+                  ...controls,
+                  visibility: event.target.value as EventListControls["visibility"]
+                })
+              }
+            >
+              <option value="all">All</option>
+              <option value="public">Public</option>
+              <option value="protected">Protected</option>
+              <option value="admin">Admin-only</option>
+            </select>
+          </div>
+
+          <div className="grid gap-1.5">
+            <label htmlFor="event-capacity-filter">RSVP availability</label>
+            <select
+              id="event-capacity-filter"
+              name="capacity"
+              value={controls.capacity}
+              onChange={(event) =>
+                setControls({
+                  ...controls,
+                  capacity: event.target.value as EventListControls["capacity"]
+                })
+              }
+            >
+              <option value="all">All</option>
+              <option value="unlimited">Unlimited capacity</option>
+              <option value="limited">Has capacity limit</option>
+              <option value="full">Full</option>
+              <option value="available">Spots available</option>
+            </select>
+          </div>
+
+          <div className="grid gap-1.5">
+            <label htmlFor="event-sort">Sort</label>
+            <select
+              id="event-sort"
+              name="sort"
+              value={controls.sort}
+              onChange={(event) =>
+                setControls({
+                  ...controls,
+                  sort: event.target.value as EventListControls["sort"]
+                })
+              }
+            >
+              <option value="date-asc">Event date: soonest first</option>
+              <option value="date-desc">Event date: latest first</option>
+              <option value="title-asc">Title: A-Z</option>
+              <option value="title-desc">Title: Z-A</option>
+              <option value="status-active-first">Status: active first</option>
+              <option value="status-cancelled-first">
+                Status: cancelled first
+              </option>
+              <option value="created-desc">Created: newest first</option>
+              <option value="created-asc">Created: oldest first</option>
+            </select>
+          </div>
+        </div>
       </div>
     </Panel>
   );

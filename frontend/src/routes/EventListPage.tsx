@@ -222,10 +222,10 @@ function EventListControlsForm({
 }: EventListControlsFormProps) {
   return (
     <section
-      aria-labelledby="event-list-controls"
+      aria-labelledby="event-list-filters"
       className="grid max-w-4xl gap-3"
     >
-      <h2 id="event-list-controls" className="sr-only">
+      <h2 id="event-list-filters" className="sr-only">
         Find events
       </h2>
 

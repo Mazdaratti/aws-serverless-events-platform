@@ -1,3 +1,4 @@
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
@@ -9,5 +10,5 @@ export default defineConfig({
   // treats them as real static files instead of SPA navigation routes.
   //
   // Do not set base: "/app/" here unless the deployment layout also changes.
-  plugins: [react()]
+  plugins: [tailwindcss(), react()]
 });

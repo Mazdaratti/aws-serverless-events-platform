@@ -150,9 +150,11 @@ export function EventListPage() {
         <ErrorMessage message={state.message} />
       ) : null}
 
-      <p className="m-0 text-sm text-slate-500">
-        Showing {visibleEvents.length} of {loadedEvents.length} loaded events.
-      </p>
+      <div className="mt-3 grid gap-3">
+        <p className="m-0 text-sm text-slate-500">
+          Showing {visibleEvents.length} of {loadedEvents.length} loaded events.
+        </p>
+      </div>
 
       {loadedEvents.length === 0 ? (
         <Panel className="text-center">
@@ -217,16 +219,16 @@ function EventListControlsForm({
   setControls
 }: EventListControlsFormProps) {
   return (
-    <Panel aria-labelledby="event-list-controls">
-      <div className="grid gap-4">
+    <Panel aria-labelledby="event-list-controls" className="p-3 shadow-none">
+      <div className="grid gap-3">
         <h2
           id="event-list-controls"
-          className="m-0 text-lg font-semibold text-slate-950"
+          className="m-0 text-base font-semibold text-slate-900"
         >
           Find events
         </h2>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2">
           <div className="grid gap-1.5 md:col-span-2">
             <label htmlFor="event-search">Search</label>
             <input

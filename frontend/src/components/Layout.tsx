@@ -19,7 +19,7 @@ export function Layout() {
             <NavLink className={getNavLinkClassName} to="/my-events">
               My events
             </NavLink>
-            <NavLink className={getNavLinkClassName} to="/create-event">
+            <NavLink className={getCreateEventLinkClassName} to="/create-event">
               Create event
             </NavLink>
           </div>
@@ -44,4 +44,17 @@ function getNavLinkClassName({ isActive }: { isActive: boolean }): string {
   return isActive
     ? `${baseClassName} bg-blue-50 text-blue-700`
     : `${baseClassName} text-slate-700`;
+}
+
+function getCreateEventLinkClassName({
+  isActive
+}: {
+  isActive: boolean;
+}): string {
+  const baseClassName =
+    "rounded-md px-3 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2";
+
+  return isActive
+    ? `${baseClassName} bg-blue-700 text-white hover:text-white`
+    : `${baseClassName} bg-blue-600 text-white hover:bg-blue-700 hover:text-white`;
 }

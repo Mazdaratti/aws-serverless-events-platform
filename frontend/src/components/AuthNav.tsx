@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { LoadingState } from "./LoadingState";
 import { StatusMessage } from "./StatusMessage";
+import { secondaryButtonClassName, textLinkClassName } from "./uiStyles";
 
 export function AuthNav() {
   const { logout, status, user } = useAuth();
@@ -25,7 +26,7 @@ export function AuthNav() {
           <span className="font-medium text-slate-800">{user.username}</span>
         </span>
         <button
-          className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:border-blue-300 hover:text-blue-700"
+          className={secondaryButtonClassName}
           type="button"
           onClick={handleLogout}
         >
@@ -43,13 +44,13 @@ export function AuthNav() {
         <StatusMessage message="Session expired" />
       ) : null}
       <Link
-        className="px-1.5 py-1 text-sm font-medium text-slate-600 hover:text-blue-700"
+        className={`px-1.5 py-1 text-sm ${textLinkClassName}`}
         to="/login"
       >
         Login
       </Link>
       <Link
-        className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-semibold text-slate-700 hover:border-blue-300 hover:bg-slate-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        className={secondaryButtonClassName}
         to="/register"
       >
         Register

@@ -25,6 +25,9 @@ const initialState: LoadState = {
   event: null
 };
 
+const pageTitleClassName =
+  "m-0 text-3xl font-semibold tracking-tight text-slate-950";
+
 function getVisibilityLabel(event: PublicEvent): string {
   if (event.requires_admin) {
     return "Admin-only";
@@ -140,7 +143,9 @@ export function EventDetailPage() {
               Back to events
             </Link>
           </p>
-          <h1>{event.title || "Untitled event"}</h1>
+          <h1 className={pageTitleClassName}>
+            {event.title || "Untitled event"}
+          </h1>
           <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
             {formatEventDate(event.date)} at{" "}
             {event.location || "location not specified"}

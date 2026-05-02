@@ -10,6 +10,12 @@ import {
   Panel
 } from "../components/LayoutPrimitives";
 import { SuccessMessage } from "../components/SuccessMessage";
+import {
+  pageTitleClassName,
+  primaryButtonClassName,
+  secondaryButtonClassName,
+  textLinkClassName
+} from "../components/uiStyles";
 
 type LocationState = {
   username?: string;
@@ -32,15 +38,6 @@ const labelClassName = "text-sm font-semibold text-slate-700";
 
 const controlClassName =
   "min-h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:ring-1 focus:ring-slate-400";
-
-const primaryButtonClassName =
-  "inline-flex w-fit rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
-
-const secondaryButtonClassName =
-  "inline-flex w-fit rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
-
-const pageTitleClassName =
-  "m-0 text-3xl font-semibold tracking-tight text-slate-950";
 
 export function ConfirmRegisterPage() {
   const location = useLocation();
@@ -194,7 +191,7 @@ export function ConfirmRegisterPage() {
         <p className="m-0 text-sm text-slate-600">
           Already confirmed?{" "}
           <Link
-            className="font-medium text-slate-700 hover:text-slate-950"
+            className={textLinkClassName}
             to="/login"
           >
             Login

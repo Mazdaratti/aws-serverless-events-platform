@@ -17,6 +17,7 @@ import {
 } from "../components/LayoutPrimitives";
 import { LoadingState } from "../components/LoadingState";
 import { StatusMessage } from "../components/StatusMessage";
+import { pageTitleClassName, textLinkClassName } from "../components/uiStyles";
 
 type SubmitState =
   | { status: "idle"; message: null }
@@ -27,11 +28,6 @@ const initialSubmitState: SubmitState = {
   status: "idle",
   message: null
 };
-
-const pageTitleClassName =
-  "m-0 text-3xl font-semibold tracking-tight text-slate-950";
-
-const textLinkClassName = "font-medium text-slate-700 hover:text-slate-950";
 
 export function CreateEventPage() {
   const navigate = useNavigate();
@@ -104,7 +100,7 @@ export function CreateEventPage() {
         <div>
           <p className="m-0">
             <Link
-              className="text-sm font-medium text-slate-700 hover:text-slate-950"
+              className={`text-sm ${textLinkClassName}`}
               to="/events"
             >
               Back to events

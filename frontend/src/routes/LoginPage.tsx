@@ -4,6 +4,11 @@ import { signIn } from "aws-amplify/auth";
 
 import { useAuth } from "../auth/AuthProvider";
 import { ErrorMessage } from "../components/ErrorMessage";
+import {
+  PageHeader,
+  PageLayout,
+  Panel
+} from "../components/LayoutPrimitives";
 import { SuccessMessage } from "../components/SuccessMessage";
 
 type SubmitState =
@@ -16,6 +21,16 @@ const initialSubmitState: SubmitState = {
   status: "idle",
   message: null
 };
+
+const fieldClassName = "grid gap-1.5";
+
+const labelClassName = "text-sm font-semibold text-slate-700";
+
+const controlClassName =
+  "min-h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:ring-1 focus:ring-slate-400";
+
+const submitButtonClassName =
+  "inline-flex w-fit rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -74,52 +89,82 @@ export function LoginPage() {
   };
 
   return (
-    <>
-      <h1>Login</h1>
-
-      <form onSubmit={handleSubmit}>
+    <PageLayout>
+      <PageHeader>
         <div>
-          <label htmlFor="login-username">Username</label>
-          <input
-            id="login-username"
-            name="username"
-            autoComplete="username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            required
-          />
+          <h1>Login</h1>
+          <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+            Sign in to manage your events and RSVP activity.
+          </p>
         </div>
+      </PageHeader>
 
-        <div>
-          <label htmlFor="login-password">Password</label>
-          <input
-            id="login-password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-        </div>
+      <div className="grid max-w-4xl gap-6">
+        <Panel>
+          <form
+            className="m-0 grid max-w-2xl gap-4 border-0 bg-transparent p-0"
+            onSubmit={handleSubmit}
+          >
+            <div className={fieldClassName}>
+              <label className={labelClassName} htmlFor="login-username">
+                Username
+              </label>
+              <input
+                id="login-username"
+                name="username"
+                autoComplete="username"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                required
+                className={controlClassName}
+              />
+            </div>
 
-        <button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Signing in..." : "Login"}
-        </button>
-      </form>
+            <div className={fieldClassName}>
+              <label className={labelClassName} htmlFor="login-password">
+                Password
+              </label>
+              <input
+                id="login-password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+                className={controlClassName}
+              />
+            </div>
 
-      {submitState.status === "error" ? (
-        <ErrorMessage message={submitState.message} />
-      ) : null}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={submitButtonClassName}
+            >
+              {isSubmitting ? "Signing in..." : "Login"}
+            </button>
+          </form>
+        </Panel>
 
-      {submitState.status === "success" ? (
-        <SuccessMessage message={submitState.message} />
-      ) : null}
+        {submitState.status === "error" ? (
+          <ErrorMessage message={submitState.message} />
+        ) : null}
 
-      <p>
-        Need an account? <Link to="/register">Register</Link>
-      </p>
-    </>
+        {submitState.status === "success" ? (
+          <SuccessMessage message={submitState.message} />
+        ) : null}
+
+        <p className="m-0 text-sm text-slate-600">
+          Need an account?{" "}
+          <Link
+            className="font-medium text-slate-700 hover:text-slate-950"
+            to="/register"
+          >
+            Register
+          </Link>
+        </p>
+      </div>
+    </PageLayout>
   );
 }
 

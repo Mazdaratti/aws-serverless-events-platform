@@ -229,13 +229,6 @@ export function MyEventsPage() {
         </div>
 
         <PageActions>
-          <Link
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
-            to="/create-event"
-          >
-            Create event
-          </Link>
-
           {hasActiveControls ? (
             <button
               type="button"

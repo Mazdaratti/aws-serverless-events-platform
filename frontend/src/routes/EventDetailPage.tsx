@@ -13,6 +13,7 @@ import {
 } from "../components/LayoutPrimitives";
 import { LoadingState } from "../components/LoadingState";
 import { RsvpPanel } from "../components/RsvpPanel";
+import { pageTitleClassName, textLinkClassName } from "../components/uiStyles";
 import { formatEventDate } from "../utils/dates";
 
 type LoadState =
@@ -24,9 +25,6 @@ const initialState: LoadState = {
   status: "loading",
   event: null
 };
-
-const pageTitleClassName =
-  "m-0 text-3xl font-semibold tracking-tight text-slate-950";
 
 function getVisibilityLabel(event: PublicEvent): string {
   if (event.requires_admin) {
@@ -118,7 +116,7 @@ export function EventDetailPage() {
         <ErrorMessage message={state.message} />
         <PageActions>
           <Link
-            className="text-sm font-medium text-slate-700 hover:text-slate-950"
+            className={`text-sm ${textLinkClassName}`}
             to="/events"
           >
             Back to events
@@ -137,7 +135,7 @@ export function EventDetailPage() {
         <div>
           <p className="m-0">
             <Link
-              className="text-sm font-medium text-slate-700 hover:text-slate-950"
+              className={`text-sm ${textLinkClassName}`}
               to="/events"
             >
               Back to events
@@ -156,7 +154,7 @@ export function EventDetailPage() {
           {/* This link is only a management shortcut. The edit page and backend
               still decide whether the current caller can update this event. */}
           <Link
-            className="text-sm font-medium text-slate-700 hover:text-slate-950"
+            className={`text-sm ${textLinkClassName}`}
             to={`/events/${event.event_id}/edit`}
           >
             Edit event
@@ -164,7 +162,7 @@ export function EventDetailPage() {
           {/* RSVP-list access is also backend-authorized. The frontend link is
               just a shortcut for creators/admins who are allowed through. */}
           <Link
-            className="text-sm font-medium text-slate-700 hover:text-slate-950"
+            className={`text-sm ${textLinkClassName}`}
             to={`/events/${event.event_id}/rsvps`}
           >
             View RSVPs

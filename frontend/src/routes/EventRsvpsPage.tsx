@@ -46,6 +46,11 @@ const initialLoadState: LoadState = {
   nextCursor: null
 };
 
+const textLinkClassName = "font-medium text-slate-700 hover:text-slate-950";
+
+const secondaryButtonClassName =
+  "inline-flex rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
+
 export function EventRsvpsPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const { status } = useAuth();
@@ -156,9 +161,15 @@ export function EventRsvpsPage() {
         {/* This is a UI prompt only. The protected API route is still the real
             source of truth for RSVP-list access. */}
         <StatusMessage message="You need to sign in before viewing RSVPs." />
-        <p>
-          <Link to="/login">Login</Link> or{" "}
-          <Link to="/register">register</Link> to continue.
+        <p className="m-0 text-sm text-slate-600">
+          <Link className={textLinkClassName} to="/login">
+            Login
+          </Link>{" "}
+          or{" "}
+          <Link className={textLinkClassName} to="/register">
+            register
+          </Link>{" "}
+          to continue.
         </p>
       </PageLayout>
     );
@@ -280,6 +291,7 @@ export function EventRsvpsPage() {
               type="button"
               disabled={isLoadingMore}
               onClick={() => void loadMore()}
+              className={secondaryButtonClassName}
             >
               {isLoadingMore ? "Loading..." : "Load more"}
             </button>

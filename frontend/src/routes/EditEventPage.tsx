@@ -14,6 +14,12 @@ import {
   EventForm,
   eventToFormValues
 } from "../components/EventForm";
+import {
+  PageActions,
+  PageHeader,
+  PageLayout,
+  Panel
+} from "../components/LayoutPrimitives";
 import { LoadingState } from "../components/LoadingState";
 import { StatusMessage } from "../components/StatusMessage";
 
@@ -140,8 +146,15 @@ export function EditEventPage() {
 
   if (status !== "authenticated") {
     return (
-      <>
-        <h1>Edit event</h1>
+      <PageLayout>
+        <PageHeader>
+          <div>
+            <h1>Edit event</h1>
+            <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+              Sign in to update event details and RSVP settings.
+            </p>
+          </div>
+        </PageHeader>
         {/* This is only a UX guard. The backend remains the source of truth for
             whether the current caller can edit the specific event. */}
         <StatusMessage message="You need to sign in before editing events." />
@@ -149,7 +162,7 @@ export function EditEventPage() {
           <Link to="/login">Login</Link> or{" "}
           <Link to="/register">register</Link> to continue.
         </p>
-      </>
+      </PageLayout>
     );
   }
 
@@ -159,35 +172,67 @@ export function EditEventPage() {
 
   if (loadState.status === "error") {
     return (
-      <>
-        <h1>Edit event</h1>
+      <PageLayout>
+        <PageHeader>
+          <div>
+            <h1>Edit event</h1>
+            <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+              We could not load the event for editing.
+            </p>
+          </div>
+        </PageHeader>
         <ErrorMessage message={loadState.message} />
-        <Link to="/events">Back to events</Link>
-      </>
+        <PageActions>
+          <Link
+            className="text-sm font-medium text-slate-700 hover:text-slate-950"
+            to="/events"
+          >
+            Back to events
+          </Link>
+        </PageActions>
+      </PageLayout>
     );
   }
 
   return (
-    <>
-      <Link to={`/events/${loadState.event.event_id}`}>Back to event</Link>
-      <h1>Edit event</h1>
+    <PageLayout>
+      <PageHeader>
+        <div>
+          <p className="m-0">
+            <Link
+              className="text-sm font-medium text-slate-700 hover:text-slate-950"
+              to={`/events/${loadState.event.event_id}`}
+            >
+              Back to event
+            </Link>
+          </p>
+          <h1>Edit event</h1>
+          <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+            Update the event details, visibility, and RSVP capacity.
+          </p>
+        </div>
+      </PageHeader>
 
-      <EventForm
-        initialValues={eventToFormValues(loadState.event)}
-        submitButtonLabel="Save changes"
-        submittingButtonLabel="Saving..."
-        isSubmitting={isSubmitting}
-        onSubmit={handleSubmit}
-      />
+      <div className="grid max-w-4xl gap-6">
+        <Panel>
+          <EventForm
+            initialValues={eventToFormValues(loadState.event)}
+            submitButtonLabel="Save changes"
+            submittingButtonLabel="Saving..."
+            isSubmitting={isSubmitting}
+            onSubmit={handleSubmit}
+          />
+        </Panel>
 
-      {submitState.status === "notice" ? (
-        <StatusMessage message={submitState.message} />
-      ) : null}
+        {submitState.status === "notice" ? (
+          <StatusMessage message={submitState.message} />
+        ) : null}
 
-      {submitState.status === "error" ? (
-        <ErrorMessage message={submitState.message} />
-      ) : null}
-    </>
+        {submitState.status === "error" ? (
+          <ErrorMessage message={submitState.message} />
+        ) : null}
+      </div>
+    </PageLayout>
   );
 }
 

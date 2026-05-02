@@ -7,6 +7,9 @@ import {
   Panel
 } from "../components/LayoutPrimitives";
 
+const pageTitleClassName =
+  "m-0 text-3xl font-semibold tracking-tight text-slate-950";
+
 export function NotFoundPage() {
   return (
     <PageLayout>
@@ -15,7 +18,7 @@ export function NotFoundPage() {
           backend error responses. */}
       <PageHeader>
         <div>
-          <h1>Page not found</h1>
+          <h1 className={pageTitleClassName}>Page not found</h1>
           <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
             The requested app page does not exist.
           </p>

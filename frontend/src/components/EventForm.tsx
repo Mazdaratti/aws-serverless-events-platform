@@ -31,6 +31,19 @@ export const emptyEventFormValues: EventFormValues = {
   visibility: "public"
 };
 
+const fieldClassName = "grid gap-1.5";
+
+const labelClassName = "text-sm font-semibold text-slate-700";
+
+const controlClassName =
+  "min-h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:ring-1 focus:ring-slate-400";
+
+const textareaClassName =
+  "min-h-32 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:ring-1 focus:ring-slate-400";
+
+const submitButtonClassName =
+  "inline-flex w-fit rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
+
 export function eventToFormValues(event: PublicEvent): EventFormValues {
   return {
     title: event.title,
@@ -73,9 +86,11 @@ export function EventForm({
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div>
-        <label htmlFor="event-title">Title</label>
+    <form className="grid max-w-2xl gap-4" onSubmit={handleSubmit}>
+      <div className={fieldClassName}>
+        <label className={labelClassName} htmlFor="event-title">
+          Title
+        </label>
         <input
           id="event-title"
           name="title"
@@ -87,11 +102,14 @@ export function EventForm({
             })
           }
           required
+          className={controlClassName}
         />
       </div>
 
-      <div>
-        <label htmlFor="event-date">Date and time</label>
+      <div className={fieldClassName}>
+        <label className={labelClassName} htmlFor="event-date">
+          Date and time
+        </label>
         <input
           id="event-date"
           name="date"
@@ -104,11 +122,14 @@ export function EventForm({
             })
           }
           required
+          className={controlClassName}
         />
       </div>
 
-      <div>
-        <label htmlFor="event-location">Location</label>
+      <div className={fieldClassName}>
+        <label className={labelClassName} htmlFor="event-location">
+          Location
+        </label>
         <input
           id="event-location"
           name="location"
@@ -119,11 +140,14 @@ export function EventForm({
               location: event.target.value
             })
           }
+          className={controlClassName}
         />
       </div>
 
-      <div>
-        <label htmlFor="event-description">Description</label>
+      <div className={fieldClassName}>
+        <label className={labelClassName} htmlFor="event-description">
+          Description
+        </label>
         <textarea
           id="event-description"
           name="description"
@@ -134,11 +158,14 @@ export function EventForm({
               description: event.target.value
             })
           }
+          className={textareaClassName}
         />
       </div>
 
-      <div>
-        <label htmlFor="event-capacity">Capacity</label>
+      <div className={fieldClassName}>
+        <label className={labelClassName} htmlFor="event-capacity">
+          Capacity
+        </label>
         <input
           id="event-capacity"
           name="capacity"
@@ -153,11 +180,14 @@ export function EventForm({
             })
           }
           placeholder="Unlimited"
+          className={controlClassName}
         />
       </div>
 
-      <div>
-        <label htmlFor="event-visibility">Visibility</label>
+      <div className={fieldClassName}>
+        <label className={labelClassName} htmlFor="event-visibility">
+          Visibility
+        </label>
         <select
           id="event-visibility"
           name="visibility"
@@ -168,6 +198,7 @@ export function EventForm({
               visibility: event.target.value as EventVisibility
             })
           }
+          className={controlClassName}
         >
           <option value="public">Public</option>
           <option value="protected">Protected</option>
@@ -175,7 +206,11 @@ export function EventForm({
         </select>
       </div>
 
-      <button type="submit" disabled={isSubmitting}>
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className={submitButtonClassName}
+      >
         {isSubmitting ? submittingButtonLabel : submitButtonLabel}
       </button>
 

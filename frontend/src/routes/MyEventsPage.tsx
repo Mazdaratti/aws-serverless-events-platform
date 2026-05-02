@@ -18,6 +18,13 @@ import { LoadingState } from "../components/LoadingState";
 import { StatusMessage } from "../components/StatusMessage";
 import { SuccessMessage } from "../components/SuccessMessage";
 import {
+  destructiveButtonClassName,
+  pageTitleClassName,
+  primaryButtonClassName,
+  secondaryButtonClassName,
+  textLinkClassName
+} from "../components/uiStyles";
+import {
   applyEventListControls,
   hasActiveEventListControls,
   myEventsDefaultControls,
@@ -52,17 +59,6 @@ const initialCancelState: CancelState = {
   eventId: null,
   message: null
 };
-
-const pageTitleClassName =
-  "m-0 text-3xl font-semibold tracking-tight text-slate-950";
-
-const textLinkClassName = "font-medium text-slate-700 hover:text-slate-950";
-
-const secondaryButtonClassName =
-  "inline-flex rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
-
-const destructiveButtonClassName =
-  "inline-flex rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm font-semibold text-red-700 hover:border-red-300 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
 
 export function MyEventsPage() {
   const { status } = useAuth();
@@ -298,7 +294,7 @@ export function MyEventsPage() {
           </p>
           <div className="mt-3">
             <Link
-              className="inline-block rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+              className={primaryButtonClassName}
               to="/create-event"
             >
               Create event
@@ -324,7 +320,7 @@ export function MyEventsPage() {
             <EventCard event={event} />
             <PageActions>
               <Link
-                className="text-sm font-medium text-slate-700 hover:text-slate-950"
+                className={`text-sm ${textLinkClassName}`}
                 to={`/events/${event.event_id}/edit`}
               >
                 Edit
@@ -332,7 +328,7 @@ export function MyEventsPage() {
               {/* RSVP-list access is checked by the backend. This owner page
                   only provides a convenient management shortcut. */}
               <Link
-                className="text-sm font-medium text-slate-700 hover:text-slate-950"
+                className={`text-sm ${textLinkClassName}`}
                 to={`/events/${event.event_id}/rsvps`}
               >
                 View RSVPs

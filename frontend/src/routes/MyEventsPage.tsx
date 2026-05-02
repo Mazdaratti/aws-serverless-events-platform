@@ -78,7 +78,7 @@ export function MyEventsPage() {
 
         setLoadState({
           status: "ready",
-          items: response.items,
+          items: response.items ?? [],
           nextCursor: response.next_cursor
         });
       } catch (error) {
@@ -102,6 +102,8 @@ export function MyEventsPage() {
     };
   }, [status]);
 
+  const loadedEvents = loadState.items ?? [];
+
   const loadMore = async () => {
     if (!loadState.nextCursor || isLoadingMore) {
       return;
@@ -116,18 +118,18 @@ export function MyEventsPage() {
         nextCursor: loadState.nextCursor
       });
 
-      setLoadState({
+      setLoadState((prev) => ({
         status: "ready",
-        items: [...loadState.items, ...response.items],
+        items: [...(prev.items ?? []), ...(response.items ?? [])],
         nextCursor: response.next_cursor
-      });
+      }));
     } catch (error) {
-      setLoadState({
+      setLoadState((prev) => ({
         status: "error",
-        items: loadState.items,
-        nextCursor: loadState.nextCursor,
+        items: prev.items ?? [],
+        nextCursor: prev.nextCursor,
         message: getApiErrorMessage(error)
-      });
+      }));
     } finally {
       setIsLoadingMore(false);
     }
@@ -164,7 +166,7 @@ export function MyEventsPage() {
 
       setLoadState((currentState) => ({
         ...currentState,
-        items: currentState.items.map((item) =>
+        items: (currentState.items ?? []).map((item) =>
           item.event_id === response.item.event_id ? response.item : item
         )
       }));
@@ -184,7 +186,7 @@ export function MyEventsPage() {
 
   // My events uses the same client-side control rules as public discovery, but
   // its default keeps all owned events visible for management.
-  const visibleEvents = applyEventListControls(loadState.items, controls);
+  const visibleEvents = applyEventListControls(loadedEvents, controls);
   const hasActiveControls = hasActiveEventListControls(
     controls,
     myEventsDefaultControls
@@ -268,14 +270,14 @@ export function MyEventsPage() {
           <div className="border-t border-slate-200" />
           <div className="mt-5 grid gap-4">
             <p className="m-0 text-sm text-slate-500">
-              Showing {visibleEvents.length} of {loadState.items.length} loaded
+              Showing {visibleEvents.length} of {loadedEvents.length} loaded
               events.
             </p>
           </div>
         </>
       ) : null}
 
-      {loadState.items.length === 0 && loadState.status !== "loading" ? (
+      {loadedEvents.length === 0 && loadState.status !== "loading" ? (
         <Panel className="text-center">
           <p className="m-0 text-sm font-semibold text-slate-700">
             No events yet.
@@ -294,7 +296,7 @@ export function MyEventsPage() {
         </Panel>
       ) : null}
 
-      {loadState.items.length > 0 && visibleEvents.length === 0 ? (
+      {loadedEvents.length > 0 && visibleEvents.length === 0 ? (
         <Panel className="text-center">
           <p className="m-0 text-sm font-semibold text-slate-700">
             No events match the current controls.

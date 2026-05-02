@@ -39,6 +39,9 @@ const primaryButtonClassName =
 const secondaryButtonClassName =
   "inline-flex w-fit rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
 
+const pageTitleClassName =
+  "m-0 text-3xl font-semibold tracking-tight text-slate-950";
+
 export function ConfirmRegisterPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -117,7 +120,7 @@ export function ConfirmRegisterPage() {
     <PageLayout>
       <PageHeader>
         <div>
-          <h1>Confirm registration</h1>
+          <h1 className={pageTitleClassName}>Confirm registration</h1>
           <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
             Enter the code sent by Cognito to finish creating your account.
           </p>

@@ -39,10 +39,10 @@ export function Layout() {
 
 function getNavLinkClassName({ isActive }: { isActive: boolean }): string {
   const baseClassName =
-    "rounded-md px-2.5 py-1.5 text-sm font-medium hover:bg-slate-100 hover:text-slate-950";
+    "rounded-md px-2.5 py-1.5 text-sm font-medium hover:bg-slate-100 hover:text-blue-700";
 
   return isActive
-    ? `${baseClassName} bg-slate-100 text-slate-950`
+    ? `${baseClassName} bg-blue-50 text-blue-700`
     : `${baseClassName} text-slate-700`;
 }
 

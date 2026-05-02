@@ -25,6 +25,12 @@ const initialSubmitState: SubmitState = {
   message: null
 };
 
+const primaryRsvpButtonClassName =
+  "rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
+
+const secondaryRsvpButtonClassName =
+  "rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
+
 export function RsvpPanel({ eventId, onRsvpSuccess }: RsvpPanelProps) {
   const { status: authStatus } = useAuth();
   const [submitState, setSubmitState] = useState<SubmitState>(initialSubmitState);
@@ -73,41 +79,58 @@ export function RsvpPanel({ eventId, onRsvpSuccess }: RsvpPanelProps) {
   };
 
   return (
-    <section aria-labelledby="rsvp-heading">
-      <h2 id="rsvp-heading">RSVP</h2>
+    <section
+      aria-labelledby="rsvp-heading"
+      className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+    >
+      <div>
+        <h2
+          id="rsvp-heading"
+          className="m-0 text-lg font-semibold leading-tight text-slate-900"
+        >
+          RSVP
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Let the organizer know whether you plan to attend.
+        </p>
+      </div>
 
       {isSessionLoading ? (
         <LoadingState message="Checking session before RSVP..." />
       ) : null}
 
       {authStatus === "anonymous" ? (
-        <p>
+        <p className="m-0 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
           You can RSVP anonymously, but you need an account if you want future
           event update or cancellation notifications.
         </p>
       ) : null}
 
       {authStatus === "expired" ? (
-        <p>
+        <p className="m-0 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
           Your session has expired. You can sign in again or RSVP anonymously
           where the event allows it.
         </p>
       ) : null}
 
-      <button
-        type="button"
-        disabled={isDisabled}
-        onClick={() => void submitRsvp(true)}
-      >
-        Attending
-      </button>{" "}
-      <button
-        type="button"
-        disabled={isDisabled}
-        onClick={() => void submitRsvp(false)}
-      >
-        Not attending
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={isDisabled}
+          onClick={() => void submitRsvp(true)}
+          className={primaryRsvpButtonClassName}
+        >
+          Attending
+        </button>
+        <button
+          type="button"
+          disabled={isDisabled}
+          onClick={() => void submitRsvp(false)}
+          className={secondaryRsvpButtonClassName}
+        >
+          Not attending
+        </button>
+      </div>
 
       {submitState.status === "error" ? (
         <ErrorMessage message={submitState.message} />

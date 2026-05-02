@@ -2,6 +2,7 @@ import { type FormEvent, useState } from "react";
 
 import type { CreateEventRequest, PublicEvent } from "../api/types";
 import { ErrorMessage } from "./ErrorMessage";
+import { primaryButtonClassName } from "./uiStyles";
 
 type EventVisibility = "public" | "protected" | "admin";
 
@@ -40,9 +41,6 @@ const controlClassName =
 
 const textareaClassName =
   "min-h-32 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:ring-1 focus:ring-slate-400";
-
-const submitButtonClassName =
-  "inline-flex w-fit rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
 
 export function eventToFormValues(event: PublicEvent): EventFormValues {
   return {
@@ -212,7 +210,7 @@ export function EventForm({
       <button
         type="submit"
         disabled={isSubmitting}
-        className={submitButtonClassName}
+        className={primaryButtonClassName}
       >
         {isSubmitting ? submittingButtonLabel : submitButtonLabel}
       </button>

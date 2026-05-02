@@ -53,6 +53,17 @@ const initialCancelState: CancelState = {
   message: null
 };
 
+const pageTitleClassName =
+  "m-0 text-3xl font-semibold tracking-tight text-slate-950";
+
+const textLinkClassName = "font-medium text-slate-700 hover:text-slate-950";
+
+const secondaryButtonClassName =
+  "inline-flex rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
+
+const destructiveButtonClassName =
+  "inline-flex rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm font-semibold text-red-700 hover:border-red-300 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
+
 export function MyEventsPage() {
   const { status } = useAuth();
   const [loadState, setLoadState] = useState<LoadState>(initialLoadState);
@@ -201,7 +212,7 @@ export function MyEventsPage() {
       <PageLayout>
         <PageHeader>
           <div>
-            <h1>My events</h1>
+            <h1 className={pageTitleClassName}>My events</h1>
             <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
               Sign in to manage events you created and review RSVP activity.
             </p>
@@ -210,9 +221,15 @@ export function MyEventsPage() {
         {/* This is only a helpful UI boundary. API Gateway still protects the
             real GET /events/mine request. */}
         <StatusMessage message="You need to sign in before viewing your events." />
-        <p>
-          <Link to="/login">Login</Link> or{" "}
-          <Link to="/register">register</Link> to continue.
+        <p className="m-0 text-sm text-slate-600">
+          <Link className={textLinkClassName} to="/login">
+            Login
+          </Link>{" "}
+          or{" "}
+          <Link className={textLinkClassName} to="/register">
+            register
+          </Link>{" "}
+          to continue.
         </p>
       </PageLayout>
     );
@@ -222,7 +239,7 @@ export function MyEventsPage() {
     <PageLayout>
       <PageHeader>
         <div>
-          <h1>My events</h1>
+          <h1 className={pageTitleClassName}>My events</h1>
           <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
             Manage events you created and review their RSVP activity.
           </p>
@@ -233,6 +250,7 @@ export function MyEventsPage() {
             <button
               type="button"
               onClick={() => setControls(myEventsDefaultControls)}
+              className={secondaryButtonClassName}
             >
               Reset controls
             </button>
@@ -331,17 +349,26 @@ export function MyEventsPage() {
                   <button
                     type="button"
                     onClick={() => void confirmCancel(event.event_id)}
+                    className={destructiveButtonClassName}
                   >
                     Confirm cancel
                   </button>
-                  <button type="button" onClick={keepEvent}>
+                  <button
+                    type="button"
+                    onClick={keepEvent}
+                    className={secondaryButtonClassName}
+                  >
                     Keep event
                   </button>
                 </PageActions>
               </div>
             ) : (
               <PageActions>
-                <button type="button" onClick={() => startCancel(event.event_id)}>
+                <button
+                  type="button"
+                  onClick={() => startCancel(event.event_id)}
+                  className={destructiveButtonClassName}
+                >
                   Cancel event
                 </button>
               </PageActions>
@@ -356,6 +383,7 @@ export function MyEventsPage() {
             type="button"
             disabled={isLoadingMore}
             onClick={() => void loadMore()}
+            className={secondaryButtonClassName}
           >
             {isLoadingMore ? "Loading..." : "Load more"}
           </button>

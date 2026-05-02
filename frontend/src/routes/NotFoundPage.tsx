@@ -6,9 +6,7 @@ import {
   PageLayout,
   Panel
 } from "../components/LayoutPrimitives";
-
-const pageTitleClassName =
-  "m-0 text-3xl font-semibold tracking-tight text-slate-950";
+import { pageTitleClassName, primaryButtonClassName } from "../components/uiStyles";
 
 export function NotFoundPage() {
   return (
@@ -31,7 +29,7 @@ export function NotFoundPage() {
         </p>
         <PageActions className="mt-3 justify-center">
           <Link
-            className="inline-flex rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+            className={primaryButtonClassName}
             to="/events"
           >
             Back to events

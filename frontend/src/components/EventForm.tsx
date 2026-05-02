@@ -86,7 +86,10 @@ export function EventForm({
   };
 
   return (
-    <form className="grid max-w-2xl gap-4" onSubmit={handleSubmit}>
+    <form
+      className="m-0 grid max-w-2xl gap-4 border-0 bg-transparent p-0"
+      onSubmit={handleSubmit}
+    >
       <div className={fieldClassName}>
         <label className={labelClassName} htmlFor="event-title">
           Title

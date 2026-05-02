@@ -5,6 +5,12 @@ import { getApiErrorMessage } from "../api/errors";
 import { getEvent } from "../api/events";
 import type { PublicEvent, RsvpResponse } from "../api/types";
 import { ErrorMessage } from "../components/ErrorMessage";
+import {
+  PageActions,
+  PageHeader,
+  PageLayout,
+  Panel
+} from "../components/LayoutPrimitives";
 import { LoadingState } from "../components/LoadingState";
 import { RsvpPanel } from "../components/RsvpPanel";
 import { formatEventDate } from "../utils/dates";
@@ -105,10 +111,17 @@ export function EventDetailPage() {
 
   if (state.status === "error") {
     return (
-      <>
+      <PageLayout>
         <ErrorMessage message={state.message} />
-        <Link to="/events">Back to events</Link>
-      </>
+        <PageActions>
+          <Link
+            className="text-sm font-medium text-slate-700 hover:text-slate-950"
+            to="/events"
+          >
+            Back to events
+          </Link>
+        </PageActions>
+      </PageLayout>
     );
   }
 
@@ -116,43 +129,86 @@ export function EventDetailPage() {
   const visibilityLabel = getVisibilityLabel(event);
 
   return (
-    <>
-      <p>
-        <Link to="/events">Back to events</Link> {" | "}
-        {/* This link is only a management shortcut. The edit page and backend
-            still decide whether the current caller can update this event. */}
-        <Link to={`/events/${event.event_id}/edit`}>Edit event</Link> {" | "}
-        {/* RSVP-list access is also backend-authorized. The frontend link is
-            just a shortcut for creators/admins who are allowed through. */}
-        <Link to={`/events/${event.event_id}/rsvps`}>View RSVPs</Link>
-      </p>
-      <h1>{event.title || "Untitled event"}</h1>
-      {/* Visibility labels explain the public DTO flags in user-facing terms.
-          Backend authorization is still the source of truth for what actions
-          are actually allowed. */}
-      <p aria-label="Event visibility">
-        <strong>{visibilityLabel}</strong>
-      </p>
+    <PageLayout>
+      <PageHeader>
+        <div>
+          <p className="m-0">
+            <Link
+              className="text-sm font-medium text-slate-700 hover:text-slate-950"
+              to="/events"
+            >
+              Back to events
+            </Link>
+          </p>
+          <h1>{event.title || "Untitled event"}</h1>
+          <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+            {formatEventDate(event.date)} at{" "}
+            {event.location || "location not specified"}
+          </p>
+        </div>
 
-      <dl>
-        <dt>Date</dt>
-        <dd>{formatEventDate(event.date)}</dd>
-        <dt>Location</dt>
-        <dd>{event.location}</dd>
-        <dt>Description</dt>
-        <dd>{event.description}</dd>
-        <dt>Capacity</dt>
-        <dd>{event.capacity === null ? "Unlimited" : event.capacity}</dd>
-        <dt>RSVPs</dt>
-        <dd>
-          {event.attending_count} attending / {event.rsvp_count} total
-        </dd>
-      </dl>
+        <PageActions>
+          {/* This link is only a management shortcut. The edit page and backend
+              still decide whether the current caller can update this event. */}
+          <Link
+            className="text-sm font-medium text-slate-700 hover:text-slate-950"
+            to={`/events/${event.event_id}/edit`}
+          >
+            Edit event
+          </Link>
+          {/* RSVP-list access is also backend-authorized. The frontend link is
+              just a shortcut for creators/admins who are allowed through. */}
+          <Link
+            className="text-sm font-medium text-slate-700 hover:text-slate-950"
+            to={`/events/${event.event_id}/rsvps`}
+          >
+            View RSVPs
+          </Link>
+        </PageActions>
+      </PageHeader>
+
+      <Panel>
+        {/* Visibility labels explain the public DTO flags in user-facing terms.
+            Backend authorization is still the source of truth for what actions
+            are actually allowed. */}
+        <p aria-label="Event visibility" className="m-0">
+          <strong className="inline-flex w-fit rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+            {visibilityLabel}
+          </strong>
+        </p>
+
+        <dl className="m-0 mt-4 grid gap-y-3 text-sm sm:grid-cols-[minmax(7rem,max-content)_minmax(0,1fr)] sm:gap-x-4">
+          <dt className="font-semibold text-slate-500">Date</dt>
+          <dd className="m-0 min-w-0 break-words text-slate-700">
+            {formatEventDate(event.date)}
+          </dd>
+
+          <dt className="font-semibold text-slate-500">Location</dt>
+          <dd className="m-0 min-w-0 break-words text-slate-700">
+            {event.location || "Location not specified"}
+          </dd>
+
+          <dt className="font-semibold text-slate-500">Description</dt>
+          <dd className="m-0 min-w-0 break-words text-slate-700">
+            {event.description || "No description provided."}
+          </dd>
+
+          <dt className="font-semibold text-slate-500">Capacity</dt>
+          <dd className="m-0 min-w-0 break-words text-slate-700">
+            {event.capacity === null ? "Unlimited" : event.capacity}
+          </dd>
+
+          <dt className="font-semibold text-slate-500">RSVPs</dt>
+          <dd className="m-0 min-w-0 break-words text-slate-700">
+            {event.attending_count} attending / {event.rsvp_count} total
+          </dd>
+        </dl>
+      </Panel>
 
       <RsvpPanel
         eventId={event.event_id}
         onRsvpSuccess={handleRsvpSuccess}
       />
-    </>
+    </PageLayout>
   );
 }

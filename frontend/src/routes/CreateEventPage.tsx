@@ -28,6 +28,11 @@ const initialSubmitState: SubmitState = {
   message: null
 };
 
+const pageTitleClassName =
+  "m-0 text-3xl font-semibold tracking-tight text-slate-950";
+
+const textLinkClassName = "font-medium text-slate-700 hover:text-slate-950";
+
 export function CreateEventPage() {
   const navigate = useNavigate();
   const { status } = useAuth();
@@ -70,7 +75,7 @@ export function CreateEventPage() {
       <PageLayout>
         <PageHeader>
           <div>
-            <h1>Create event</h1>
+            <h1 className={pageTitleClassName}>Create event</h1>
             <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
               Sign in to publish and manage events.
             </p>
@@ -79,9 +84,15 @@ export function CreateEventPage() {
         {/* This is a UX guard only. API Gateway and the backend still enforce
             authentication and creator ownership for the actual event write. */}
         <StatusMessage message="You need to sign in before creating events." />
-        <p>
-          <Link to="/login">Login</Link> or{" "}
-          <Link to="/register">register</Link> to continue.
+        <p className="m-0 text-sm text-slate-600">
+          <Link className={textLinkClassName} to="/login">
+            Login
+          </Link>{" "}
+          or{" "}
+          <Link className={textLinkClassName} to="/register">
+            register
+          </Link>{" "}
+          to continue.
         </p>
       </PageLayout>
     );
@@ -99,7 +110,7 @@ export function CreateEventPage() {
               Back to events
             </Link>
           </p>
-          <h1>Create event</h1>
+          <h1 className={pageTitleClassName}>Create event</h1>
           <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
             Add the event details, visibility, and RSVP capacity.
           </p>

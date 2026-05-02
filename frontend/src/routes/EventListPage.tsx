@@ -15,6 +15,11 @@ import {
 } from "../components/LayoutPrimitives";
 import { LoadingState } from "../components/LoadingState";
 import {
+  pageTitleClassName,
+  primaryButtonClassName,
+  secondaryButtonClassName
+} from "../components/uiStyles";
+import {
   applyEventListControls,
   hasActiveEventListControls,
   publicEventListDefaultControls,
@@ -36,12 +41,6 @@ const initialState: LoadState = {
   items: [],
   nextCursor: null
 };
-
-const pageTitleClassName =
-  "m-0 text-3xl font-semibold tracking-tight text-slate-950";
-
-const secondaryButtonClassName =
-  "inline-flex rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
 
 export function EventListPage() {
   const [state, setState] = useState<LoadState>(initialState);
@@ -175,7 +174,7 @@ export function EventListPage() {
           </p>
           <div className="mt-3">
             <Link
-              className="inline-block rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+              className={primaryButtonClassName}
               to="/create-event"
             >
               Create event

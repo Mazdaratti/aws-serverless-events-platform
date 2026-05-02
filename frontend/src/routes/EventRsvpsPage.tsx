@@ -18,6 +18,11 @@ import {
 } from "../components/LayoutPrimitives";
 import { LoadingState } from "../components/LoadingState";
 import { StatusMessage } from "../components/StatusMessage";
+import {
+  pageTitleClassName,
+  secondaryButtonClassName,
+  textLinkClassName
+} from "../components/uiStyles";
 import { formatEventDate } from "../utils/dates";
 
 type RsvpListItem = EventRsvpsResponse["items"][number];
@@ -45,14 +50,6 @@ const initialLoadState: LoadState = {
   response: null,
   nextCursor: null
 };
-
-const textLinkClassName = "font-medium text-slate-700 hover:text-slate-950";
-
-const secondaryButtonClassName =
-  "inline-flex rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
-
-const pageTitleClassName =
-  "m-0 text-3xl font-semibold tracking-tight text-slate-950";
 
 export function EventRsvpsPage() {
   const { eventId } = useParams<{ eventId: string }>();
@@ -196,7 +193,7 @@ export function EventRsvpsPage() {
         <ErrorMessage message={loadState.message} />
         <PageActions>
           <Link
-            className="text-sm font-medium text-slate-700 hover:text-slate-950"
+            className={`text-sm ${textLinkClassName}`}
             to={eventId ? `/events/${eventId}` : "/events"}
           >
             Back to event
@@ -222,7 +219,7 @@ export function EventRsvpsPage() {
         <div>
           <p className="m-0">
             <Link
-              className="text-sm font-medium text-slate-700 hover:text-slate-950"
+              className={`text-sm ${textLinkClassName}`}
               to={`/events/${response.event.event_id}`}
             >
               Back to event

@@ -44,6 +44,11 @@ const initialSubmitState: SubmitState = {
   message: null
 };
 
+const pageTitleClassName =
+  "m-0 text-3xl font-semibold tracking-tight text-slate-950";
+
+const textLinkClassName = "font-medium text-slate-700 hover:text-slate-950";
+
 export function EditEventPage() {
   const navigate = useNavigate();
   const { eventId } = useParams<{ eventId: string }>();
@@ -149,7 +154,7 @@ export function EditEventPage() {
       <PageLayout>
         <PageHeader>
           <div>
-            <h1>Edit event</h1>
+            <h1 className={pageTitleClassName}>Edit event</h1>
             <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
               Sign in to update event details and RSVP settings.
             </p>
@@ -158,9 +163,15 @@ export function EditEventPage() {
         {/* This is only a UX guard. The backend remains the source of truth for
             whether the current caller can edit the specific event. */}
         <StatusMessage message="You need to sign in before editing events." />
-        <p>
-          <Link to="/login">Login</Link> or{" "}
-          <Link to="/register">register</Link> to continue.
+        <p className="m-0 text-sm text-slate-600">
+          <Link className={textLinkClassName} to="/login">
+            Login
+          </Link>{" "}
+          or{" "}
+          <Link className={textLinkClassName} to="/register">
+            register
+          </Link>{" "}
+          to continue.
         </p>
       </PageLayout>
     );
@@ -175,7 +186,7 @@ export function EditEventPage() {
       <PageLayout>
         <PageHeader>
           <div>
-            <h1>Edit event</h1>
+            <h1 className={pageTitleClassName}>Edit event</h1>
             <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
               We could not load the event for editing.
             </p>
@@ -206,7 +217,7 @@ export function EditEventPage() {
               Back to event
             </Link>
           </p>
-          <h1>Edit event</h1>
+          <h1 className={pageTitleClassName}>Edit event</h1>
           <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
             Update the event details, visibility, and RSVP capacity.
           </p>

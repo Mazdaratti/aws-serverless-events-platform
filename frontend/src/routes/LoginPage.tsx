@@ -32,6 +32,9 @@ const controlClassName =
 const submitButtonClassName =
   "inline-flex w-fit rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
 
+const pageTitleClassName =
+  "m-0 text-3xl font-semibold tracking-tight text-slate-950";
+
 export function LoginPage() {
   const navigate = useNavigate();
   const { refreshSession } = useAuth();
@@ -92,7 +95,7 @@ export function LoginPage() {
     <PageLayout>
       <PageHeader>
         <div>
-          <h1>Login</h1>
+          <h1 className={pageTitleClassName}>Login</h1>
           <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
             Sign in to manage your events and RSVP activity.
           </p>

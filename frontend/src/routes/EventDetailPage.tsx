@@ -167,48 +167,50 @@ export function EventDetailPage() {
         </PageActions>
       </PageHeader>
 
-      <Panel>
-        {/* Visibility labels explain the public DTO flags in user-facing terms.
-            Backend authorization is still the source of truth for what actions
-            are actually allowed. */}
-        <p aria-label="Event visibility" className="m-0">
-          <strong className="inline-flex w-fit rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-            {visibilityLabel}
-          </strong>
-        </p>
+      <div className="grid max-w-4xl gap-6">
+        <Panel>
+          {/* Visibility labels explain the public DTO flags in user-facing terms.
+              Backend authorization is still the source of truth for what actions
+              are actually allowed. */}
+          <p aria-label="Event visibility" className="m-0">
+            <strong className="inline-flex w-fit rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+              {visibilityLabel}
+            </strong>
+          </p>
 
-        <dl className="m-0 mt-4 grid gap-y-3 text-sm sm:grid-cols-[minmax(7rem,max-content)_minmax(0,1fr)] sm:gap-x-4">
-          <dt className="font-semibold text-slate-500">Date</dt>
-          <dd className="m-0 min-w-0 break-words text-slate-700">
-            {formatEventDate(event.date)}
-          </dd>
+          <dl className="m-0 mt-4 grid gap-y-2.5 text-sm sm:grid-cols-[minmax(7rem,max-content)_minmax(0,1fr)] sm:gap-x-4">
+            <dt className="font-semibold text-slate-500">Date</dt>
+            <dd className="m-0 min-w-0 break-words text-slate-700">
+              {formatEventDate(event.date)}
+            </dd>
 
-          <dt className="font-semibold text-slate-500">Location</dt>
-          <dd className="m-0 min-w-0 break-words text-slate-700">
-            {event.location || "Location not specified"}
-          </dd>
+            <dt className="font-semibold text-slate-500">Location</dt>
+            <dd className="m-0 min-w-0 break-words text-slate-700">
+              {event.location || "Location not specified"}
+            </dd>
 
-          <dt className="font-semibold text-slate-500">Description</dt>
-          <dd className="m-0 min-w-0 break-words text-slate-700">
-            {event.description || "No description provided."}
-          </dd>
+            <dt className="font-semibold text-slate-500">Description</dt>
+            <dd className="m-0 min-w-0 break-words text-slate-700">
+              {event.description || "No description provided."}
+            </dd>
 
-          <dt className="font-semibold text-slate-500">Capacity</dt>
-          <dd className="m-0 min-w-0 break-words text-slate-700">
-            {event.capacity === null ? "Unlimited" : event.capacity}
-          </dd>
+            <dt className="font-semibold text-slate-500">Capacity</dt>
+            <dd className="m-0 min-w-0 break-words text-slate-700">
+              {event.capacity === null ? "Unlimited" : event.capacity}
+            </dd>
 
-          <dt className="font-semibold text-slate-500">RSVPs</dt>
-          <dd className="m-0 min-w-0 break-words text-slate-700">
-            {event.attending_count} attending / {event.rsvp_count} total
-          </dd>
-        </dl>
-      </Panel>
+            <dt className="font-semibold text-slate-500">RSVPs</dt>
+            <dd className="m-0 min-w-0 break-words text-slate-700">
+              {event.attending_count} attending / {event.rsvp_count} total
+            </dd>
+          </dl>
+        </Panel>
 
-      <RsvpPanel
-        eventId={event.event_id}
-        onRsvpSuccess={handleRsvpSuccess}
-      />
+        <RsvpPanel
+          eventId={event.event_id}
+          onRsvpSuccess={handleRsvpSuccess}
+        />
+      </div>
     </PageLayout>
   );
 }

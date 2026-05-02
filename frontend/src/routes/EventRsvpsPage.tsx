@@ -10,6 +10,12 @@ import type {
 } from "../api/types";
 import { useAuth } from "../auth/AuthProvider";
 import { ErrorMessage } from "../components/ErrorMessage";
+import {
+  PageActions,
+  PageHeader,
+  PageLayout,
+  Panel
+} from "../components/LayoutPrimitives";
 import { LoadingState } from "../components/LoadingState";
 import { StatusMessage } from "../components/StatusMessage";
 import { formatEventDate } from "../utils/dates";
@@ -138,8 +144,15 @@ export function EventRsvpsPage() {
 
   if (status !== "authenticated") {
     return (
-      <>
-        <h1>Event RSVPs</h1>
+      <PageLayout>
+        <PageHeader>
+          <div>
+            <h1>Event RSVPs</h1>
+            <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+              Sign in to review attendee responses for your events.
+            </p>
+          </div>
+        </PageHeader>
         {/* This is a UI prompt only. The protected API route is still the real
             source of truth for RSVP-list access. */}
         <StatusMessage message="You need to sign in before viewing RSVPs." />
@@ -147,7 +160,7 @@ export function EventRsvpsPage() {
           <Link to="/login">Login</Link> or{" "}
           <Link to="/register">register</Link> to continue.
         </p>
-      </>
+      </PageLayout>
     );
   }
 
@@ -157,81 +170,145 @@ export function EventRsvpsPage() {
 
   if (loadState.status === "error" && !loadState.response) {
     return (
-      <>
-        <h1>Event RSVPs</h1>
+      <PageLayout>
+        <PageHeader>
+          <div>
+            <h1>Event RSVPs</h1>
+            <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+              We could not load RSVP activity for this event.
+            </p>
+          </div>
+        </PageHeader>
         <ErrorMessage message={loadState.message} />
-        <Link to={eventId ? `/events/${eventId}` : "/events"}>Back to event</Link>
-      </>
+        <PageActions>
+          <Link
+            className="text-sm font-medium text-slate-700 hover:text-slate-950"
+            to={eventId ? `/events/${eventId}` : "/events"}
+          >
+            Back to event
+          </Link>
+        </PageActions>
+      </PageLayout>
     );
   }
 
   const response = loadState.response;
 
   if (!response) {
-    return <ErrorMessage message="RSVP response is missing." />;
+    return (
+      <PageLayout>
+        <ErrorMessage message="RSVP response is missing." />
+      </PageLayout>
+    );
   }
 
   return (
-    <>
-      <h1>Event RSVPs</h1>
-      <Link to={`/events/${response.event.event_id}`}>Back to event</Link>
+    <PageLayout>
+      <PageHeader>
+        <div>
+          <p className="m-0">
+            <Link
+              className="text-sm font-medium text-slate-700 hover:text-slate-950"
+              to={`/events/${response.event.event_id}`}
+            >
+              Back to event
+            </Link>
+          </p>
+          <h1>Event RSVPs</h1>
+          <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+            Review RSVP activity for {response.event.title || "this event"}.
+          </p>
+        </div>
+      </PageHeader>
 
-      <section aria-labelledby="rsvp-event-summary">
-        <h2 id="rsvp-event-summary">{response.event.title || "Untitled event"}</h2>
-        <dl>
-          <dt>Date</dt>
-          <dd>{formatEventDate(response.event.date)}</dd>
-          <dt>Status</dt>
-          <dd>{response.event.status}</dd>
-          <dt>Capacity</dt>
-          <dd>{response.event.capacity === null ? "Unlimited" : response.event.capacity}</dd>
-          <dt>RSVPs</dt>
-          <dd>
-            {response.stats.attending} attending / {response.stats.total} total
-          </dd>
-        </dl>
-      </section>
+      <div className="grid max-w-4xl gap-6">
+        <Panel aria-labelledby="rsvp-event-summary">
+          <h2
+            id="rsvp-event-summary"
+            className="m-0 text-lg font-semibold leading-tight text-slate-900"
+          >
+            {response.event.title || "Untitled event"}
+          </h2>
+          <dl className="m-0 mt-4 grid gap-y-2.5 text-sm sm:grid-cols-[minmax(7rem,max-content)_minmax(0,1fr)] sm:gap-x-4">
+            <dt className="font-semibold text-slate-500">Date</dt>
+            <dd className="m-0 min-w-0 break-words text-slate-700">
+              {formatEventDate(response.event.date)}
+            </dd>
+            <dt className="font-semibold text-slate-500">Status</dt>
+            <dd className="m-0 min-w-0 break-words text-slate-700">
+              {response.event.status}
+            </dd>
+            <dt className="font-semibold text-slate-500">Capacity</dt>
+            <dd className="m-0 min-w-0 break-words text-slate-700">
+              {response.event.capacity === null
+                ? "Unlimited"
+                : response.event.capacity}
+            </dd>
+            <dt className="font-semibold text-slate-500">RSVPs</dt>
+            <dd className="m-0 min-w-0 break-words text-slate-700">
+              {response.stats.attending} attending / {response.stats.total} total
+            </dd>
+          </dl>
+        </Panel>
 
-      {loadState.status === "error" ? (
-        <ErrorMessage message={loadState.message} />
-      ) : null}
+        {loadState.status === "error" ? (
+          <ErrorMessage message={loadState.message} />
+        ) : null}
 
-      {response.items.length === 0 ? (
-        <StatusMessage message="No RSVPs yet." />
-      ) : (
-        <ul>
-          {response.items.map((item) => (
-            <li key={`${getSubjectKey(item.subject)}-${item.updated_at}`}>
-              <RsvpListItemView item={item} />
-            </li>
-          ))}
-        </ul>
-      )}
+        {response.items.length === 0 ? (
+          <Panel className="text-center">
+            <p className="m-0 text-sm font-semibold text-slate-700">
+              No RSVPs yet.
+            </p>
+            <p className="mt-2 text-sm text-slate-500">
+              Attendee responses will appear here after guests RSVP.
+            </p>
+          </Panel>
+        ) : (
+          <ul className="grid gap-4">
+            {response.items.map((item) => (
+              <li key={`${getSubjectKey(item.subject)}-${item.updated_at}`}>
+                <RsvpListItemView item={item} />
+              </li>
+            ))}
+          </ul>
+        )}
 
-      {loadState.nextCursor ? (
-        <button
-          type="button"
-          disabled={isLoadingMore}
-          onClick={() => void loadMore()}
-        >
-          {isLoadingMore ? "Loading..." : "Load more"}
-        </button>
-      ) : null}
-    </>
+        {loadState.nextCursor ? (
+          <PageActions>
+            <button
+              type="button"
+              disabled={isLoadingMore}
+              onClick={() => void loadMore()}
+            >
+              {isLoadingMore ? "Loading..." : "Load more"}
+            </button>
+          </PageActions>
+        ) : null}
+      </div>
+    </PageLayout>
   );
 }
 
 function RsvpListItemView({ item }: { item: RsvpListItem }) {
   return (
-    <article>
-      <h3>{getSubjectLabel(item.subject)}</h3>
-      <dl>
-        <dt>Status</dt>
-        <dd>{item.attending ? "Attending" : "Not attending"}</dd>
-        <dt>Created</dt>
-        <dd>{formatEventDate(item.created_at)}</dd>
-        <dt>Updated</dt>
-        <dd>{formatEventDate(item.updated_at)}</dd>
+    <article className="grid h-full gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      <h3 className="m-0 text-base font-semibold leading-tight text-slate-900">
+        {getSubjectLabel(item.subject)}
+      </h3>
+      <dl className="m-0 grid grid-cols-[minmax(5rem,max-content)_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+        <dt className="font-semibold text-slate-500">Status</dt>
+        <dd className="m-0 min-w-0 break-words text-slate-700">
+          {item.attending ? "Attending" : "Not attending"}
+        </dd>
+        <dt className="font-semibold text-slate-500">Created</dt>
+        <dd className="m-0 min-w-0 break-words text-slate-700">
+          {formatEventDate(item.created_at)}
+        </dd>
+        <dt className="font-semibold text-slate-500">Updated</dt>
+        <dd className="m-0 min-w-0 break-words text-slate-700">
+          {formatEventDate(item.updated_at)}
+        </dd>
       </dl>
     </article>
   );

@@ -8,6 +8,10 @@ import { getAnonymousRsvpToken } from "../utils/anonymousRsvpToken";
 import { ErrorMessage } from "./ErrorMessage";
 import { LoadingState } from "./LoadingState";
 import { SuccessMessage } from "./SuccessMessage";
+import {
+  primaryButtonClassName,
+  secondaryButtonClassName
+} from "./uiStyles";
 
 interface RsvpPanelProps {
   eventId: string;
@@ -24,12 +28,6 @@ const initialSubmitState: SubmitState = {
   status: "idle",
   message: null
 };
-
-const primaryRsvpButtonClassName =
-  "rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
-
-const secondaryRsvpButtonClassName =
-  "rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
 
 export function RsvpPanel({ eventId, onRsvpSuccess }: RsvpPanelProps) {
   const { status: authStatus } = useAuth();
@@ -118,7 +116,7 @@ export function RsvpPanel({ eventId, onRsvpSuccess }: RsvpPanelProps) {
           type="button"
           disabled={isDisabled}
           onClick={() => void submitRsvp(true)}
-          className={primaryRsvpButtonClassName}
+          className={primaryButtonClassName}
         >
           Attending
         </button>
@@ -126,7 +124,7 @@ export function RsvpPanel({ eventId, onRsvpSuccess }: RsvpPanelProps) {
           type="button"
           disabled={isDisabled}
           onClick={() => void submitRsvp(false)}
-          className={secondaryRsvpButtonClassName}
+          className={secondaryButtonClassName}
         >
           Not attending
         </button>

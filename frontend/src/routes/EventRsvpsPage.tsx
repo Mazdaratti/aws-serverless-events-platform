@@ -276,13 +276,18 @@ export function EventRsvpsPage() {
             </p>
           </Panel>
         ) : (
-          <ul className="grid gap-4">
-            {response.items.map((item) => (
-              <li key={`${getSubjectKey(item.subject)}-${item.updated_at}`}>
-                <RsvpListItemView item={item} />
-              </li>
-            ))}
-          </ul>
+          <section aria-labelledby="rsvp-responses-heading">
+            <h2 id="rsvp-responses-heading" className="sr-only">
+              RSVP responses
+            </h2>
+            <ul className="grid gap-4">
+              {response.items.map((item) => (
+                <li key={`${getSubjectKey(item.subject)}-${item.updated_at}`}>
+                  <RsvpListItemView item={item} />
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
 
         {loadState.nextCursor ? (

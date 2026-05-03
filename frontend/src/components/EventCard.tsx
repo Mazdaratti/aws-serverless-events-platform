@@ -1,9 +1,11 @@
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import type { PublicEvent } from "../api/types";
 import { formatEventDate } from "../utils/dates";
 
 interface EventCardProps {
+  children?: ReactNode;
   event: PublicEvent;
 }
 
@@ -19,7 +21,7 @@ function getVisibilityLabel(event: PublicEvent): string {
   return "Public";
 }
 
-export function EventCard({ event }: EventCardProps) {
+export function EventCard({ children, event }: EventCardProps) {
   const visibilityLabel = getVisibilityLabel(event);
 
   return (
@@ -67,6 +69,10 @@ export function EventCard({ event }: EventCardProps) {
           {event.attending_count} attending / {event.rsvp_count} total
         </dd>
       </dl>
+
+      {children ? (
+        <div className="border-t border-slate-200 pt-3">{children}</div>
+      ) : null}
     </article>
   );
 }

@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { type SyntheticEvent, useState } from "react";
 
 import type { CreateEventRequest, PublicEvent } from "../api/types";
 import { ErrorMessage } from "./ErrorMessage";
@@ -65,7 +65,7 @@ export function EventForm({
   const [values, setValues] = useState<EventFormValues>(initialValues);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (isSubmitting) {

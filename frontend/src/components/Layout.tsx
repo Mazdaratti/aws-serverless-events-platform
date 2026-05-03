@@ -5,7 +5,7 @@ import { secondaryButtonClassName } from "./uiStyles";
 
 export function Layout() {
   return (
-    <>
+    <div className="min-h-screen bg-sky-50/40 text-slate-950">
       <header className="border-b border-slate-200 bg-white shadow-sm">
         <nav
           aria-label="Primary navigation"
@@ -34,7 +34,7 @@ export function Layout() {
       <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
         <Outlet />
       </main>
-    </>
+    </div>
   );
 }
 

@@ -37,6 +37,9 @@ const fieldClassName = "grid gap-1.5";
 
 const labelClassName = "text-sm font-semibold text-slate-700";
 
+const confirmErrorMessageId = "confirm-register-error-message";
+const confirmSuccessMessageId = "confirm-register-success-message";
+
 export function ConfirmRegisterPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -47,6 +50,13 @@ export function ConfirmRegisterPage() {
 
   const isSubmitting = submitState.status === "submitting";
   const canResendCode = username.trim().length > 0 && !isSubmitting;
+  const feedbackMessageId =
+    submitState.status === "error"
+      ? confirmErrorMessageId
+      : submitState.status === "success"
+        ? confirmSuccessMessageId
+        : undefined;
+  const hasConfirmationError = submitState.status === "error";
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -125,6 +135,8 @@ export function ConfirmRegisterPage() {
       <div className="grid max-w-4xl gap-6">
         <Panel>
           <form
+            aria-busy={isSubmitting}
+            aria-describedby={feedbackMessageId}
             className="m-0 grid max-w-2xl gap-4 border-0 bg-transparent p-0"
             onSubmit={handleSubmit}
           >
@@ -139,6 +151,7 @@ export function ConfirmRegisterPage() {
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 required
+                aria-invalid={hasConfirmationError || undefined}
                 className={textInputClassName}
               />
             </div>
@@ -154,6 +167,7 @@ export function ConfirmRegisterPage() {
                 value={confirmationCode}
                 onChange={(event) => setConfirmationCode(event.target.value)}
                 required
+                aria-invalid={hasConfirmationError || undefined}
                 className={textInputClassName}
               />
             </div>
@@ -179,11 +193,15 @@ export function ConfirmRegisterPage() {
         </Panel>
 
         {submitState.status === "error" ? (
-          <ErrorMessage message={submitState.message} />
+          <div id={confirmErrorMessageId}>
+            <ErrorMessage message={submitState.message} />
+          </div>
         ) : null}
 
         {submitState.status === "success" ? (
-          <SuccessMessage message={submitState.message} />
+          <div id={confirmSuccessMessageId}>
+            <SuccessMessage message={submitState.message} />
+          </div>
         ) : null}
 
         <p className="m-0 text-sm text-slate-600">

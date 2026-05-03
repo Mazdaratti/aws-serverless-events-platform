@@ -29,12 +29,16 @@ const initialSubmitState: SubmitState = {
   message: null
 };
 
+const rsvpDescriptionId = "rsvp-description";
+const rsvpHeadingId = "rsvp-heading";
+
 export function RsvpPanel({ eventId, onRsvpSuccess }: RsvpPanelProps) {
   const { status: authStatus } = useAuth();
   const [submitState, setSubmitState] = useState<SubmitState>(initialSubmitState);
 
   const isSessionLoading = authStatus === "loading";
   const isSubmitting = submitState.status === "submitting";
+  const isBusy = isSessionLoading || isSubmitting;
   const isDisabled = isSubmitting || isSessionLoading;
 
   const submitRsvp = async (attending: boolean) => {
@@ -78,17 +82,19 @@ export function RsvpPanel({ eventId, onRsvpSuccess }: RsvpPanelProps) {
 
   return (
     <section
-      aria-labelledby="rsvp-heading"
+      aria-busy={isBusy}
+      aria-describedby={rsvpDescriptionId}
+      aria-labelledby={rsvpHeadingId}
       className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
     >
       <div>
         <h2
-          id="rsvp-heading"
+          id={rsvpHeadingId}
           className="m-0 text-lg font-semibold leading-tight text-slate-900"
         >
           RSVP
         </h2>
-        <p className="mt-1 text-sm text-slate-600">
+        <p id={rsvpDescriptionId} className="mt-1 text-sm text-slate-600">
           Let the organizer know whether you plan to attend.
         </p>
       </div>
@@ -111,7 +117,11 @@ export function RsvpPanel({ eventId, onRsvpSuccess }: RsvpPanelProps) {
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div
+        aria-label="RSVP options"
+        className="flex flex-wrap items-center gap-2"
+        role="group"
+      >
         <button
           type="button"
           disabled={isDisabled}

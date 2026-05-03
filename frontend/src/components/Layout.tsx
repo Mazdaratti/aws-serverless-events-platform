@@ -6,6 +6,12 @@ import { secondaryButtonClassName } from "./uiStyles";
 export function Layout() {
   return (
     <div className="min-h-screen bg-sky-50/40 text-slate-950">
+      <a
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-blue-700 focus:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        href="#main-content"
+      >
+        Skip to main content
+      </a>
       <header className="border-b border-slate-200 bg-white shadow-sm">
         <nav
           aria-label="Primary navigation"
@@ -31,7 +37,10 @@ export function Layout() {
         </nav>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
+      <main
+        id="main-content"
+        className="mx-auto max-w-6xl px-4 py-6 sm:py-8"
+      >
         <Outlet />
       </main>
     </div>

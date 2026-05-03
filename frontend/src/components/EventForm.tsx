@@ -41,6 +41,8 @@ const fieldClassName = "grid gap-1.5";
 
 const labelClassName = "text-sm font-semibold text-slate-700";
 
+const validationMessageId = "event-form-validation-error";
+
 export function eventToFormValues(event: PublicEvent): EventFormValues {
   return {
     title: event.title,
@@ -65,6 +67,11 @@ export function EventForm({
   const [values, setValues] = useState<EventFormValues>(initialValues);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
+  const titleHasError = validationMessage?.startsWith("Title ") ?? false;
+  const dateHasError =
+    validationMessage?.startsWith("Date and time ") ?? false;
+  const capacityHasError = validationMessage?.startsWith("Capacity ") ?? false;
+
   const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -84,6 +91,7 @@ export function EventForm({
 
   return (
     <form
+      aria-busy={isSubmitting}
       className="m-0 grid max-w-2xl gap-4 border-0 bg-transparent p-0"
       onSubmit={handleSubmit}
     >
@@ -101,6 +109,8 @@ export function EventForm({
               title: event.target.value
             })
           }
+          aria-describedby={titleHasError ? validationMessageId : undefined}
+          aria-invalid={titleHasError || undefined}
           required
           className={textInputClassName}
         />
@@ -121,6 +131,8 @@ export function EventForm({
               date: event.target.value
             })
           }
+          aria-describedby={dateHasError ? validationMessageId : undefined}
+          aria-invalid={dateHasError || undefined}
           required
           className={textInputClassName}
         />
@@ -180,6 +192,8 @@ export function EventForm({
             })
           }
           placeholder="Unlimited"
+          aria-describedby={capacityHasError ? validationMessageId : undefined}
+          aria-invalid={capacityHasError || undefined}
           className={textInputClassName}
         />
       </div>
@@ -214,7 +228,11 @@ export function EventForm({
         {isSubmitting ? submittingButtonLabel : submitButtonLabel}
       </button>
 
-      {validationMessage ? <ErrorMessage message={validationMessage} /> : null}
+      {validationMessage ? (
+        <div id={validationMessageId}>
+          <ErrorMessage message={validationMessage} />
+        </div>
+      ) : null}
     </form>
   );
 }

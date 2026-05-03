@@ -17,7 +17,9 @@ import { LoadingState } from "../components/LoadingState";
 import {
   pageTitleClassName,
   primaryButtonClassName,
-  secondaryButtonClassName
+  secondaryButtonClassName,
+  selectInputClassName,
+  textInputClassName
 } from "../components/uiStyles";
 import {
   applyEventListControls,
@@ -249,7 +251,7 @@ function EventListControlsForm({
                 search: event.target.value
               })
             }
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
+            className={textInputClassName}
             placeholder="Title, description, or location"
           />
         </div>
@@ -266,7 +268,7 @@ function EventListControlsForm({
                 eventState: event.target.value as EventListControls["eventState"]
               })
             }
-            className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
+            className={selectInputClassName}
           >
             <option value="all">All</option>
             <option value="ongoing">Ongoing</option>
@@ -287,7 +289,7 @@ function EventListControlsForm({
                 visibility: event.target.value as EventListControls["visibility"]
               })
             }
-            className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
+            className={selectInputClassName}
           >
             <option value="all">All</option>
             <option value="public">Public</option>
@@ -308,7 +310,7 @@ function EventListControlsForm({
                 capacity: event.target.value as EventListControls["capacity"]
               })
             }
-            className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
+            className={selectInputClassName}
           >
             <option value="all">All</option>
             <option value="unlimited">Unlimited capacity</option>
@@ -330,7 +332,7 @@ function EventListControlsForm({
                 sort: event.target.value as EventListControls["sort"]
               })
             }
-            className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-400"
+            className={selectInputClassName}
           >
             <option value="date-asc">Event date: soonest first</option>
             <option value="date-desc">Event date: latest first</option>

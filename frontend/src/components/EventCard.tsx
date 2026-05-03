@@ -46,26 +46,26 @@ export function EventCard({ children, event }: EventCardProps) {
         </strong>
       </p>
 
-      <dl className="m-0 grid grid-cols-[minmax(6rem,max-content)_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+      <dl className="m-0 grid gap-y-2 text-sm sm:grid-cols-[minmax(6rem,max-content)_minmax(0,1fr)] sm:gap-x-4">
         <dt className="font-semibold text-slate-500">Date</dt>
-        <dd className="m-0 min-w-0 break-words text-slate-800">
+        <dd className="m-0 min-w-0 break-words text-slate-700">
           {formatEventDate(event.date)}
         </dd>
 
         <dt className="font-semibold text-slate-500">Location</dt>
-        <dd className="m-0 min-w-0 break-words text-slate-800">
+        <dd className="m-0 min-w-0 break-words text-slate-700">
           {event.location || "Location not specified"}
         </dd>
 
         <dt className="font-semibold text-slate-500">Created</dt>
         {/* Public event DTOs expose created_at, not updated_at. Show the real
             available timestamp instead of inventing a last-updated field. */}
-        <dd className="m-0 min-w-0 break-words text-slate-800">
+        <dd className="m-0 min-w-0 break-words text-slate-700">
           {formatEventDate(event.created_at)}
         </dd>
 
         <dt className="font-semibold text-slate-500">RSVPs</dt>
-        <dd className="m-0 min-w-0 break-words text-slate-800">
+        <dd className="m-0 min-w-0 break-words text-slate-700">
           {event.attending_count} attending / {event.rsvp_count} total
         </dd>
       </dl>

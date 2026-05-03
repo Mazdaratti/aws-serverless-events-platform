@@ -321,7 +321,7 @@ export function MyEventsPage() {
           <li key={event.event_id}>
             <EventCard event={event}>
               <div className="grid gap-3">
-                <PageActions>
+                <PageActions className="gap-4">
                   <Link
                     className={`text-sm ${textLinkClassName}`}
                     to={`/events/${event.event_id}/edit`}
@@ -339,7 +339,9 @@ export function MyEventsPage() {
                 </PageActions>
 
                 {event.status === "CANCELLED" ? (
-                  <StatusMessage message="This event is cancelled." />
+                  <p role="status" className="m-0 text-sm text-slate-500">
+                    This event is cancelled.
+                  </p>
                 ) : cancelState.status === "confirming" &&
                   cancelState.eventId === event.event_id ? (
                   <div className="grid gap-2">

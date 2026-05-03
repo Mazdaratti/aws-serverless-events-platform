@@ -304,14 +304,16 @@ export function EventRsvpsPage() {
 
 function RsvpListItemView({ item }: { item: RsvpListItem }) {
   return (
-    <article className="grid h-full gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+    <article className="grid h-full gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors transition-shadow hover:border-slate-300 hover:shadow-md">
       <h3 className="m-0 text-base font-semibold leading-tight text-slate-900">
         {getSubjectLabel(item.subject)}
       </h3>
-      <dl className="m-0 grid grid-cols-[minmax(5rem,max-content)_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+      <dl className="m-0 grid gap-y-2 text-sm sm:grid-cols-[minmax(5rem,max-content)_minmax(0,1fr)] sm:gap-x-4">
         <dt className="font-semibold text-slate-500">Status</dt>
         <dd className="m-0 min-w-0 break-words text-slate-700">
-          {item.attending ? "Attending" : "Not attending"}
+          <span className="inline-flex w-fit rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+            {item.attending ? "Attending" : "Not attending"}
+          </span>
         </dd>
         <dt className="font-semibold text-slate-500">Created</dt>
         <dd className="m-0 min-w-0 break-words text-slate-700">

@@ -32,6 +32,9 @@ const fieldClassName = "grid gap-1.5";
 
 const labelClassName = "text-sm font-semibold text-slate-700";
 
+const loginErrorMessageId = "login-error-message";
+const loginSuccessMessageId = "login-success-message";
+
 export function LoginPage() {
   const navigate = useNavigate();
   const { refreshSession } = useAuth();
@@ -40,6 +43,13 @@ export function LoginPage() {
   const [submitState, setSubmitState] = useState<SubmitState>(initialSubmitState);
 
   const isSubmitting = submitState.status === "submitting";
+  const feedbackMessageId =
+    submitState.status === "error"
+      ? loginErrorMessageId
+      : submitState.status === "success"
+        ? loginSuccessMessageId
+        : undefined;
+  const hasAuthError = submitState.status === "error";
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -102,6 +112,8 @@ export function LoginPage() {
       <div className="grid max-w-4xl gap-6">
         <Panel>
           <form
+            aria-busy={isSubmitting}
+            aria-describedby={feedbackMessageId}
             className="m-0 grid max-w-2xl gap-4 border-0 bg-transparent p-0"
             onSubmit={handleSubmit}
           >
@@ -116,6 +128,7 @@ export function LoginPage() {
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 required
+                aria-invalid={hasAuthError || undefined}
                 className={textInputClassName}
               />
             </div>
@@ -132,6 +145,7 @@ export function LoginPage() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required
+                aria-invalid={hasAuthError || undefined}
                 className={textInputClassName}
               />
             </div>
@@ -147,11 +161,15 @@ export function LoginPage() {
         </Panel>
 
         {submitState.status === "error" ? (
-          <ErrorMessage message={submitState.message} />
+          <div id={loginErrorMessageId}>
+            <ErrorMessage message={submitState.message} />
+          </div>
         ) : null}
 
         {submitState.status === "success" ? (
-          <SuccessMessage message={submitState.message} />
+          <div id={loginSuccessMessageId}>
+            <SuccessMessage message={submitState.message} />
+          </div>
         ) : null}
 
         <p className="m-0 text-sm text-slate-600">

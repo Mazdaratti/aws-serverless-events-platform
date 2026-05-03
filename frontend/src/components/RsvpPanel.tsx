@@ -79,7 +79,7 @@ export function RsvpPanel({ eventId, onRsvpSuccess }: RsvpPanelProps) {
   return (
     <section
       aria-labelledby="rsvp-heading"
-      className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+      className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
     >
       <div>
         <h2

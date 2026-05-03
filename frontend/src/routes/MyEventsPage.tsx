@@ -379,8 +379,15 @@ export function MyEventsPage() {
                   </p>
                 ) : cancelState.status === "confirming" &&
                   cancelState.eventId === event.event_id ? (
-                  <div className="grid gap-2">
-                    <p className="m-0 text-sm text-slate-600">
+                  <div
+                    aria-describedby={`cancel-confirmation-${event.event_id}`}
+                    className="grid gap-2"
+                  >
+                    <p
+                      id={`cancel-confirmation-${event.event_id}`}
+                      role="status"
+                      className="m-0 text-sm text-slate-600"
+                    >
                       Confirm cancellation?
                     </p>
                     <PageActions>

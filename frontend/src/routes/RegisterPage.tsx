@@ -31,6 +31,9 @@ const fieldClassName = "grid gap-1.5";
 
 const labelClassName = "text-sm font-semibold text-slate-700";
 
+const registerErrorMessageId = "register-error-message";
+const registerSuccessMessageId = "register-success-message";
+
 export function RegisterPage() {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
@@ -39,6 +42,13 @@ export function RegisterPage() {
   const [submitState, setSubmitState] = useState<SubmitState>(initialSubmitState);
 
   const isSubmitting = submitState.status === "submitting";
+  const feedbackMessageId =
+    submitState.status === "error"
+      ? registerErrorMessageId
+      : submitState.status === "success"
+        ? registerSuccessMessageId
+        : undefined;
+  const hasRegistrationError = submitState.status === "error";
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -108,6 +118,8 @@ export function RegisterPage() {
       <div className="grid max-w-4xl gap-6">
         <Panel>
           <form
+            aria-busy={isSubmitting}
+            aria-describedby={feedbackMessageId}
             className="m-0 grid max-w-2xl gap-4 border-0 bg-transparent p-0"
             onSubmit={handleSubmit}
           >
@@ -122,6 +134,7 @@ export function RegisterPage() {
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 required
+                aria-invalid={hasRegistrationError || undefined}
                 className={textInputClassName}
               />
             </div>
@@ -138,6 +151,7 @@ export function RegisterPage() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 required
+                aria-invalid={hasRegistrationError || undefined}
                 className={textInputClassName}
               />
             </div>
@@ -154,6 +168,7 @@ export function RegisterPage() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required
+                aria-invalid={hasRegistrationError || undefined}
                 className={textInputClassName}
               />
             </div>
@@ -169,11 +184,15 @@ export function RegisterPage() {
         </Panel>
 
         {submitState.status === "error" ? (
-          <ErrorMessage message={submitState.message} />
+          <div id={registerErrorMessageId}>
+            <ErrorMessage message={submitState.message} />
+          </div>
         ) : null}
 
         {submitState.status === "success" ? (
-          <SuccessMessage message={submitState.message} />
+          <div id={registerSuccessMessageId}>
+            <SuccessMessage message={submitState.message} />
+          </div>
         ) : null}
 
         <p className="m-0 text-sm text-slate-600">

@@ -9,6 +9,8 @@ export function StatusMessage({ message }: StatusMessageProps) {
     // positive outcomes should use SuccessMessage.
     <p
       role="status"
+      aria-live="polite"
+      aria-atomic="true"
       className="m-0 max-w-2xl rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
     >
       {message}

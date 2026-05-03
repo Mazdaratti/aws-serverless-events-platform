@@ -12,6 +12,7 @@ import { SuccessMessage } from "../components/SuccessMessage";
 import {
   pageTitleClassName,
   primaryButtonClassName,
+  textInputClassName,
   textLinkClassName
 } from "../components/uiStyles";
 
@@ -29,9 +30,6 @@ const initialSubmitState: SubmitState = {
 const fieldClassName = "grid gap-1.5";
 
 const labelClassName = "text-sm font-semibold text-slate-700";
-
-const controlClassName =
-  "min-h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:ring-1 focus:ring-slate-400";
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -124,7 +122,7 @@ export function RegisterPage() {
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 required
-                className={controlClassName}
+                className={textInputClassName}
               />
             </div>
 
@@ -140,7 +138,7 @@ export function RegisterPage() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 required
-                className={controlClassName}
+                className={textInputClassName}
               />
             </div>
 
@@ -156,7 +154,7 @@ export function RegisterPage() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required
-                className={controlClassName}
+                className={textInputClassName}
               />
             </div>
 

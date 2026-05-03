@@ -1,8 +1,13 @@
-import { type FormEvent, useState } from "react";
+import { FormEvent, useState } from "react";
 
 import type { CreateEventRequest, PublicEvent } from "../api/types";
 import { ErrorMessage } from "./ErrorMessage";
-import { primaryButtonClassName } from "./uiStyles";
+import {
+  primaryButtonClassName,
+  selectInputClassName,
+  textareaInputClassName,
+  textInputClassName
+} from "./uiStyles";
 
 type EventVisibility = "public" | "protected" | "admin";
 
@@ -35,12 +40,6 @@ export const emptyEventFormValues: EventFormValues = {
 const fieldClassName = "grid gap-1.5";
 
 const labelClassName = "text-sm font-semibold text-slate-700";
-
-const controlClassName =
-  "min-h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:ring-1 focus:ring-slate-400";
-
-const textareaClassName =
-  "min-h-32 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:ring-1 focus:ring-slate-400";
 
 export function eventToFormValues(event: PublicEvent): EventFormValues {
   return {
@@ -103,7 +102,7 @@ export function EventForm({
             })
           }
           required
-          className={controlClassName}
+          className={textInputClassName}
         />
       </div>
 
@@ -123,7 +122,7 @@ export function EventForm({
             })
           }
           required
-          className={controlClassName}
+          className={textInputClassName}
         />
       </div>
 
@@ -141,7 +140,7 @@ export function EventForm({
               location: event.target.value
             })
           }
-          className={controlClassName}
+          className={textInputClassName}
         />
       </div>
 
@@ -159,7 +158,7 @@ export function EventForm({
               description: event.target.value
             })
           }
-          className={textareaClassName}
+          className={textareaInputClassName}
         />
       </div>
 
@@ -181,7 +180,7 @@ export function EventForm({
             })
           }
           placeholder="Unlimited"
-          className={controlClassName}
+          className={textInputClassName}
         />
       </div>
 
@@ -199,7 +198,7 @@ export function EventForm({
               visibility: event.target.value as EventVisibility
             })
           }
-          className={controlClassName}
+          className={selectInputClassName}
         >
           <option value="public">Public</option>
           <option value="protected">Protected</option>

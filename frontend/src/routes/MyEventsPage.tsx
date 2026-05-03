@@ -318,59 +318,64 @@ export function MyEventsPage() {
 
       <ItemGrid>
         {visibleEvents.map((event) => (
-          <li className="grid gap-3" key={event.event_id}>
-            <EventCard event={event} />
-            <PageActions>
-              <Link
-                className={`text-sm ${textLinkClassName}`}
-                to={`/events/${event.event_id}/edit`}
-              >
-                Edit
-              </Link>
-              {/* RSVP-list access is checked by the backend. This owner page
-                  only provides a convenient management shortcut. */}
-              <Link
-                className={`text-sm ${textLinkClassName}`}
-                to={`/events/${event.event_id}/rsvps`}
-              >
-                View RSVPs
-              </Link>
-            </PageActions>
-
-            {event.status === "CANCELLED" ? (
-              <StatusMessage message="This event is cancelled." />
-            ) : cancelState.status === "confirming" &&
-              cancelState.eventId === event.event_id ? (
-              <div>
-                Confirm cancellation?{" "}
+          <li key={event.event_id}>
+            <EventCard event={event}>
+              <div className="grid gap-3">
                 <PageActions>
-                  <button
-                    type="button"
-                    onClick={() => void confirmCancel(event.event_id)}
-                    className={destructiveButtonClassName}
+                  <Link
+                    className={`text-sm ${textLinkClassName}`}
+                    to={`/events/${event.event_id}/edit`}
                   >
-                    Confirm cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={keepEvent}
-                    className={secondaryButtonClassName}
+                    Edit
+                  </Link>
+                  {/* RSVP-list access is checked by the backend. This owner page
+                      only provides a convenient management shortcut. */}
+                  <Link
+                    className={`text-sm ${textLinkClassName}`}
+                    to={`/events/${event.event_id}/rsvps`}
                   >
-                    Keep event
-                  </button>
+                    View RSVPs
+                  </Link>
                 </PageActions>
+
+                {event.status === "CANCELLED" ? (
+                  <StatusMessage message="This event is cancelled." />
+                ) : cancelState.status === "confirming" &&
+                  cancelState.eventId === event.event_id ? (
+                  <div className="grid gap-2">
+                    <p className="m-0 text-sm text-slate-600">
+                      Confirm cancellation?
+                    </p>
+                    <PageActions>
+                      <button
+                        type="button"
+                        onClick={() => void confirmCancel(event.event_id)}
+                        className={destructiveButtonClassName}
+                      >
+                        Confirm cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={keepEvent}
+                        className={secondaryButtonClassName}
+                      >
+                        Keep event
+                      </button>
+                    </PageActions>
+                  </div>
+                ) : (
+                  <PageActions>
+                    <button
+                      type="button"
+                      onClick={() => startCancel(event.event_id)}
+                      className={destructiveButtonClassName}
+                    >
+                      Cancel event
+                    </button>
+                  </PageActions>
+                )}
               </div>
-            ) : (
-              <PageActions>
-                <button
-                  type="button"
-                  onClick={() => startCancel(event.event_id)}
-                  className={destructiveButtonClassName}
-                >
-                  Cancel event
-                </button>
-              </PageActions>
-            )}
+            </EventCard>
           </li>
         ))}
       </ItemGrid>

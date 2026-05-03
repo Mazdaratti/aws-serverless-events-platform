@@ -5,6 +5,10 @@ import { getApiErrorMessage } from "../api/errors";
 import { listEvents } from "../api/events";
 import type { NextCursor, PublicEvent } from "../api/types";
 import { EventCard } from "../components/EventCard";
+import {
+  EventListControlsForm,
+  type EventListControlOption
+} from "../components/EventListControlsForm";
 import { ErrorMessage } from "../components/ErrorMessage";
 import {
   ItemGrid,
@@ -17,9 +21,7 @@ import { LoadingState } from "../components/LoadingState";
 import {
   pageTitleClassName,
   primaryButtonClassName,
-  secondaryButtonClassName,
-  selectInputClassName,
-  textInputClassName
+  secondaryButtonClassName
 } from "../components/uiStyles";
 import {
   applyEventListControls,
@@ -43,6 +45,24 @@ const initialState: LoadState = {
   items: [],
   nextCursor: null
 };
+
+const publicEventStateOptions: Array<
+  EventListControlOption<EventListControls["eventState"]>
+> = [
+  { label: "All", value: "all" },
+  { label: "Ongoing", value: "ongoing" },
+  { label: "Outdated", value: "outdated" }
+];
+
+const publicSortOptions: Array<
+  EventListControlOption<EventListControls["sort"]>
+> = [
+  { label: "Event date: soonest first", value: "date-asc" },
+  { label: "Event date: latest first", value: "date-desc" },
+  { label: "Title: A-Z", value: "title-asc" },
+  { label: "Title: Z-A", value: "title-desc" },
+  { label: "Created: newest first", value: "created-desc" }
+];
 
 export function EventListPage() {
   const [state, setState] = useState<LoadState>(initialState);
@@ -152,7 +172,15 @@ export function EventListPage() {
         </PageActions>
       </PageHeader>
 
-      <EventListControlsForm controls={controls} setControls={setControls} />
+      <EventListControlsForm
+        controls={controls}
+        eventStateOptions={publicEventStateOptions}
+        heading="Find events"
+        headingId="event-list-filters"
+        idPrefix="event"
+        onChange={setControls}
+        sortOptions={publicSortOptions}
+      />
 
       {state.status === "error" ? (
         <ErrorMessage message={state.message} />
@@ -217,136 +245,5 @@ export function EventListPage() {
         </PageActions>
       ) : null}
     </PageLayout>
-  );
-}
-
-interface EventListControlsFormProps {
-  controls: EventListControls;
-  setControls: (controls: EventListControls) => void;
-}
-
-function EventListControlsForm({
-  controls,
-  setControls
-}: EventListControlsFormProps) {
-  return (
-    <section
-      aria-labelledby="event-list-filters"
-      className="grid max-w-4xl gap-3"
-    >
-      <h2 id="event-list-filters" className="sr-only">
-        Find events
-      </h2>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="grid gap-1.5 md:col-span-2">
-          <label htmlFor="event-search">Search</label>
-          <input
-            id="event-search"
-            name="search"
-            value={controls.search}
-            onChange={(event) =>
-              setControls({
-                ...controls,
-                search: event.target.value
-              })
-            }
-            className={textInputClassName}
-            placeholder="Title, description, or location"
-          />
-        </div>
-
-        <div className="grid gap-1.5">
-          <label htmlFor="event-state-filter">Event state</label>
-          <select
-            id="event-state-filter"
-            name="eventState"
-            value={controls.eventState}
-            onChange={(event) =>
-              setControls({
-                ...controls,
-                eventState: event.target.value as EventListControls["eventState"]
-              })
-            }
-            className={selectInputClassName}
-          >
-            <option value="all">All</option>
-            <option value="ongoing">Ongoing</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="outdated">Outdated</option>
-          </select>
-        </div>
-
-        <div className="grid gap-1.5">
-          <label htmlFor="event-visibility-filter">Visibility</label>
-          <select
-            id="event-visibility-filter"
-            name="visibility"
-            value={controls.visibility}
-            onChange={(event) =>
-              setControls({
-                ...controls,
-                visibility: event.target.value as EventListControls["visibility"]
-              })
-            }
-            className={selectInputClassName}
-          >
-            <option value="all">All</option>
-            <option value="public">Public</option>
-            <option value="protected">Protected</option>
-            <option value="admin">Admin-only</option>
-          </select>
-        </div>
-
-        <div className="grid gap-1.5">
-          <label htmlFor="event-capacity-filter">RSVP availability</label>
-          <select
-            id="event-capacity-filter"
-            name="capacity"
-            value={controls.capacity}
-            onChange={(event) =>
-              setControls({
-                ...controls,
-                capacity: event.target.value as EventListControls["capacity"]
-              })
-            }
-            className={selectInputClassName}
-          >
-            <option value="all">All</option>
-            <option value="unlimited">Unlimited capacity</option>
-            <option value="limited">Has capacity limit</option>
-            <option value="full">Full</option>
-            <option value="available">Spots available</option>
-          </select>
-        </div>
-
-        <div className="grid gap-1.5">
-          <label htmlFor="event-sort">Sort</label>
-          <select
-            id="event-sort"
-            name="sort"
-            value={controls.sort}
-            onChange={(event) =>
-              setControls({
-                ...controls,
-                sort: event.target.value as EventListControls["sort"]
-              })
-            }
-            className={selectInputClassName}
-          >
-            <option value="date-asc">Event date: soonest first</option>
-            <option value="date-desc">Event date: latest first</option>
-            <option value="title-asc">Title: A-Z</option>
-            <option value="title-desc">Title: Z-A</option>
-            <option value="status-active-first">Status: active first</option>
-            <option value="status-cancelled-first">
-              Status: cancelled first
-            </option>
-            <option value="created-desc">Created: newest first</option>
-            <option value="created-asc">Created: oldest first</option>
-          </select>
-        </div>
-      </div>
-    </section>
   );
 }

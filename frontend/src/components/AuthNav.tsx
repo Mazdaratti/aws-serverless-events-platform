@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
 import { LoadingState } from "./LoadingState";
@@ -6,7 +6,10 @@ import { StatusMessage } from "./StatusMessage";
 import { secondaryButtonClassName, textLinkClassName } from "./uiStyles";
 
 export function AuthNav() {
+  const location = useLocation();
   const { logout, status, user } = useAuth();
+  const returnPath = `${location.pathname}${location.search}${location.hash}`;
+  const authLinkState = { from: returnPath };
 
   const handleLogout = () => {
     void logout();
@@ -45,12 +48,14 @@ export function AuthNav() {
       ) : null}
       <Link
         className={`px-1.5 py-1 text-sm ${textLinkClassName}`}
+        state={authLinkState}
         to="/login"
       >
         Login
       </Link>
       <Link
         className={secondaryButtonClassName}
+        state={authLinkState}
         to="/register"
       >
         Register

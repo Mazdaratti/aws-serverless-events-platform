@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { signIn } from "aws-amplify/auth";
 
 import { useAuth } from "../auth/AuthProvider";
@@ -23,6 +23,10 @@ type SubmitState =
   | { status: "success"; message: string }
   | { status: "error"; message: string };
 
+type LocationState = {
+  from?: string;
+};
+
 const initialSubmitState: SubmitState = {
   status: "idle",
   message: null
@@ -36,7 +40,10 @@ const loginErrorMessageId = "login-error-message";
 const loginSuccessMessageId = "login-success-message";
 
 export function LoginPage() {
+  const location = useLocation();
   const navigate = useNavigate();
+  const locationState = location.state as LocationState | null;
+  const redirectPath = getSafeRedirectPath(locationState?.from);
   const { refreshSession } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -89,7 +96,7 @@ export function LoginPage() {
         status: "success",
         message: "Signed in."
       });
-      navigate("/events");
+      navigate(redirectPath);
     } catch (error) {
       setSubmitState({
         status: "error",
@@ -194,4 +201,16 @@ function getAuthErrorMessage(error: unknown): string {
   }
 
   return "Authentication failed.";
+}
+
+function getSafeRedirectPath(path: string | undefined): string {
+  if (!path || !path.startsWith("/") || path.startsWith("//")) {
+    return "/events";
+  }
+
+  if (path === "/login" || path === "/register" || path === "/confirm-register") {
+    return "/events";
+  }
+
+  return path;
 }

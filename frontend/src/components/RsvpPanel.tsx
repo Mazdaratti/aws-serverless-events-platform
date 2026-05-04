@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 
 import { getApiErrorMessage } from "../api/errors";
 import { rsvpToEvent } from "../api/events";
@@ -10,10 +11,14 @@ import { LoadingState } from "./LoadingState";
 import { SuccessMessage } from "./SuccessMessage";
 import {
   primaryButtonClassName,
-  secondaryButtonClassName
+  secondaryButtonClassName,
+  textLinkClassName
 } from "./uiStyles";
 
+type RsvpAccessLevel = "public" | "protected" | "admin";
+
 interface RsvpPanelProps {
+  accessLevel?: RsvpAccessLevel;
   eventId: string;
   onRsvpSuccess?: (response: RsvpResponse) => void;
 }
@@ -32,8 +37,14 @@ const initialSubmitState: SubmitState = {
 const rsvpDescriptionId = "rsvp-description";
 const rsvpHeadingId = "rsvp-heading";
 
-export function RsvpPanel({ eventId, onRsvpSuccess }: RsvpPanelProps) {
+export function RsvpPanel({
+  accessLevel = "public",
+  eventId,
+  onRsvpSuccess
+}: RsvpPanelProps) {
+  const location = useLocation();
   const { status: authStatus } = useAuth();
+  const returnPath = `${location.pathname}${location.search}${location.hash}`;
   const [submitState, setSubmitState] = useState<SubmitState>(initialSubmitState);
 
   const isSessionLoading = authStatus === "loading";
@@ -103,17 +114,43 @@ export function RsvpPanel({ eventId, onRsvpSuccess }: RsvpPanelProps) {
         <LoadingState message="Checking session before RSVP..." />
       ) : null}
 
-      {authStatus === "anonymous" ? (
+      {authStatus === "anonymous" && accessLevel === "public" ? (
         <p className="m-0 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
           You can RSVP anonymously, but you need an account if you want future
           event update or cancellation notifications.
         </p>
       ) : null}
 
+      {authStatus === "anonymous" && accessLevel === "protected" ? (
+        <p className="m-0 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          Sign in to RSVP to this protected event.{" "}
+          <Link
+            className={textLinkClassName}
+            state={{ from: returnPath }}
+            to="/login"
+          >
+            Login
+          </Link>
+        </p>
+      ) : null}
+
+      {authStatus === "anonymous" && accessLevel === "admin" ? (
+        <p className="m-0 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          Admin access is required to RSVP to this event.{" "}
+          <Link
+            className={textLinkClassName}
+            state={{ from: returnPath }}
+            to="/login"
+          >
+            Login
+          </Link>
+        </p>
+      ) : null}
+
       {authStatus === "expired" ? (
         <p className="m-0 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
-          Your session has expired. You can sign in again or RSVP anonymously
-          where the event allows it.
+          Your session has expired. Sign in again to continue, or RSVP
+          anonymously where the event allows it.
         </p>
       ) : null}
 

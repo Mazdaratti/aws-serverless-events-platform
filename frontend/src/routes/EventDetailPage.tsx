@@ -38,6 +38,20 @@ function getVisibilityLabel(event: PublicEvent): string {
   return "Public";
 }
 
+function getRsvpAccessLevel(
+  event: PublicEvent
+): "public" | "protected" | "admin" {
+  if (event.requires_admin) {
+    return "admin";
+  }
+
+  if (!event.is_public) {
+    return "protected";
+  }
+
+  return "public";
+}
+
 export function EventDetailPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const [state, setState] = useState<LoadState>(initialState);
@@ -128,6 +142,7 @@ export function EventDetailPage() {
 
   const event = state.event;
   const visibilityLabel = getVisibilityLabel(event);
+  const rsvpAccessLevel = getRsvpAccessLevel(event);
 
   return (
     <PageLayout>
@@ -210,6 +225,7 @@ export function EventDetailPage() {
         </Panel>
 
         <RsvpPanel
+          accessLevel={rsvpAccessLevel}
           eventId={event.event_id}
           onRsvpSuccess={handleRsvpSuccess}
         />

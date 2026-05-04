@@ -56,6 +56,8 @@ export function EventRsvpsPage() {
   const { status } = useAuth();
   const [loadState, setLoadState] = useState<LoadState>(initialLoadState);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const returnPath = eventId ? `/events/${eventId}/rsvps` : "/events";
+  const authLinkState = { from: returnPath };
 
   useEffect(() => {
     if (status !== "authenticated") {
@@ -162,11 +164,19 @@ export function EventRsvpsPage() {
             source of truth for RSVP-list access. */}
         <StatusMessage message="You need to sign in before viewing RSVPs." />
         <p className="m-0 text-sm text-slate-600">
-          <Link className={textLinkClassName} to="/login">
+          <Link
+            className={textLinkClassName}
+            state={authLinkState}
+            to="/login"
+          >
             Login
           </Link>{" "}
           or{" "}
-          <Link className={textLinkClassName} to="/register">
+          <Link
+            className={textLinkClassName}
+            state={authLinkState}
+            to="/register"
+          >
             register
           </Link>{" "}
           to continue.

@@ -27,10 +27,10 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Frontend UX + Performance Hardening
-  - improve responsive layout and reusable frontend structure
-  - improve accessibility and route-level loading behavior
-  - optimize frontend lists and build output without changing the `/app` and `/events` route contract
+- Frontend Automated Testing Baseline
+  - add Vitest + React Testing Library baseline
+  - add Playwright browser smoke baseline
+  - add CI frontend test integration / expand coverage
 
 ### Completed milestones
 
@@ -190,10 +190,19 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - creator/admin RSVP list page using `GET /events/{event_id}/rsvps`
   - register, confirm registration, login, and logout flow
   - reusable loading, status, success, and error message components
+  - Tailwind CSS v4 styling baseline with shared UI style primitives
+  - reusable layout primitives for page, panel, action, and grid composition
+  - responsive event list, detail, create/edit, my-events, RSVP, and auth pages
   - event visibility labels for public, protected, and admin-only events
   - client-side search, sort, event-state, visibility, and RSVP availability controls
     for already loaded event lists
-  - light plain-CSS visual polish for layout, forms, buttons, messages, and cards
+  - public event list controls exclude cancelled-management options that are not
+    visible in public API results
+  - accessible skip link, status/error feedback, labelled lists, form feedback,
+    and destructive-action confirmation semantics
+  - auth return-path preservation for protected UI prompts such as my-events,
+    protected event RSVP, and RSVP-list access
+  - route-level lazy loading with production bundle output review
   - local typecheck/build validation completed
   - manual CloudFront runtime validation completed in the frontend foundation phase
 - Frontend deployment integration
@@ -217,7 +226,6 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Next milestones
 
-- Frontend UX + Performance Hardening
 - EventBridge + SNS integration
 - `notification-worker`
 - Observability baseline
@@ -545,33 +553,40 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - keep CloudFront as the only browser-facing entry point ✅
    - no backend, Lambda, API Gateway, or routing behavior changes ✅
 
-17. Frontend UX + Performance Hardening
-   - responsive design pass
-   - reusable layout primitives
-   - improved visual system
-   - accessibility improvements
-   - route-level lazy loading
-   - pagination UX improvements
-   - list rendering optimization
-   - bundle/build optimization
+17. Frontend UX + Performance Hardening ✅
+   - Tailwind CSS v4 baseline ✅
+   - reusable layout primitives ✅
+   - responsive page and shared component migration ✅
+   - shared event list controls with public vs owner option sets ✅
+   - accessibility pass for skip links, forms, status feedback, lists, and
+     destructive confirmation ✅
+   - route-level lazy loading ✅
+   - production bundle output review ✅
+   - CloudFront deployment and manual browser validation ✅
+   - no backend, API route, Terraform, or deployment-helper behavior changes ✅
 
-18. EventBridge and SNS integration
+18. Frontend Automated Testing Baseline
+   - add Vitest + React Testing Library baseline
+   - add Playwright browser smoke baseline
+   - add CI frontend test integration / expand coverage
+
+19. EventBridge and SNS integration
    - publish domain events only after durable business writes succeed
    - introduce notification fanout without changing synchronous API outcomes
 
-19. `notification-worker`
+20. `notification-worker`
    - consume asynchronous notification work
    - keep user-facing API responses independent from notification delivery
 
-20. CloudWatch observability and X-Ray tracing
+21. CloudWatch observability and X-Ray tracing
    - add production-oriented logs, metrics, tracing, and validation evidence
 
-21. Remote Terraform backend and GitHub OIDC
+22. Remote Terraform backend and GitHub OIDC
    - introduce remote Terraform state
    - add GitHub Actions AWS authentication through OIDC
    - keep this separate from application deployment workflows
 
-22. CI validation workflow hardening
+23. CI validation workflow hardening
    - keep CI read-only and validation-focused
    - add frontend validation to CI:
      - `npm ci`
@@ -580,14 +595,14 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - keep Terraform validation detached from real AWS state
    - do not deploy from CI validation jobs
 
-23. CI/CD deployment workflows
+24. CI/CD deployment workflows
    - add separate provisioning and deployment workflows after OIDC exists
    - keep provisioning responsible for Terraform infrastructure changes
    - keep deployment responsible for application artifacts
    - add frontend deployment workflow for S3 sync and CloudFront invalidation
    - keep Lambda deployment Terraform-managed initially
 
-24. Optional Lambda code deployment separation
+25. Optional Lambda code deployment separation
    - prepare for a future model where Terraform creates Lambda shell/config
    - move Lambda ZIP artifact publishing to deployment automation
    - update Lambda code with `aws lambda update-function-code`

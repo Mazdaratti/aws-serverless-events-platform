@@ -247,7 +247,11 @@ export function MyEventsPage() {
             real GET /events/mine request. */}
         <StatusMessage message="You need to sign in before viewing your events." />
         <p className="m-0 text-sm text-slate-600">
-          <Link className={textLinkClassName} to="/login">
+          <Link
+            className={textLinkClassName}
+            state={{ from: "/my-events" }}
+            to="/login"
+          >
             Login
           </Link>{" "}
           or{" "}

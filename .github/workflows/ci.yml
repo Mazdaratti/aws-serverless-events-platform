@@ -107,7 +107,7 @@ jobs:
         run: npm run test
 
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: Run frontend browser smoke tests
         run: npm run test:e2e

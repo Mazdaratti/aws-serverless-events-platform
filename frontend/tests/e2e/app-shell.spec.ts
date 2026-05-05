@@ -29,7 +29,7 @@ test.describe("app shell", () => {
       });
     });
 
-    await page.goto("/app/events");
+    await page.goto("/app");
 
     await expect(page.getByRole("main")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Events" })).toBeVisible();
@@ -40,11 +40,13 @@ test.describe("app shell", () => {
   }) => {
     await page.goto("/app/my-events");
 
-    await expect(page.getByRole("main")).toBeVisible();
+    const main = page.getByRole("main");
+
+    await expect(main).toBeVisible();
     await expect(page.getByRole("heading", { name: "My events" })).toBeVisible();
     await expect(
       page.getByText("You need to sign in before viewing your events.")
     ).toBeVisible();
-    await expect(page.getByRole("link", { name: "Login" })).toBeVisible();
+    await expect(main.getByRole("link", { name: "Login" })).toBeVisible();
   });
 });

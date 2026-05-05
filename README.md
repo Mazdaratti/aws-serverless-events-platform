@@ -28,7 +28,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 ### Current focus
 
 - Frontend Automated Testing Baseline
-  - add Vitest + React Testing Library baseline
+  - Vitest + React Testing Library baseline completed
   - add Playwright browser smoke baseline
   - add CI frontend test integration / expand coverage
 
@@ -220,6 +220,9 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - external Lambda artifact packaging workflow via `scripts/package_lambda.py`
   - Python handler validation for implemented Lambda handlers
   - local pytest bootstrap aligned with CI import-path behavior
+  - frontend Vitest + React Testing Library baseline added
+  - initial frontend component tests added for shared event list controls, event
+    form validation, and loading semantics
   - local `terraform plan` validation for the wired dev environment
   - repository-wide `terraform-docs` configuration
   - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, Cognito module/example, API Gateway module/example, S3 frontend bucket module/example, WAF module/example, CloudFront module/example, and the dev root
@@ -566,7 +569,7 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - no backend, API route, Terraform, or deployment-helper behavior changes ✅
 
 18. Frontend Automated Testing Baseline
-   - add Vitest + React Testing Library baseline
+   - Vitest + React Testing Library baseline ✅
    - add Playwright browser smoke baseline
    - add CI frontend test integration / expand coverage
 

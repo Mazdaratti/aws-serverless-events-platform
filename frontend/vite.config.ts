@@ -10,5 +10,9 @@ export default defineConfig({
   // treats them as real static files instead of SPA navigation routes.
   //
   // Do not set base: "/app/" here unless the deployment layout also changes.
-  plugins: [tailwindcss(), react()]
+  plugins: [tailwindcss(), react()],
+  test: {
+    environment: "jsdom",
+    setupFiles: "src/test/setup.ts"
+  }
 });

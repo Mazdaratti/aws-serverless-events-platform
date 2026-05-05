@@ -106,6 +106,12 @@ jobs:
       - name: Run frontend component tests
         run: npm run test
 
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run frontend browser smoke tests
+        run: npm run test:e2e
+
   terraform-validate-and-lint:
     name: Validate ${{ matrix.directory }}
     runs-on: ubuntu-latest

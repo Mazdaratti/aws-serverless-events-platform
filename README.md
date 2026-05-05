@@ -27,10 +27,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Frontend Automated Testing Baseline
-  - Vitest + React Testing Library baseline completed
-  - Playwright browser smoke baseline completed
-  - add CI frontend test integration / expand coverage
+- EventBridge + SNS integration
 
 ### Completed milestones
 
@@ -225,13 +222,18 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     form validation, and loading semantics
   - frontend Playwright Chromium smoke baseline added for `/app`, public events
     shell rendering, and protected my-events prompt rendering
+  - frontend CI validation now runs:
+    - `npm ci`
+    - `npm run typecheck`
+    - `npm run build`
+    - `npm run test`
+    - `npm run test:e2e`
   - local `terraform plan` validation for the wired dev environment
   - repository-wide `terraform-docs` configuration
   - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, Cognito module/example, API Gateway module/example, S3 frontend bucket module/example, WAF module/example, CloudFront module/example, and the dev root
 
 ### Next milestones
 
-- EventBridge + SNS integration
 - `notification-worker`
 - Observability baseline
 - Remote Terraform backend + GitHub OIDC
@@ -573,7 +575,7 @@ Infrastructure is implemented using modular Terraform design with environment-sp
 18. Frontend Automated Testing Baseline
    - Vitest + React Testing Library baseline ✅
    - Playwright browser smoke baseline ✅
-   - add CI frontend test integration / expand coverage
+   - CI frontend test integration / coverage expansion ✅
 
 19. EventBridge and SNS integration
    - publish domain events only after durable business writes succeed
@@ -616,8 +618,10 @@ Infrastructure is implemented using modular Terraform design with environment-sp
 
 
 The repository now also includes Terraform validation coverage for the currently
-implemented modules, examples, and `envs/dev` root, plus focused Python
-validation for the implemented Lambda handlers and shared auth flow.
+implemented modules, examples, and `envs/dev` root, focused Python validation
+for the implemented Lambda handlers and shared auth flow, and frontend CI
+validation for typechecking, production builds, component tests, and browser
+smoke tests.
 
 This improves static validation confidence while real AWS behavior continues to
 be verified through local `plan`, `apply`, and milestone-specific routed API

@@ -142,6 +142,7 @@ Local frontend validation should run from that directory:
 - `npm run typecheck`
 - `npm run build`
 - `npm run test`
+- `npm run test:e2e`
 - `npm run dev` (optional for local development)
 
 Use `npm ci` for PR validation because `frontend/package-lock.json` is now
@@ -153,10 +154,13 @@ The current frontend automated testing baseline uses:
 - React Testing Library
 - `@testing-library/jest-dom`
 - `jsdom`
+- Playwright
+- Chromium browser runtime installed with:
+  - `npx playwright install chromium`
 
 These tests run locally without AWS, Cognito, CloudFront, or backend
-dependencies and should be included in frontend validation for component and
-interaction changes.
+dependencies and should be included in frontend validation for component,
+interaction, and browser smoke changes.
 
 For local browser testing, copy the example environment file and provide the
 public Cognito values for the active environment:
@@ -181,6 +185,13 @@ Runtime routing and API integration rules:
 
 Local Vite development intentionally keeps the same-origin `/events` API model
 and does not add a development proxy.
+
+The current Playwright browser smoke baseline runs locally against the Vite dev
+server and covers:
+
+- app-shell rendering under `/app`
+- public events route shell rendering
+- protected-route prompt rendering for `/app/my-events`
 
 ### Frontend Deployment Helper
 

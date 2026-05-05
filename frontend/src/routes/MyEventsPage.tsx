@@ -6,10 +6,28 @@ import { cancelEvent, listMyEvents } from "../api/events";
 import type { NextCursor, PublicEvent } from "../api/types";
 import { useAuth } from "../auth/AuthProvider";
 import { ErrorMessage } from "../components/ErrorMessage";
+import {
+  EventListControlsForm,
+  type EventListControlOption
+} from "../components/EventListControlsForm";
 import { EventCard } from "../components/EventCard";
+import {
+  ItemGrid,
+  PageActions,
+  PageHeader,
+  PageLayout,
+  Panel
+} from "../components/LayoutPrimitives";
 import { LoadingState } from "../components/LoadingState";
 import { StatusMessage } from "../components/StatusMessage";
 import { SuccessMessage } from "../components/SuccessMessage";
+import {
+  destructiveButtonClassName,
+  pageTitleClassName,
+  primaryButtonClassName,
+  secondaryButtonClassName,
+  textLinkClassName
+} from "../components/uiStyles";
 import {
   applyEventListControls,
   hasActiveEventListControls,
@@ -46,6 +64,31 @@ const initialCancelState: CancelState = {
   message: null
 };
 
+const myEventsEventStateOptions: Array<
+  EventListControlOption<EventListControls["eventState"]>
+> = [
+  { label: "All", value: "all" },
+  { label: "Ongoing", value: "ongoing" },
+  { label: "Cancelled", value: "cancelled" },
+  { label: "Outdated", value: "outdated" }
+];
+
+const myEventsSortOptions: Array<
+  EventListControlOption<EventListControls["sort"]>
+> = [
+  { label: "Event date: soonest first", value: "date-asc" },
+  { label: "Event date: latest first", value: "date-desc" },
+  { label: "Title: A-Z", value: "title-asc" },
+  { label: "Title: Z-A", value: "title-desc" },
+  { label: "Status: active first", value: "status-active-first" },
+  {
+    label: "Status: cancelled first",
+    value: "status-cancelled-first"
+  },
+  { label: "Created: newest first", value: "created-desc" },
+  { label: "Created: oldest first", value: "created-asc" }
+];
+
 export function MyEventsPage() {
   const { status } = useAuth();
   const [loadState, setLoadState] = useState<LoadState>(initialLoadState);
@@ -71,7 +114,7 @@ export function MyEventsPage() {
 
         setLoadState({
           status: "ready",
-          items: response.items,
+          items: response.items ?? [],
           nextCursor: response.next_cursor
         });
       } catch (error) {
@@ -95,6 +138,8 @@ export function MyEventsPage() {
     };
   }, [status]);
 
+  const loadedEvents = loadState.items ?? [];
+
   const loadMore = async () => {
     if (!loadState.nextCursor || isLoadingMore) {
       return;
@@ -109,18 +154,18 @@ export function MyEventsPage() {
         nextCursor: loadState.nextCursor
       });
 
-      setLoadState({
+      setLoadState((prev) => ({
         status: "ready",
-        items: [...loadState.items, ...response.items],
+        items: [...(prev.items ?? []), ...(response.items ?? [])],
         nextCursor: response.next_cursor
-      });
+      }));
     } catch (error) {
-      setLoadState({
+      setLoadState((prev) => ({
         status: "error",
-        items: loadState.items,
-        nextCursor: loadState.nextCursor,
+        items: prev.items ?? [],
+        nextCursor: prev.nextCursor,
         message: getApiErrorMessage(error)
-      });
+      }));
     } finally {
       setIsLoadingMore(false);
     }
@@ -157,7 +202,7 @@ export function MyEventsPage() {
 
       setLoadState((currentState) => ({
         ...currentState,
-        items: currentState.items.map((item) =>
+        items: (currentState.items ?? []).map((item) =>
           item.event_id === response.item.event_id ? response.item : item
         )
       }));
@@ -177,7 +222,7 @@ export function MyEventsPage() {
 
   // My events uses the same client-side control rules as public discovery, but
   // its default keeps all owned events visible for management.
-  const visibleEvents = applyEventListControls(loadState.items, controls);
+  const visibleEvents = applyEventListControls(loadedEvents, controls);
   const hasActiveControls = hasActiveEventListControls(
     controls,
     myEventsDefaultControls
@@ -189,36 +234,68 @@ export function MyEventsPage() {
 
   if (status !== "authenticated") {
     return (
-      <>
-        <h1>My events</h1>
+      <PageLayout>
+        <PageHeader>
+          <div>
+            <h1 className={pageTitleClassName}>My events</h1>
+            <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+              Sign in to manage events you created and review RSVP activity.
+            </p>
+          </div>
+        </PageHeader>
         {/* This is only a helpful UI boundary. API Gateway still protects the
             real GET /events/mine request. */}
         <StatusMessage message="You need to sign in before viewing your events." />
-        <p>
-          <Link to="/login">Login</Link> or{" "}
-          <Link to="/register">register</Link> to continue.
+        <p className="m-0 text-sm text-slate-600">
+          <Link
+            className={textLinkClassName}
+            state={{ from: "/my-events" }}
+            to="/login"
+          >
+            Login
+          </Link>{" "}
+          or{" "}
+          <Link className={textLinkClassName} to="/register">
+            register
+          </Link>{" "}
+          to continue.
         </p>
-      </>
+      </PageLayout>
     );
   }
 
   return (
-    <>
-      <h1>My events</h1>
-      <p>
-        <Link to="/create-event">Create event</Link>
-      </p>
+    <PageLayout>
+      <PageHeader>
+        <div>
+          <h1 className={pageTitleClassName}>My events</h1>
+          <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+            Manage events you created and review their RSVP activity.
+          </p>
+        </div>
 
-      <MyEventsControlsForm controls={controls} setControls={setControls} />
+        <PageActions>
+          {hasActiveControls ? (
+            <button
+              type="button"
+              onClick={() => setControls(myEventsDefaultControls)}
+              className={secondaryButtonClassName}
+            >
+              Reset controls
+            </button>
+          ) : null}
+        </PageActions>
+      </PageHeader>
 
-      {hasActiveControls ? (
-        <button
-          type="button"
-          onClick={() => setControls(myEventsDefaultControls)}
-        >
-          Reset controls
-        </button>
-      ) : null}
+      <EventListControlsForm
+        controls={controls}
+        eventStateOptions={myEventsEventStateOptions}
+        heading="Find my events"
+        headingId="my-events-filters"
+        idPrefix="my-events"
+        onChange={setControls}
+        sortOptions={myEventsSortOptions}
+      />
 
       {loadState.status === "loading" ? (
         <LoadingState message="Loading your events..." />
@@ -237,181 +314,132 @@ export function MyEventsPage() {
       ) : null}
 
       {loadState.status !== "loading" ? (
-        <p>
-          Showing {visibleEvents.length} of {loadState.items.length} loaded events.
-        </p>
+        <>
+          <div className="border-t border-slate-200" />
+          <div className="mt-5 grid gap-4">
+            <p className="m-0 text-sm text-slate-500">
+              Showing {visibleEvents.length} of {loadedEvents.length} loaded
+              events.
+            </p>
+          </div>
+        </>
       ) : null}
 
-      {loadState.items.length === 0 && loadState.status !== "loading" ? (
-        <StatusMessage message="No events yet." />
+      {loadedEvents.length === 0 && loadState.status !== "loading" ? (
+        <Panel className="text-center">
+          <p className="m-0 text-sm font-semibold text-slate-700">
+            No events yet.
+          </p>
+          <p className="mt-2 text-sm text-slate-500">
+            Create an event to start managing RSVPs.
+          </p>
+          <div className="mt-3">
+            <Link
+              className={primaryButtonClassName}
+              to="/create-event"
+            >
+              Create event
+            </Link>
+          </div>
+        </Panel>
       ) : null}
 
-      {loadState.items.length > 0 && visibleEvents.length === 0 ? (
-        <StatusMessage message="No events match the current controls." />
+      {loadedEvents.length > 0 && visibleEvents.length === 0 ? (
+        <Panel className="text-center">
+          <p className="m-0 text-sm font-semibold text-slate-700">
+            No events match the current controls.
+          </p>
+          <p className="mt-2 text-sm text-slate-500">
+            Try changing your search, filters, or sort order.
+          </p>
+        </Panel>
       ) : null}
 
-      <ul>
+      <ItemGrid>
         {visibleEvents.map((event) => (
           <li key={event.event_id}>
-            <EventCard event={event} />
-            <p>
-              <Link to={`/events/${event.event_id}/edit`}>Edit</Link> {" | "}
-              {/* RSVP-list access is checked by the backend. This owner page
-                  only provides a convenient management shortcut. */}
-              <Link to={`/events/${event.event_id}/rsvps`}>View RSVPs</Link>
-            </p>
+            <EventCard event={event}>
+              <div className="grid gap-3">
+                <PageActions className="gap-4">
+                  <Link
+                    className={`text-sm ${textLinkClassName}`}
+                    to={`/events/${event.event_id}/edit`}
+                  >
+                    Edit
+                  </Link>
+                  {/* RSVP-list access is checked by the backend. This owner page
+                      only provides a convenient management shortcut. */}
+                  <Link
+                    className={`text-sm ${textLinkClassName}`}
+                    to={`/events/${event.event_id}/rsvps`}
+                  >
+                    View RSVPs
+                  </Link>
+                </PageActions>
 
-            {event.status === "CANCELLED" ? (
-              <StatusMessage message="This event is cancelled." />
-            ) : cancelState.status === "confirming" &&
-              cancelState.eventId === event.event_id ? (
-              <p>
-                Confirm cancellation?{" "}
-                <button
-                  type="button"
-                  onClick={() => void confirmCancel(event.event_id)}
-                >
-                  Confirm cancel
-                </button>{" "}
-                <button type="button" onClick={keepEvent}>
-                  Keep event
-                </button>
-              </p>
-            ) : (
-              <button type="button" onClick={() => startCancel(event.event_id)}>
-                Cancel event
-              </button>
-            )}
+                {event.status === "CANCELLED" ? (
+                  <p role="status" className="m-0 text-sm text-slate-500">
+                    This event is cancelled.
+                  </p>
+                ) : cancelState.status === "confirming" &&
+                  cancelState.eventId === event.event_id ? (
+                  <div
+                    aria-describedby={`cancel-confirmation-${event.event_id}`}
+                    className="grid gap-2"
+                  >
+                    <p
+                      id={`cancel-confirmation-${event.event_id}`}
+                      role="status"
+                      className="m-0 text-sm text-slate-600"
+                    >
+                      Confirm cancellation?
+                    </p>
+                    <PageActions>
+                      <button
+                        type="button"
+                        onClick={() => void confirmCancel(event.event_id)}
+                        className={destructiveButtonClassName}
+                      >
+                        Confirm cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={keepEvent}
+                        className={secondaryButtonClassName}
+                      >
+                        Keep event
+                      </button>
+                    </PageActions>
+                  </div>
+                ) : (
+                  <PageActions>
+                    <button
+                      type="button"
+                      onClick={() => startCancel(event.event_id)}
+                      className={destructiveButtonClassName}
+                    >
+                      Cancel event
+                    </button>
+                  </PageActions>
+                )}
+              </div>
+            </EventCard>
           </li>
         ))}
-      </ul>
+      </ItemGrid>
 
       {loadState.nextCursor ? (
-        <button
-          type="button"
-          disabled={isLoadingMore}
-          onClick={() => void loadMore()}
-        >
-          {isLoadingMore ? "Loading..." : "Load more"}
-        </button>
+        <PageActions>
+          <button
+            type="button"
+            disabled={isLoadingMore}
+            onClick={() => void loadMore()}
+            className={secondaryButtonClassName}
+          >
+            {isLoadingMore ? "Loading..." : "Load more"}
+          </button>
+        </PageActions>
       ) : null}
-    </>
-  );
-}
-
-interface MyEventsControlsFormProps {
-  controls: EventListControls;
-  setControls: (controls: EventListControls) => void;
-}
-
-function MyEventsControlsForm({
-  controls,
-  setControls
-}: MyEventsControlsFormProps) {
-  return (
-    <section aria-labelledby="my-events-controls">
-      <h2 id="my-events-controls">Find my events</h2>
-
-      <div>
-        <label htmlFor="my-events-search">Search</label>
-        <input
-          id="my-events-search"
-          name="search"
-          value={controls.search}
-          onChange={(event) =>
-            setControls({
-              ...controls,
-              search: event.target.value
-            })
-          }
-          placeholder="Title, description, or location"
-        />
-      </div>
-
-      <div>
-        <label htmlFor="my-events-state-filter">Event state</label>
-        <select
-          id="my-events-state-filter"
-          name="eventState"
-          value={controls.eventState}
-          onChange={(event) =>
-            setControls({
-              ...controls,
-              eventState: event.target.value as EventListControls["eventState"]
-            })
-          }
-        >
-          <option value="all">All</option>
-          <option value="ongoing">Ongoing</option>
-          <option value="cancelled">Cancelled</option>
-          <option value="outdated">Outdated</option>
-        </select>
-      </div>
-
-      <div>
-        <label htmlFor="my-events-visibility-filter">Visibility</label>
-        <select
-          id="my-events-visibility-filter"
-          name="visibility"
-          value={controls.visibility}
-          onChange={(event) =>
-            setControls({
-              ...controls,
-              visibility: event.target.value as EventListControls["visibility"]
-            })
-          }
-        >
-          <option value="all">All</option>
-          <option value="public">Public</option>
-          <option value="protected">Protected</option>
-          <option value="admin">Admin-only</option>
-        </select>
-      </div>
-
-      <div>
-        <label htmlFor="my-events-capacity-filter">RSVP availability</label>
-        <select
-          id="my-events-capacity-filter"
-          name="capacity"
-          value={controls.capacity}
-          onChange={(event) =>
-            setControls({
-              ...controls,
-              capacity: event.target.value as EventListControls["capacity"]
-            })
-          }
-        >
-          <option value="all">All</option>
-          <option value="unlimited">Unlimited capacity</option>
-          <option value="limited">Has capacity limit</option>
-          <option value="full">Full</option>
-          <option value="available">Spots available</option>
-        </select>
-      </div>
-
-      <div>
-        <label htmlFor="my-events-sort">Sort</label>
-        <select
-          id="my-events-sort"
-          name="sort"
-          value={controls.sort}
-          onChange={(event) =>
-            setControls({
-              ...controls,
-              sort: event.target.value as EventListControls["sort"]
-            })
-          }
-        >
-          <option value="date-asc">Event date: soonest first</option>
-          <option value="date-desc">Event date: latest first</option>
-          <option value="title-asc">Title: A-Z</option>
-          <option value="title-desc">Title: Z-A</option>
-          <option value="status-active-first">Status: active first</option>
-          <option value="status-cancelled-first">Status: cancelled first</option>
-          <option value="created-desc">Created: newest first</option>
-          <option value="created-asc">Created: oldest first</option>
-        </select>
-      </div>
-    </section>
+    </PageLayout>
   );
 }

@@ -180,6 +180,11 @@ The frontend is responsible for:
 - attaching a bearer token for ordinary protected API requests
 - omitting authentication when calling public routes
 - preserving optional-auth behavior for the mixed-mode RSVP route
+- preserving the user's intended in-app destination when a protected UI prompt
+  sends them through login, such as:
+  - `/my-events`
+  - protected/admin event RSVP prompts
+  - `/events/{event_id}/rsvps`
 
 The frontend must not:
 
@@ -298,9 +303,31 @@ Current frontend implementation (non-exhaustive subset of the contract):
   - creator/admin RSVP list viewing with `GET /events/{event_id}/rsvps`
   - client-side search, sort, event-state, visibility, and RSVP availability
     controls over already loaded event DTOs
+  - route-level lazy loading for page components without changing route paths,
+    API paths, or CloudFront `/app` behavior
+  - accessible route and form behavior including skip-link support, labelled
+    lists, explicit loading/status feedback, and keyboard-reachable destructive
+    confirmation flows
 
 These client-side list controls must remain presentation behavior only. They
 must not introduce backend query parameters or change the routed API contract.
+
+Public event discovery and owner event management intentionally expose different
+client-side control options:
+
+- public event discovery must not expose cancelled-management options when the
+  public API result set does not include cancelled events
+- owner event management may expose cancelled and status-management options
+  because `GET /events/mine` returns owned management records
+
+The RSVP panel may use event visibility flags to choose user-facing guidance:
+
+- public events may explain anonymous RSVP behavior
+- protected events should prompt sign-in before RSVP
+- admin-only events should explain that admin access is required
+
+This is presentation guidance only. Backend authorizers and business rules remain
+the source of truth for whether the RSVP request succeeds.
 
 - admin account management remains intentionally deferred until backend admin
   account APIs exist

@@ -1,7 +1,13 @@
-import { type FormEvent, useState } from "react";
+import { type SyntheticEvent, useState } from "react";
 
 import type { CreateEventRequest, PublicEvent } from "../api/types";
 import { ErrorMessage } from "./ErrorMessage";
+import {
+  primaryButtonClassName,
+  selectInputClassName,
+  textareaInputClassName,
+  textInputClassName
+} from "./uiStyles";
 
 type EventVisibility = "public" | "protected" | "admin";
 
@@ -31,6 +37,12 @@ export const emptyEventFormValues: EventFormValues = {
   visibility: "public"
 };
 
+const fieldClassName = "grid gap-1.5";
+
+const labelClassName = "text-sm font-semibold text-slate-700";
+
+const validationMessageId = "event-form-validation-error";
+
 export function eventToFormValues(event: PublicEvent): EventFormValues {
   return {
     title: event.title,
@@ -55,7 +67,12 @@ export function EventForm({
   const [values, setValues] = useState<EventFormValues>(initialValues);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const titleHasError = validationMessage?.startsWith("Title ") ?? false;
+  const dateHasError =
+    validationMessage?.startsWith("Date and time ") ?? false;
+  const capacityHasError = validationMessage?.startsWith("Capacity ") ?? false;
+
+  const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (isSubmitting) {
@@ -73,9 +90,15 @@ export function EventForm({
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div>
-        <label htmlFor="event-title">Title</label>
+    <form
+      aria-busy={isSubmitting}
+      className="m-0 grid max-w-2xl gap-4 border-0 bg-transparent p-0"
+      onSubmit={handleSubmit}
+    >
+      <div className={fieldClassName}>
+        <label className={labelClassName} htmlFor="event-title">
+          Title
+        </label>
         <input
           id="event-title"
           name="title"
@@ -86,12 +109,17 @@ export function EventForm({
               title: event.target.value
             })
           }
+          aria-describedby={titleHasError ? validationMessageId : undefined}
+          aria-invalid={titleHasError || undefined}
           required
+          className={textInputClassName}
         />
       </div>
 
-      <div>
-        <label htmlFor="event-date">Date and time</label>
+      <div className={fieldClassName}>
+        <label className={labelClassName} htmlFor="event-date">
+          Date and time
+        </label>
         <input
           id="event-date"
           name="date"
@@ -103,12 +131,17 @@ export function EventForm({
               date: event.target.value
             })
           }
+          aria-describedby={dateHasError ? validationMessageId : undefined}
+          aria-invalid={dateHasError || undefined}
           required
+          className={textInputClassName}
         />
       </div>
 
-      <div>
-        <label htmlFor="event-location">Location</label>
+      <div className={fieldClassName}>
+        <label className={labelClassName} htmlFor="event-location">
+          Location
+        </label>
         <input
           id="event-location"
           name="location"
@@ -119,11 +152,14 @@ export function EventForm({
               location: event.target.value
             })
           }
+          className={textInputClassName}
         />
       </div>
 
-      <div>
-        <label htmlFor="event-description">Description</label>
+      <div className={fieldClassName}>
+        <label className={labelClassName} htmlFor="event-description">
+          Description
+        </label>
         <textarea
           id="event-description"
           name="description"
@@ -134,11 +170,14 @@ export function EventForm({
               description: event.target.value
             })
           }
+          className={textareaInputClassName}
         />
       </div>
 
-      <div>
-        <label htmlFor="event-capacity">Capacity</label>
+      <div className={fieldClassName}>
+        <label className={labelClassName} htmlFor="event-capacity">
+          Capacity
+        </label>
         <input
           id="event-capacity"
           name="capacity"
@@ -153,11 +192,16 @@ export function EventForm({
             })
           }
           placeholder="Unlimited"
+          aria-describedby={capacityHasError ? validationMessageId : undefined}
+          aria-invalid={capacityHasError || undefined}
+          className={textInputClassName}
         />
       </div>
 
-      <div>
-        <label htmlFor="event-visibility">Visibility</label>
+      <div className={fieldClassName}>
+        <label className={labelClassName} htmlFor="event-visibility">
+          Visibility
+        </label>
         <select
           id="event-visibility"
           name="visibility"
@@ -168,6 +212,7 @@ export function EventForm({
               visibility: event.target.value as EventVisibility
             })
           }
+          className={selectInputClassName}
         >
           <option value="public">Public</option>
           <option value="protected">Protected</option>
@@ -175,11 +220,19 @@ export function EventForm({
         </select>
       </div>
 
-      <button type="submit" disabled={isSubmitting}>
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className={primaryButtonClassName}
+      >
         {isSubmitting ? submittingButtonLabel : submitButtonLabel}
       </button>
 
-      {validationMessage ? <ErrorMessage message={validationMessage} /> : null}
+      {validationMessage ? (
+        <div id={validationMessageId}>
+          <ErrorMessage message={validationMessage} />
+        </div>
+      ) : null}
     </form>
   );
 }

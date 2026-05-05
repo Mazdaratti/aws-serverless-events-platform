@@ -215,6 +215,67 @@ such as `/events`.
 CI/CD automation for frontend deployment is intentionally deferred until the
 repository has GitHub OIDC and separate deployment workflows.
 
+### Frontend Application Structure
+
+The frontend is a React + Vite + TypeScript single-page application delivered
+as static assets through the CloudFront/S3 edge layer.
+
+The application shell remains small and eagerly loaded:
+
+- React Router owns browser routing under the `/app` basename
+- the shared layout/header/navigation shell loads before route pages
+- route page components are lazy-loaded behind a shared loading fallback
+
+This keeps browser route behavior stable while allowing Vite to split page code
+into route-level chunks. Route-level lazy loading must not change:
+
+- `/app` browser route behavior
+- same-origin `/events` API calls
+- auth/session behavior
+- RSVP, cancellation, or pagination behavior
+
+The frontend visual system is implemented with:
+
+- Tailwind CSS v4
+- shared layout primitives for page, panel, action, and list composition
+- shared UI class constants for buttons, links, form controls, and headings
+
+This keeps the frontend styling local to the React app instead of relying on
+broad global element styling.
+
+The frontend also owns user-experience behavior that does not belong in backend
+business logic:
+
+- accessible skip-link, status, form, list, and confirmation semantics
+- client-side filtering and sorting over already loaded event DTOs
+- preserving the user's intended in-app destination when login is required by
+  a protected UI prompt
+
+### Frontend Automated Testing Direction
+
+Frontend automated testing will be introduced as a dedicated follow-up
+milestone after the frontend UX and performance hardening work.
+
+The testing baseline should be added in small layers:
+
+1. **Vitest + React Testing Library**
+
+   - component and page-level tests running in Node/jsdom
+   - focused coverage for form validation, accessible labels, disabled states,
+     loading/error/success rendering, and client-side filter option behavior
+   - no AWS, Cognito, CloudFront, or backend dependency
+
+2. **Playwright**
+
+   - browser-level smoke tests for routing, keyboard navigation, skip-link
+     behavior, lazy-loaded route rendering, and basic form feedback
+   - should be added after the Vitest baseline is stable
+
+Frontend automated tests should begin as validation-only checks. They should
+not deploy infrastructure, mutate AWS resources, or replace the manual
+CloudFront deployment helper until a later CI/CD milestone defines that
+workflow.
+
 ---
 
 ## Authentication Layer

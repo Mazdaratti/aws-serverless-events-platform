@@ -3,7 +3,20 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { confirmSignUp, resendSignUpCode } from "aws-amplify/auth";
 
 import { ErrorMessage } from "../components/ErrorMessage";
+import {
+  PageActions,
+  PageHeader,
+  PageLayout,
+  Panel
+} from "../components/LayoutPrimitives";
 import { SuccessMessage } from "../components/SuccessMessage";
+import {
+  pageTitleClassName,
+  primaryButtonClassName,
+  secondaryButtonClassName,
+  textInputClassName,
+  textLinkClassName
+} from "../components/uiStyles";
 
 type LocationState = {
   username?: string;
@@ -20,6 +33,13 @@ const initialSubmitState: SubmitState = {
   message: null
 };
 
+const fieldClassName = "grid gap-1.5";
+
+const labelClassName = "text-sm font-semibold text-slate-700";
+
+const confirmErrorMessageId = "confirm-register-error-message";
+const confirmSuccessMessageId = "confirm-register-success-message";
+
 export function ConfirmRegisterPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -30,6 +50,13 @@ export function ConfirmRegisterPage() {
 
   const isSubmitting = submitState.status === "submitting";
   const canResendCode = username.trim().length > 0 && !isSubmitting;
+  const feedbackMessageId =
+    submitState.status === "error"
+      ? confirmErrorMessageId
+      : submitState.status === "success"
+        ? confirmSuccessMessageId
+        : undefined;
+  const hasConfirmationError = submitState.status === "error";
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -95,54 +122,99 @@ export function ConfirmRegisterPage() {
   };
 
   return (
-    <>
-      <h1>Confirm registration</h1>
-
-      <form onSubmit={handleSubmit}>
+    <PageLayout>
+      <PageHeader>
         <div>
-          <label htmlFor="confirm-username">Username</label>
-          <input
-            id="confirm-username"
-            name="username"
-            autoComplete="username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            required
-          />
+          <h1 className={pageTitleClassName}>Confirm registration</h1>
+          <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+            Enter the code sent by Cognito to finish creating your account.
+          </p>
         </div>
+      </PageHeader>
 
-        <div>
-          <label htmlFor="confirm-code">Confirmation code</label>
-          <input
-            id="confirm-code"
-            name="confirmationCode"
-            autoComplete="one-time-code"
-            value={confirmationCode}
-            onChange={(event) => setConfirmationCode(event.target.value)}
-            required
-          />
-        </div>
+      <div className="grid max-w-4xl gap-6">
+        <Panel>
+          <form
+            aria-busy={isSubmitting}
+            aria-describedby={feedbackMessageId}
+            className="m-0 grid max-w-2xl gap-4 border-0 bg-transparent p-0"
+            onSubmit={handleSubmit}
+          >
+            <div className={fieldClassName}>
+              <label className={labelClassName} htmlFor="confirm-username">
+                Username
+              </label>
+              <input
+                id="confirm-username"
+                name="username"
+                autoComplete="username"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                required
+                aria-invalid={hasConfirmationError || undefined}
+                className={textInputClassName}
+              />
+            </div>
 
-        <button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Confirming..." : "Confirm registration"}
-        </button>
-        <button type="button" onClick={handleResendCode} disabled={!canResendCode}>
-          Resend code
-        </button>
-      </form>
+            <div className={fieldClassName}>
+              <label className={labelClassName} htmlFor="confirm-code">
+                Confirmation code
+              </label>
+              <input
+                id="confirm-code"
+                name="confirmationCode"
+                autoComplete="one-time-code"
+                value={confirmationCode}
+                onChange={(event) => setConfirmationCode(event.target.value)}
+                required
+                aria-invalid={hasConfirmationError || undefined}
+                className={textInputClassName}
+              />
+            </div>
 
-      {submitState.status === "error" ? (
-        <ErrorMessage message={submitState.message} />
-      ) : null}
+            <PageActions>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className={primaryButtonClassName}
+              >
+                {isSubmitting ? "Confirming..." : "Confirm registration"}
+              </button>
+              <button
+                type="button"
+                onClick={handleResendCode}
+                disabled={!canResendCode}
+                className={secondaryButtonClassName}
+              >
+                Resend code
+              </button>
+            </PageActions>
+          </form>
+        </Panel>
 
-      {submitState.status === "success" ? (
-        <SuccessMessage message={submitState.message} />
-      ) : null}
+        {submitState.status === "error" ? (
+          <div id={confirmErrorMessageId}>
+            <ErrorMessage message={submitState.message} />
+          </div>
+        ) : null}
 
-      <p>
-        Already confirmed? <Link to="/login">Login</Link>
-      </p>
-    </>
+        {submitState.status === "success" ? (
+          <div id={confirmSuccessMessageId}>
+            <SuccessMessage message={submitState.message} />
+          </div>
+        ) : null}
+
+        <p className="m-0 text-sm text-slate-600">
+          Already confirmed?{" "}
+          <Link
+            className={textLinkClassName}
+            to="/login"
+          >
+            Login
+          </Link>
+        </p>
+      </div>
+    </PageLayout>
   );
 }
 

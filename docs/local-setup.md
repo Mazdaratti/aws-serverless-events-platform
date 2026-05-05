@@ -130,6 +130,7 @@ The frontend foundation uses:
 - Vite
 - TypeScript
 - React Router
+- Tailwind CSS
 
 The frontend app lives under:
 
@@ -165,6 +166,9 @@ Runtime routing and API integration rules:
 - API calls must use same-origin relative paths such as `/events`
 - API calls must not use a direct API Gateway URL
 - API calls must not use a `/api` prefix
+
+Local Vite development intentionally keeps the same-origin `/events` API model
+and does not add a development proxy.
 
 ### Frontend Deployment Helper
 
@@ -235,7 +239,10 @@ After a real deployment, validate through CloudFront:
 
 - `https://<cloudfront-domain>/app`
 - `https://<cloudfront-domain>/app/events`
+- `https://<cloudfront-domain>/app/my-events`
 - `https://<cloudfront-domain>/app/create-event`
+- `https://<cloudfront-domain>/app/events/<event-id>`
+- `https://<cloudfront-domain>/app/events/<event-id>/rsvps`
 - `https://<cloudfront-domain>/events`
 
 Also refresh a frontend deep link directly in the browser, such as:
@@ -244,6 +251,13 @@ Also refresh a frontend deep link directly in the browser, such as:
 
 The refresh should return the SPA entrypoint through CloudFront. API routes
 under `/events` should continue to return API responses, not frontend HTML.
+
+For a quick frontend smoke test after deployment, also verify:
+
+- keyboard access to the skip link, navigation, filters, forms, and destructive
+  confirmation flows
+- sign-in redirects back to protected frontend destinations such as
+  `/app/my-events`, event detail pages, and RSVP list pages
 
 Authentication uses Cognito through the frontend Amplify Auth SDK.
 

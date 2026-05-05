@@ -1,11 +1,28 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { getApiErrorMessage } from "../api/errors";
 import { listEvents } from "../api/events";
 import type { NextCursor, PublicEvent } from "../api/types";
 import { EventCard } from "../components/EventCard";
+import {
+  EventListControlsForm,
+  type EventListControlOption
+} from "../components/EventListControlsForm";
 import { ErrorMessage } from "../components/ErrorMessage";
+import {
+  ItemGrid,
+  PageActions,
+  PageHeader,
+  PageLayout,
+  Panel
+} from "../components/LayoutPrimitives";
 import { LoadingState } from "../components/LoadingState";
+import {
+  pageTitleClassName,
+  primaryButtonClassName,
+  secondaryButtonClassName
+} from "../components/uiStyles";
 import {
   applyEventListControls,
   hasActiveEventListControls,
@@ -28,6 +45,24 @@ const initialState: LoadState = {
   items: [],
   nextCursor: null
 };
+
+const publicEventStateOptions: Array<
+  EventListControlOption<EventListControls["eventState"]>
+> = [
+  { label: "All", value: "all" },
+  { label: "Ongoing", value: "ongoing" },
+  { label: "Outdated", value: "outdated" }
+];
+
+const publicSortOptions: Array<
+  EventListControlOption<EventListControls["sort"]>
+> = [
+  { label: "Event date: soonest first", value: "date-asc" },
+  { label: "Event date: latest first", value: "date-desc" },
+  { label: "Title: A-Z", value: "title-asc" },
+  { label: "Title: Z-A", value: "title-desc" },
+  { label: "Created: newest first", value: "created-desc" }
+];
 
 export function EventListPage() {
   const [state, setState] = useState<LoadState>(initialState);
@@ -69,6 +104,8 @@ export function EventListPage() {
     };
   }, []);
 
+  const loadedEvents = state.items ?? [];
+
   const loadMore = async () => {
     if (!state.nextCursor || isLoadingMore) {
       return;
@@ -81,18 +118,18 @@ export function EventListPage() {
       // through listEvents(); it never tries to decode backend pagination state.
       const response = await listEvents({ nextCursor: state.nextCursor });
 
-      setState({
+      setState((prev) => ({
         status: "ready",
-        items: [...state.items, ...response.items],
+        items: [...(prev.items ?? []), ...(response.items ?? [])],
         nextCursor: response.next_cursor
-      });
+      }));
     } catch (error) {
-      setState({
+      setState((prev) => ({
         status: "error",
-        items: state.items,
-        nextCursor: state.nextCursor,
+        items: prev.items ?? [],
+        nextCursor: prev.nextCursor,
         message: getApiErrorMessage(error)
-      });
+      }));
     } finally {
       setIsLoadingMore(false);
     }
@@ -101,183 +138,112 @@ export function EventListPage() {
   // Filtering and sorting are intentionally client-side only. The API request
   // still loads the same public event pages; these controls only rearrange the
   // events already present in local component state.
-  const visibleEvents = applyEventListControls(state.items, controls);
+  const visibleEvents = applyEventListControls(loadedEvents, controls);
   const hasActiveControls = hasActiveEventListControls(
     controls,
     publicEventListDefaultControls
   );
 
+  if (state.status === "loading") {
+    return <LoadingState message="Loading events..." />;
+  }
+
   return (
-    <>
-      <h1>Events</h1>
+    <PageLayout>
+      <PageHeader>
+        <div>
+          <h1 className={pageTitleClassName}>Events</h1>
+          <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+            Discover upcoming events and narrow the list by status, visibility,
+            availability, or date.
+          </p>
+        </div>
 
-      <EventListControlsForm controls={controls} setControls={setControls} />
+        <PageActions>
+          {hasActiveControls ? (
+            <button
+              type="button"
+              onClick={() => setControls(publicEventListDefaultControls)}
+              className={secondaryButtonClassName}
+            >
+              Reset controls
+            </button>
+          ) : null}
+        </PageActions>
+      </PageHeader>
 
-      {hasActiveControls ? (
-        <button
-          type="button"
-          onClick={() => setControls(publicEventListDefaultControls)}
-        >
-          Reset controls
-        </button>
-      ) : null}
-
-      {state.status === "loading" ? (
-        <LoadingState message="Loading events..." />
-      ) : null}
+      <EventListControlsForm
+        controls={controls}
+        eventStateOptions={publicEventStateOptions}
+        heading="Find events"
+        headingId="event-list-filters"
+        idPrefix="event"
+        onChange={setControls}
+        sortOptions={publicSortOptions}
+      />
 
       {state.status === "error" ? (
         <ErrorMessage message={state.message} />
       ) : null}
 
-      {state.status !== "loading" ? (
-        <p>
-          Showing {visibleEvents.length} of {state.items.length} loaded events.
+      <div className="border-t border-slate-200" />
+
+      <div className="mt-5 grid gap-4">
+        <p className="m-0 text-sm text-slate-500">
+          Showing {visibleEvents.length} of {loadedEvents.length} loaded events.
         </p>
+      </div>
+
+      {loadedEvents.length === 0 ? (
+        <Panel className="text-center">
+          <p className="m-0 text-sm font-semibold text-slate-700">
+            No events found.
+          </p>
+          <p className="mt-2 text-sm text-slate-500">
+            Try adjusting your filters or create a new event.
+          </p>
+          <div className="mt-3">
+            <Link
+              className={primaryButtonClassName}
+              to="/create-event"
+            >
+              Create event
+            </Link>
+          </div>
+        </Panel>
       ) : null}
 
-      {state.items.length === 0 && state.status !== "loading" ? (
-        <p>No events found.</p>
+      {loadedEvents.length > 0 && visibleEvents.length === 0 ? (
+        <Panel className="text-center">
+          <p className="m-0 text-sm font-semibold text-slate-700">
+            No events match the current controls.
+          </p>
+          <p className="mt-2 text-sm text-slate-500">
+            Try changing your search, filters, or sort order.
+          </p>
+        </Panel>
       ) : null}
 
-      {state.items.length > 0 && visibleEvents.length === 0 ? (
-        <p>No events match the current controls.</p>
-      ) : null}
-
-      <ul>
+      <ItemGrid>
         {visibleEvents.map((event) => (
           <li key={event.event_id}>
             <EventCard event={event} />
           </li>
         ))}
-      </ul>
+      </ItemGrid>
 
       {state.nextCursor ? (
-        <button
-          type="button"
-          disabled={isLoadingMore}
-          onClick={() => void loadMore()}
-        >
-          {isLoadingMore ? "Loading..." : "Load more"}
-        </button>
+        <PageActions>
+          <button
+            type="button"
+            disabled={isLoadingMore}
+            onClick={() => void loadMore()}
+            className={secondaryButtonClassName}
+          >
+            {isLoadingMore ? "Loading..." : "Load more"}
+          </button>
+        </PageActions>
       ) : null}
-    </>
-  );
-}
-
-interface EventListControlsFormProps {
-  controls: EventListControls;
-  setControls: (controls: EventListControls) => void;
-}
-
-function EventListControlsForm({
-  controls,
-  setControls
-}: EventListControlsFormProps) {
-  return (
-    <section aria-labelledby="event-list-controls">
-      <h2 id="event-list-controls">Find events</h2>
-
-      <div>
-        <label htmlFor="event-search">Search</label>
-        <input
-          id="event-search"
-          name="search"
-          value={controls.search}
-          onChange={(event) =>
-            setControls({
-              ...controls,
-              search: event.target.value
-            })
-          }
-          placeholder="Title, description, or location"
-        />
-      </div>
-
-      <div>
-        <label htmlFor="event-state-filter">Event state</label>
-        <select
-          id="event-state-filter"
-          name="eventState"
-          value={controls.eventState}
-          onChange={(event) =>
-            setControls({
-              ...controls,
-              eventState: event.target.value as EventListControls["eventState"]
-            })
-          }
-        >
-          <option value="all">All</option>
-          <option value="ongoing">Ongoing</option>
-          <option value="cancelled">Cancelled</option>
-          <option value="outdated">Outdated</option>
-        </select>
-      </div>
-
-      <div>
-        <label htmlFor="event-visibility-filter">Visibility</label>
-        <select
-          id="event-visibility-filter"
-          name="visibility"
-          value={controls.visibility}
-          onChange={(event) =>
-            setControls({
-              ...controls,
-              visibility: event.target.value as EventListControls["visibility"]
-            })
-          }
-        >
-          <option value="all">All</option>
-          <option value="public">Public</option>
-          <option value="protected">Protected</option>
-          <option value="admin">Admin-only</option>
-        </select>
-      </div>
-
-      <div>
-        <label htmlFor="event-capacity-filter">RSVP availability</label>
-        <select
-          id="event-capacity-filter"
-          name="capacity"
-          value={controls.capacity}
-          onChange={(event) =>
-            setControls({
-              ...controls,
-              capacity: event.target.value as EventListControls["capacity"]
-            })
-          }
-        >
-          <option value="all">All</option>
-          <option value="unlimited">Unlimited capacity</option>
-          <option value="limited">Has capacity limit</option>
-          <option value="full">Full</option>
-          <option value="available">Spots available</option>
-        </select>
-      </div>
-
-      <div>
-        <label htmlFor="event-sort">Sort</label>
-        <select
-          id="event-sort"
-          name="sort"
-          value={controls.sort}
-          onChange={(event) =>
-            setControls({
-              ...controls,
-              sort: event.target.value as EventListControls["sort"]
-            })
-          }
-        >
-          <option value="date-asc">Event date: soonest first</option>
-          <option value="date-desc">Event date: latest first</option>
-          <option value="title-asc">Title: A-Z</option>
-          <option value="title-desc">Title: Z-A</option>
-          <option value="status-active-first">Status: active first</option>
-          <option value="status-cancelled-first">Status: cancelled first</option>
-          <option value="created-desc">Created: newest first</option>
-          <option value="created-asc">Created: oldest first</option>
-        </select>
-      </div>
-    </section>
+    </PageLayout>
   );
 }

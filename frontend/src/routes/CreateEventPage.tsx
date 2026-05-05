@@ -10,8 +10,14 @@ import {
   emptyEventFormValues,
   EventForm
 } from "../components/EventForm";
+import {
+  PageHeader,
+  PageLayout,
+  Panel
+} from "../components/LayoutPrimitives";
 import { LoadingState } from "../components/LoadingState";
 import { StatusMessage } from "../components/StatusMessage";
+import { pageTitleClassName, textLinkClassName } from "../components/uiStyles";
 
 type SubmitState =
   | { status: "idle"; message: null }
@@ -62,35 +68,66 @@ export function CreateEventPage() {
 
   if (status !== "authenticated") {
     return (
-      <>
-        <h1>Create event</h1>
+      <PageLayout>
+        <PageHeader>
+          <div>
+            <h1 className={pageTitleClassName}>Create event</h1>
+            <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+              Sign in to publish and manage events.
+            </p>
+          </div>
+        </PageHeader>
         {/* This is a UX guard only. API Gateway and the backend still enforce
             authentication and creator ownership for the actual event write. */}
         <StatusMessage message="You need to sign in before creating events." />
-        <p>
-          <Link to="/login">Login</Link> or{" "}
-          <Link to="/register">register</Link> to continue.
+        <p className="m-0 text-sm text-slate-600">
+          <Link className={textLinkClassName} to="/login">
+            Login
+          </Link>{" "}
+          or{" "}
+          <Link className={textLinkClassName} to="/register">
+            register
+          </Link>{" "}
+          to continue.
         </p>
-      </>
+      </PageLayout>
     );
   }
 
   return (
-    <>
-      <Link to="/events">Back to events</Link>
-      <h1>Create event</h1>
+    <PageLayout>
+      <PageHeader>
+        <div>
+          <p className="m-0">
+            <Link
+              className={`text-sm ${textLinkClassName}`}
+              to="/events"
+            >
+              Back to events
+            </Link>
+          </p>
+          <h1 className={pageTitleClassName}>Create event</h1>
+          <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+            Add the event details, visibility, and RSVP capacity.
+          </p>
+        </div>
+      </PageHeader>
 
-      <EventForm
-        initialValues={emptyEventFormValues}
-        submitButtonLabel="Create event"
-        submittingButtonLabel="Creating..."
-        isSubmitting={isSubmitting}
-        onSubmit={handleSubmit}
-      />
+      <div className="grid max-w-4xl gap-6">
+        <Panel>
+          <EventForm
+            initialValues={emptyEventFormValues}
+            submitButtonLabel="Create event"
+            submittingButtonLabel="Creating..."
+            isSubmitting={isSubmitting}
+            onSubmit={handleSubmit}
+          />
+        </Panel>
 
-      {submitState.status === "error" ? (
-        <ErrorMessage message={submitState.message} />
-      ) : null}
-    </>
+        {submitState.status === "error" ? (
+          <ErrorMessage message={submitState.message} />
+        ) : null}
+      </div>
+    </PageLayout>
   );
 }

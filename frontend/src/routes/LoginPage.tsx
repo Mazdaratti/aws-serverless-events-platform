@@ -1,10 +1,21 @@
 import { type FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { signIn } from "aws-amplify/auth";
 
 import { useAuth } from "../auth/AuthProvider";
 import { ErrorMessage } from "../components/ErrorMessage";
+import {
+  PageHeader,
+  PageLayout,
+  Panel
+} from "../components/LayoutPrimitives";
 import { SuccessMessage } from "../components/SuccessMessage";
+import {
+  pageTitleClassName,
+  primaryButtonClassName,
+  textInputClassName,
+  textLinkClassName
+} from "../components/uiStyles";
 
 type SubmitState =
   | { status: "idle"; message: null }
@@ -12,19 +23,40 @@ type SubmitState =
   | { status: "success"; message: string }
   | { status: "error"; message: string };
 
+type LocationState = {
+  from?: string;
+};
+
 const initialSubmitState: SubmitState = {
   status: "idle",
   message: null
 };
 
+const fieldClassName = "grid gap-1.5";
+
+const labelClassName = "text-sm font-semibold text-slate-700";
+
+const loginErrorMessageId = "login-error-message";
+const loginSuccessMessageId = "login-success-message";
+
 export function LoginPage() {
+  const location = useLocation();
   const navigate = useNavigate();
+  const locationState = location.state as LocationState | null;
+  const redirectPath = getSafeRedirectPath(locationState?.from);
   const { refreshSession } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [submitState, setSubmitState] = useState<SubmitState>(initialSubmitState);
 
   const isSubmitting = submitState.status === "submitting";
+  const feedbackMessageId =
+    submitState.status === "error"
+      ? loginErrorMessageId
+      : submitState.status === "success"
+        ? loginSuccessMessageId
+        : undefined;
+  const hasAuthError = submitState.status === "error";
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -64,7 +96,7 @@ export function LoginPage() {
         status: "success",
         message: "Signed in."
       });
-      navigate("/events");
+      navigate(redirectPath);
     } catch (error) {
       setSubmitState({
         status: "error",
@@ -74,52 +106,90 @@ export function LoginPage() {
   };
 
   return (
-    <>
-      <h1>Login</h1>
-
-      <form onSubmit={handleSubmit}>
+    <PageLayout>
+      <PageHeader>
         <div>
-          <label htmlFor="login-username">Username</label>
-          <input
-            id="login-username"
-            name="username"
-            autoComplete="username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            required
-          />
+          <h1 className={pageTitleClassName}>Login</h1>
+          <p className="m-0 max-w-2xl text-sm leading-6 text-slate-600">
+            Sign in to manage your events and RSVP activity.
+          </p>
         </div>
+      </PageHeader>
 
-        <div>
-          <label htmlFor="login-password">Password</label>
-          <input
-            id="login-password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-        </div>
+      <div className="grid max-w-4xl gap-6">
+        <Panel>
+          <form
+            aria-busy={isSubmitting}
+            aria-describedby={feedbackMessageId}
+            className="m-0 grid max-w-2xl gap-4 border-0 bg-transparent p-0"
+            onSubmit={handleSubmit}
+          >
+            <div className={fieldClassName}>
+              <label className={labelClassName} htmlFor="login-username">
+                Username
+              </label>
+              <input
+                id="login-username"
+                name="username"
+                autoComplete="username"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                required
+                aria-invalid={hasAuthError || undefined}
+                className={textInputClassName}
+              />
+            </div>
 
-        <button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Signing in..." : "Login"}
-        </button>
-      </form>
+            <div className={fieldClassName}>
+              <label className={labelClassName} htmlFor="login-password">
+                Password
+              </label>
+              <input
+                id="login-password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+                aria-invalid={hasAuthError || undefined}
+                className={textInputClassName}
+              />
+            </div>
 
-      {submitState.status === "error" ? (
-        <ErrorMessage message={submitState.message} />
-      ) : null}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={primaryButtonClassName}
+            >
+              {isSubmitting ? "Signing in..." : "Login"}
+            </button>
+          </form>
+        </Panel>
 
-      {submitState.status === "success" ? (
-        <SuccessMessage message={submitState.message} />
-      ) : null}
+        {submitState.status === "error" ? (
+          <div id={loginErrorMessageId}>
+            <ErrorMessage message={submitState.message} />
+          </div>
+        ) : null}
 
-      <p>
-        Need an account? <Link to="/register">Register</Link>
-      </p>
-    </>
+        {submitState.status === "success" ? (
+          <div id={loginSuccessMessageId}>
+            <SuccessMessage message={submitState.message} />
+          </div>
+        ) : null}
+
+        <p className="m-0 text-sm text-slate-600">
+          Need an account?{" "}
+          <Link
+            className={textLinkClassName}
+            to="/register"
+          >
+            Register
+          </Link>
+        </p>
+      </div>
+    </PageLayout>
   );
 }
 
@@ -131,4 +201,16 @@ function getAuthErrorMessage(error: unknown): string {
   }
 
   return "Authentication failed.";
+}
+
+function getSafeRedirectPath(path: string | undefined): string {
+  if (!path || !path.startsWith("/") || path.startsWith("//")) {
+    return "/events";
+  }
+
+  if (path === "/login" || path === "/register" || path === "/confirm-register") {
+    return "/events";
+  }
+
+  return path;
 }

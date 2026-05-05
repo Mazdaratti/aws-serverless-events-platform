@@ -141,10 +141,22 @@ Local frontend validation should run from that directory:
 - `npm ci`
 - `npm run typecheck`
 - `npm run build`
+- `npm run test`
 - `npm run dev` (optional for local development)
 
 Use `npm ci` for PR validation because `frontend/package-lock.json` is now
 committed and represents the reproducible dependency install plan.
+
+The current frontend automated testing baseline uses:
+
+- Vitest
+- React Testing Library
+- `@testing-library/jest-dom`
+- `jsdom`
+
+These tests run locally without AWS, Cognito, CloudFront, or backend
+dependencies and should be included in frontend validation for component and
+interaction changes.
 
 For local browser testing, copy the example environment file and provide the
 public Cognito values for the active environment:
@@ -206,6 +218,7 @@ Dry-run mode:
 - runs `npm ci`
 - runs `npm run typecheck`
 - runs `npm run build`
+- does not run frontend browser or component tests yet
 - verifies `frontend/dist/` exists
 - previews the S3 upload with `aws s3 sync --dryrun`
 - does not upload files

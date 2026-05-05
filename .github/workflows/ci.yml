@@ -103,6 +103,9 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      - name: Run frontend component tests
+        run: npm run test
+
   terraform-validate-and-lint:
     name: Validate ${{ matrix.directory }}
     runs-on: ubuntu-latest

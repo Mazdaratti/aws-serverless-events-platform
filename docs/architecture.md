@@ -253,28 +253,42 @@ business logic:
 
 ### Frontend Automated Testing Direction
 
-Frontend automated testing will be introduced as a dedicated follow-up
-milestone after the frontend UX and performance hardening work.
+Frontend automated testing is now established as a layered validation baseline
+for the React/Vite frontend.
 
-The testing baseline should be added in small layers:
+The current testing baseline is intentionally split into two layers:
 
 1. **Vitest + React Testing Library**
 
    - component and page-level tests running in Node/jsdom
-   - focused coverage for form validation, accessible labels, disabled states,
-     loading/error/success rendering, and client-side filter option behavior
+   - focused coverage for form validation, accessible labels, controlled filter
+     behavior, loading semantics, and related UI contracts
    - no AWS, Cognito, CloudFront, or backend dependency
 
 2. **Playwright**
 
-   - browser-level smoke tests for routing, keyboard navigation, skip-link
-     behavior, lazy-loaded route rendering, and basic form feedback
-   - should be added after the Vitest baseline is stable
+   - browser-level Chromium smoke tests running against the local Vite dev
+     server
+   - current smoke coverage for `/app` shell rendering, public events shell
+     rendering, and protected-route prompt behavior for `/app/my-events`
+   - local route mocking used where needed to keep the baseline deterministic
+     and independent from deployed backend state
 
-Frontend automated tests should begin as validation-only checks. They should
-not deploy infrastructure, mutate AWS resources, or replace the manual
-CloudFront deployment helper until a later CI/CD milestone defines that
-workflow.
+Frontend automated tests currently run as validation-only checks. They do not
+deploy infrastructure, mutate AWS resources, or replace the manual CloudFront
+deployment helper.
+
+The current CI validation workflow now runs:
+
+- `npm ci`
+- `npm run typecheck`
+- `npm run build`
+- `npm run test`
+- `npm run test:e2e`
+
+This keeps frontend automated validation in the read-only CI path while
+deployment automation remains a separate future milestone tied to GitHub OIDC
+and dedicated deployment workflows.
 
 ---
 

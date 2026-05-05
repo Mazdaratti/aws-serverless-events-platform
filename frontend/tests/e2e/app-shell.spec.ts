@@ -13,7 +13,7 @@ test.describe("app shell", () => {
       });
     });
 
-    await page.goto("/");
+    await page.goto("/app");
 
     await expect(page).toHaveURL(/\/app\/events$/);
     await expect(page.getByRole("banner")).toBeVisible();
@@ -29,7 +29,7 @@ test.describe("app shell", () => {
       });
     });
 
-    await page.goto("/events");
+    await page.goto("/app/events");
 
     await expect(page.getByRole("main")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Events" })).toBeVisible();
@@ -38,7 +38,7 @@ test.describe("app shell", () => {
   test("renders a protected prompt for my events instead of crashing", async ({
     page
   }) => {
-    await page.goto("/my-events");
+    await page.goto("/app/my-events");
 
     await expect(page.getByRole("main")).toBeVisible();
     await expect(page.getByRole("heading", { name: "My events" })).toBeVisible();

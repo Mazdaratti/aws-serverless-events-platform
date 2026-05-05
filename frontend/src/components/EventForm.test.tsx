@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -23,6 +23,14 @@ function renderForm(overrides?: Partial<ComponentProps<typeof EventForm>>) {
   return { onSubmit };
 }
 
+function submitFormDirectly() {
+  const submitButton = screen.getByRole("button", { name: "Create event" });
+  const form = submitButton.closest("form");
+
+  expect(form).not.toBeNull();
+  fireEvent.submit(form!);
+}
+
 describe("EventForm", () => {
   it("shows the validation alert when capacity is 0", async () => {
     const user = userEvent.setup();
@@ -31,7 +39,7 @@ describe("EventForm", () => {
     await user.type(screen.getByLabelText("Title"), "React Meetup");
     await user.type(screen.getByLabelText("Date and time"), "2026-06-15T19:30");
     await user.type(screen.getByLabelText("Capacity"), "0");
-    await user.click(screen.getByRole("button", { name: "Create event" }));
+    submitFormDirectly();
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Capacity must be a whole number greater than or equal to 1, or blank for unlimited."
@@ -46,7 +54,7 @@ describe("EventForm", () => {
     await user.type(screen.getByLabelText("Title"), "React Meetup");
     await user.type(screen.getByLabelText("Date and time"), "2026-06-15T19:30");
     await user.type(screen.getByLabelText("Capacity"), "0");
-    await user.click(screen.getByRole("button", { name: "Create event" }));
+    submitFormDirectly();
 
     expect(screen.getByLabelText("Capacity")).toHaveAttribute(
       "aria-invalid",

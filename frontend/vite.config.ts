@@ -1,6 +1,6 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   // Keep Vite's default root base for this app.
@@ -10,5 +10,10 @@ export default defineConfig({
   // treats them as real static files instead of SPA navigation routes.
   //
   // Do not set base: "/app/" here unless the deployment layout also changes.
-  plugins: [tailwindcss(), react()]
+  plugins: [tailwindcss(), react()],
+  test: {
+    environment: "jsdom",
+    setupFiles: "src/test/setup.ts",
+    passWithNoTests: true
+  }
 });

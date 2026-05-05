@@ -48,6 +48,8 @@ pnpm-debug.log*
 out/
 build/
 coverage/
+frontend/test-results/
+frontend/playwright-report/
 
 ############################################
 # Terraform

@@ -32,7 +32,9 @@ test.describe("app shell", () => {
     await page.goto("/app");
 
     await expect(page.getByRole("main")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Events" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Events", exact: true })
+    ).toBeVisible();
   });
 
   test("renders a protected prompt for my events instead of crashing", async ({

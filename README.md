@@ -29,7 +29,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 - Frontend Automated Testing Baseline
   - Vitest + React Testing Library baseline completed
-  - add Playwright browser smoke baseline
+  - Playwright browser smoke baseline completed
   - add CI frontend test integration / expand coverage
 
 ### Completed milestones
@@ -223,6 +223,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - frontend Vitest + React Testing Library baseline added
   - initial frontend component tests added for shared event list controls, event
     form validation, and loading semantics
+  - frontend Playwright Chromium smoke baseline added for `/app`, public events
+    shell rendering, and protected my-events prompt rendering
   - local `terraform plan` validation for the wired dev environment
   - repository-wide `terraform-docs` configuration
   - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, Cognito module/example, API Gateway module/example, S3 frontend bucket module/example, WAF module/example, CloudFront module/example, and the dev root
@@ -570,7 +572,7 @@ Infrastructure is implemented using modular Terraform design with environment-sp
 
 18. Frontend Automated Testing Baseline
    - Vitest + React Testing Library baseline ✅
-   - add Playwright browser smoke baseline
+   - Playwright browser smoke baseline ✅
    - add CI frontend test integration / expand coverage
 
 19. EventBridge and SNS integration

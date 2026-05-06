@@ -27,7 +27,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- EventBridge + SNS integration
+- EventBridge + SNS integration / async notification foundation
 
 ### Completed milestones
 
@@ -234,7 +234,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Next milestones
 
-- `notification-worker`
+- EventBridge, SNS admin notifications, and SQS fanout
+- Notification planner/sender workers and SES participant notifications
 - Observability baseline
 - Remote Terraform backend + GitHub OIDC
 - deployment workflow automation beyond Terraform validation
@@ -255,6 +256,7 @@ The platform uses native AWS serverless services:
 - Amazon SQS
 - Amazon EventBridge
 - Amazon SNS
+- Amazon SES
 - Amazon CloudWatch
 - AWS X-Ray
 
@@ -311,20 +313,34 @@ CloudFront handles SPA deep-link routing for `/app/*` without affecting API beha
 
 ### Event-Driven Extensions
 
-12. After a successful durable write, domain events such as event creation or RSVP confirmation are published to **Amazon EventBridge**.
-13. EventBridge routes these events to **Amazon SNS**, enabling notifications and future integrations.
-14. **Amazon SQS** remains part of the platform for asynchronous side effects and decoupled follow-up processing such as:
-- notification buffering
-- enrichment tasks
-- reconciliation or repair jobs
-- batch imports
-- scheduled backfills
-- retryable downstream integrations
+12. After a successful durable event-management write, one compact domain event
+is published to **Amazon EventBridge**.
+13. EventBridge routes admin notifications directly to an **Amazon SNS** admin
+topic.
+14. EventBridge routes participant-notification planning work to **Amazon SQS**.
+15. The participant notification path is planned as:
+
+`EventBridge -> notification-dispatch SQS -> notification-planner Lambda -> notification-email SQS -> notification-sender Lambda -> SES`
+
+16. The planned `notification-planner` creates one recipient-level email job per
+authenticated RSVP user for event update and cancellation notifications.
+17. The planned `notification-sender` resolves the current recipient email
+through Cognito at send time using the canonical user identity and sends
+participant email through **Amazon SES**.
+
+The v1 event-management domain events are:
+
+- `event.created`
+- `event.updated`
+- `event.cancelled`
+
+EventBridge owns fanout, and notification publication or delivery failures must
+not change the original synchronous API result.
 
 ### Observability
 
-15. Logs and metrics are collected in **Amazon CloudWatch**.
-16. Distributed tracing is enabled with **AWS X-Ray** to analyze request performance and dependencies.
+18. Logs and metrics are collected in **Amazon CloudWatch**.
+19. Distributed tracing is enabled with **AWS X-Ray** to analyze request performance and dependencies.
 
 This design preserves immediate correctness for core business writes while still enabling scalable asynchronous processing where it adds real value.
 
@@ -338,9 +354,13 @@ Avoids infrastructure management and enables automatic scaling.
 
 **Synchronous Core, Async Extensions**
 
-Core RSVP business writes are intentionally kept synchronous so the system can preserve immediate business-result semantics required by the current API contract.
+Core business writes are intentionally kept synchronous so the system can
+preserve immediate business-result semantics required by the current API
+contract.
 
-Asynchronous processing is reserved for durable post-commit work, starting with notification dispatch through SQS and expanding later only when additional background workloads are concretely justified.
+Asynchronous processing is reserved for durable post-commit work. EventBridge
+owns notification fanout, SNS handles admin broadcasts, and SQS buffers
+participant-notification work outside the primary API write path.
 
 **Managed Authentication**
 
@@ -577,12 +597,37 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - Playwright browser smoke baseline ✅
    - CI frontend test integration / coverage expansion ✅
 
-19. EventBridge and SNS integration
-   - publish domain events only after durable business writes succeed
-   - introduce notification fanout without changing synchronous API outcomes
+19. EventBridge, SNS admin notifications, and SQS fanout
+   - add reusable EventBridge module baseline
+   - add SNS admin notification topic baseline
+   - wire EventBridge, the SNS admin topic, and EventBridge routing for `dev`
+   - route `event.created`, `event.updated`, and `event.cancelled` to the SNS
+     admin topic
+   - route `event.updated` and `event.cancelled` to the existing
+     `notification-dispatch` SQS queue
+   - add least-privilege EventBridge publishing permissions for write Lambdas
+   - publish `event.cancelled` from `cancel-event` after successful durable
+     cancellation, with tests and validation
+   - publish `event.created` from `create-event` after successful durable
+     creation, with tests and validation
+   - publish `event.updated` from `update-event` after successful durable
+     update, with tests and validation
+   - keep synchronous API outcomes independent from async notification results
 
-20. `notification-worker`
-   - consume asynchronous notification work
+20. Notification planner/sender workers and SES participant notifications
+   - add `notification-email` SQS queue and DLQ
+   - add least-privilege IAM for `notification-planner`
+   - add least-privilege IAM for `notification-sender`
+   - implement `notification-planner` to consume `notification-dispatch`
+     messages
+   - query RSVP records by event and enqueue one recipient-level email job per
+     authenticated RSVP user
+   - include both attending and not-attending RSVP users
+   - skip anonymous RSVP subjects in v1
+   - implement `notification-sender` to consume `notification-email` messages
+   - resolve current recipient email at send time through Cognito
+   - send participant emails through SES
+   - wire planner and sender Lambdas into `infrastructure/envs/dev`
    - keep user-facing API responses independent from notification delivery
 
 21. CloudWatch observability and X-Ray tracing

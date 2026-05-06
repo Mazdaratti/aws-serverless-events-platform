@@ -470,22 +470,59 @@ custom Lambda authorizer, not in the business handler.
 
 Asynchronous services are used **after durable business state changes**.
 
+Core API outcomes remain synchronous. Notification routing and delivery must
+not decide whether the original API request succeeds or fails.
+
 The platform uses:
 
 - **Amazon EventBridge**
+  - post-commit domain event router
 - **Amazon SNS**
+  - admin/platform broadcast notification topic
 - **Amazon SQS**
+  - durable participant-notification work buffers
+- **AWS Lambda**
+  - notification planner and sender workers
+- **Amazon SES**
+  - intended participant email delivery service
 
-Typical asynchronous workloads include:
+The locked notification foundation uses separate admin and participant paths.
 
-- notification buffering
-- background enrichment tasks
-- reconciliation or repair jobs
-- batch imports
-- scheduled backfills
-- retryable downstream integrations
+Admin notification path:
 
-Queues are **not used in the primary RSVP write path**, but remain essential for decoupled processing and failure isolation.
+`EventBridge -> SNS admin topic`
+
+Participant notification path:
+
+`EventBridge -> notification-dispatch SQS -> notification-planner Lambda -> notification-email SQS -> notification-sender Lambda -> SES`
+
+SQS is used for participant notification durability and retry isolation:
+
+- `notification-dispatch`
+  - event-level planning queue for `event.updated` and `event.cancelled`
+- `notification-email`
+  - future recipient-level email work queue
+
+The notification worker layer is intentionally split:
+
+- `notification-planner`
+  - consumes event-level participant notification work
+  - queries RSVP records by event
+  - creates one recipient-level email job per authenticated RSVP user
+  - includes both attending and not-attending RSVP users
+  - skips anonymous RSVP subjects in v1
+- `notification-sender`
+  - consumes recipient-level email jobs
+  - resolves the current recipient email through Cognito at send time using the
+    canonical Cognito `sub`
+  - sends participant email through SES
+
+This keeps EventBridge responsible for fanout, SQS responsible for durable
+participant work buffering, and SES responsible for direct participant email
+delivery when that layer is implemented.
+
+Queues are **not used in the primary RSVP write path**, but remain essential
+for decoupled notification processing and failure isolation.
 
 ---
 
@@ -538,23 +575,57 @@ Those access patterns intentionally support the current Lambda rollout order:
 
 ## Event-Driven Extensions
 
-After successful writes, domain events are published to:
+After successful event-management writes, compact domain events are published
+to:
 
 - **Amazon EventBridge**
 
-These events are emitted only after the primary business write succeeds.
+These events are emitted only after the primary DynamoDB business write
+succeeds.
+
+Event publication and notification delivery failures must not retroactively
+change the synchronous API result.
+
+The v1 event-management domain events are:
+
+- `event.created`
+- `event.updated`
+- `event.cancelled`
+
+Each successful business change publishes exactly one EventBridge domain event.
+Write Lambdas do not publish separate events for separate notification targets.
+EventBridge owns fanout.
 
 EventBridge routes events to:
 
-- **Amazon SNS**
-- future analytics pipelines
-- integration services
+- **Amazon SNS** for admin/platform broadcast notifications
+- **Amazon SQS** for participant-notification planning work
+
+Admin notifications use direct EventBridge-to-SNS routing for:
+
+- `event.created`
+- `event.updated`
+- `event.cancelled`
+
+Participant notifications use EventBridge-to-SQS routing for:
+
+- `event.updated`
+- `event.cancelled`
+
+The participant path is planned as:
+
+`EventBridge -> notification-dispatch SQS -> notification-planner Lambda -> notification-email SQS -> notification-sender Lambda -> SES`
+
+The planner creates one recipient-level email job per authenticated RSVP user.
+The sender resolves the current email address through Cognito at send time
+using the canonical Cognito `sub` and sends through SES.
 
 This enables:
 
 - loose coupling
-- extensibility
-- independent feature evolution
+- durable participant notification buffering
+- retry isolation between planning and email sending
+- notification delivery that remains independent from core API responses
 
 ---
 

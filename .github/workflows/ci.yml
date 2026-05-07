@@ -130,6 +130,8 @@ jobs:
           - infrastructure/modules/cognito/examples/basic_usage
           - infrastructure/modules/dynamodb_data_layer
           - infrastructure/modules/dynamodb_data_layer/examples/basic_usage
+          - infrastructure/modules/eventbridge
+          - infrastructure/modules/eventbridge/examples/basic_usage
           - infrastructure/modules/iam
           - infrastructure/modules/iam/examples/basic_usage
           - infrastructure/modules/lambda

@@ -39,8 +39,12 @@ This step is focused on the workload execution IAM that the platform clearly nee
 - workload-specific SQS consumer permissions
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
+- optional EventBridge `PutEvents` permissions for event-management write workloads
 
-The module does not create EventBridge roles, API Gateway roles, Cognito roles, Lambda functions, or arbitrary caller-defined JSON policy documents. Those concerns may become relevant later, but they are intentionally outside the scope of this first IAM layer.
+The module does not create EventBridge roles, EventBridge rules, EventBridge
+targets, API Gateway roles, Cognito roles, Lambda functions, or arbitrary
+caller-defined JSON policy documents. Those concerns may become relevant later,
+but they are intentionally outside this IAM layer.
 
 Keeping the module limited to Lambda execution IAM makes the design easier to understand and avoids forcing `envs/dev` to describe IAM internals later.
 
@@ -83,6 +87,9 @@ It currently receives:
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
 - DynamoDB write access for the `events` table
+- optional EventBridge `PutEvents` access to the configured publish event bus
+
+Only this event-management write role receives publish access when the optional EventBridge publish bus ARN is provided.
 
 ### `get-event`
 
@@ -135,6 +142,9 @@ It currently receives:
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
 - narrow DynamoDB `GetItem` and `UpdateItem` access for the `events` table
+- optional EventBridge `PutEvents` access to the configured publish event bus
+
+Only event-management write roles receive publish access when the optional EventBridge publish bus ARN is provided.
 
 This role intentionally stays narrower than a generic write role because the
 current `update-event` contract only needs:
@@ -183,6 +193,9 @@ It currently receives:
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
 - narrow DynamoDB `GetItem` and `UpdateItem` access for the `events` table
+- optional EventBridge `PutEvents` access to the configured publish event bus
+
+Only event-management write roles receive publish access when the optional EventBridge publish bus ARN is provided.
 
 This role intentionally stays narrow because the current `cancel-event`
 contract only needs:
@@ -279,6 +292,21 @@ That is intentional:
 - cleaner least-privilege boundaries
 - no monolithic shared policy growth
 
+### EventBridge publishing is limited to event-management writes
+
+When `eventbridge_publish_event_bus_arn` is set, this module grants
+`events:PutEvents` only to:
+
+- `create-event`
+- `update-event`
+- `cancel-event`
+
+Read workloads, RSVP workloads, authorizers, and notification consumers do not
+receive EventBridge publish access.
+
+This keeps post-commit domain event publishing tied to the write workloads that
+can actually create the locked v1 event-management domain events.
+
 ### The module consumes only exact resource ARNs
 
 The input surface stays intentionally small:
@@ -288,6 +316,7 @@ The input surface stays intentionally small:
 - `events_table_arn`
 - `rsvps_table_arn`
 - `notification_dispatch_queue_arn`
+- `eventbridge_publish_event_bus_arn`
 - `workloads`
 
 This keeps the module aligned with the thin-environment rule and avoids premature generic IAM abstraction.
@@ -318,6 +347,7 @@ The example shows how to:
 - build the shared `name_prefix`
 - define the baseline tag map
 - create minimal DynamoDB and SQS supporting resources
+- create a minimal custom EventBridge bus for scoped publish permissions
 - call the module with all currently supported workload roles, including the
   logs-only `rsvp-authorizer` workload
 - inspect the resulting role names and ARNs
@@ -336,7 +366,7 @@ The example shows how to:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.44.0 |
 
 
 
@@ -363,6 +393,7 @@ The example shows how to:
 | <a name="input_rsvps_table_arn"></a> [rsvps\_table\_arn](#input\_rsvps\_table\_arn) | ARN of the DynamoDB RSVP table used by workload-specific IAM policies. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
 | <a name="input_workloads"></a> [workloads](#input\_workloads) | Map of Lambda workload role definitions keyed by logical workload name.<br/><br/>Supported workload keys in v1:<br/>- create-event<br/>- get-event<br/>- list-events<br/>- list-my-events<br/>- update-event<br/>- cancel-event<br/>- rsvp-authorizer<br/>- rsvp<br/>- get-event-rsvps<br/>- notification-worker | <pre>map(object({<br/>    access_profile = string<br/>    enable_logs    = optional(bool)<br/>    enable_xray    = optional(bool)<br/>  }))</pre> | n/a | yes |
+| <a name="input_eventbridge_publish_event_bus_arn"></a> [eventbridge\_publish\_event\_bus\_arn](#input\_eventbridge\_publish\_event\_bus\_arn) | ARN of the EventBridge event bus write workloads may publish domain events to. When null, no EventBridge publish permissions are granted. | `string` | `null` | no |
 
 ## Outputs
 

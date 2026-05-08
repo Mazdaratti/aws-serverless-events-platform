@@ -478,6 +478,7 @@ aws-serverless-events-platform/
 |       |-- iam/
 |       |-- lambda/
 |       |-- s3_frontend_bucket/
+|       |-- sns/
 |       |-- sqs/
 |       `-- waf/
 |

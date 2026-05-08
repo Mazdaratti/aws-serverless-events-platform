@@ -116,6 +116,27 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - `/events` API routing through CloudFront validated
     - direct S3 public object access remains denied
     - clean post-apply Terraform plan validated
+  - `eventbridge` module baseline for async domain event routing
+    - custom EventBridge event bus baseline
+    - EventBridge rule support
+    - EventBridge target support
+    - structured event pattern input
+    - multiple targets per rule
+    - `examples/basic_usage`
+    - module `README.md`
+    - Terraform validation CI coverage for the module and example
+  - `sns` module baseline for admin notification topics
+    - SNS admin notification topic baseline
+    - optional email subscription support
+    - email subscriptions intentionally empty by default
+    - `examples/basic_usage`
+    - module `README.md`
+    - Terraform validation CI coverage for the module and example
+  - `infrastructure/envs/dev` wiring for the async notification foundation
+    - custom EventBridge event bus composed into `dev`
+    - SNS admin notification topic composed into `dev`
+    - no EventBridge rules, targets, topic policies, queue policies, IAM publishing permissions, or Lambda publishing changes yet
+    - Terraform plan confirms only the EventBridge bus and SNS admin topic are added
   - `infrastructure/envs/dev` wiring for the routed backend baseline
 - Core synchronous Lambda rollout
   - `create-event`
@@ -230,7 +251,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - `npm run test:e2e`
   - local `terraform plan` validation for the wired dev environment
   - repository-wide `terraform-docs` configuration
-  - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, IAM module/example, Lambda module/example, Cognito module/example, API Gateway module/example, S3 frontend bucket module/example, WAF module/example, CloudFront module/example, and the dev root
+  - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, EventBridge module/example, SNS module/example, IAM module/example, Lambda module/example, Cognito module/example, API Gateway module/example, S3 frontend bucket module/example, WAF module/example, CloudFront module/example, and the dev root
 
 ### Next milestones
 
@@ -457,6 +478,7 @@ aws-serverless-events-platform/
 |       |-- iam/
 |       |-- lambda/
 |       |-- s3_frontend_bucket/
+|       |-- sns/
 |       |-- sqs/
 |       `-- waf/
 |
@@ -598,9 +620,10 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - CI frontend test integration / coverage expansion ✅
 
 19. EventBridge, SNS admin notifications, and SQS fanout
-   - add reusable EventBridge module baseline
-   - add SNS admin notification topic baseline
-   - wire EventBridge, the SNS admin topic, and EventBridge routing for `dev`
+   - add reusable EventBridge module baseline ✅
+   - add SNS admin notification topic baseline ✅
+   - wire EventBridge bus and SNS admin notification topic for `dev` ✅
+   - wire EventBridge routing for `dev`
    - route `event.created`, `event.updated`, and `event.cancelled` to the SNS
      admin topic
    - route `event.updated` and `event.cancelled` to the existing

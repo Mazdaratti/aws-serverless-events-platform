@@ -80,6 +80,53 @@ output "sqs_dlq_urls" {
 }
 
 ############################################
+# EventBridge async event bus baseline outputs
+############################################
+
+# These outputs expose the custom EventBridge bus identity that later wiring
+# steps will use for rules, targets, and Lambda PutEvents permissions.
+output "eventbridge_event_bus_name" {
+  description = "Name of the custom EventBridge event bus created for the dev environment."
+  value       = module.eventbridge.event_bus_name
+}
+
+output "eventbridge_event_bus_arn" {
+  description = "ARN of the custom EventBridge event bus created for the dev environment."
+  value       = module.eventbridge.event_bus_arn
+}
+
+output "eventbridge_event_bus_id" {
+  description = "ID of the custom EventBridge event bus created for the dev environment."
+  value       = module.eventbridge.event_bus_id
+}
+
+############################################
+# SNS admin notification topic baseline outputs
+############################################
+
+# These outputs expose the admin notification topic identity that later
+# EventBridge routing and topic-policy wiring will consume.
+output "sns_admin_topic_name" {
+  description = "Name of the SNS admin notification topic created for the dev environment."
+  value       = module.sns_admin_notifications.topic_name
+}
+
+output "sns_admin_topic_arn" {
+  description = "ARN of the SNS admin notification topic created for the dev environment."
+  value       = module.sns_admin_notifications.topic_arn
+}
+
+output "sns_admin_topic_id" {
+  description = "ID of the SNS admin notification topic created for the dev environment."
+  value       = module.sns_admin_notifications.topic_id
+}
+
+output "sns_admin_email_subscription_arns" {
+  description = "Map of admin email endpoint to SNS subscription ARN for the dev environment."
+  value       = module.sns_admin_notifications.email_subscription_arns
+}
+
+############################################
 # Lambda execution IAM baseline outputs
 ############################################
 

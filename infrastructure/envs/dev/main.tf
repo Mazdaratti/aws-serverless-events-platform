@@ -64,18 +64,44 @@ module "sqs" {
 ############################################
 
 # This environment wires in the reusable EventBridge module so the platform has
-# a real custom event bus ready for later post-commit domain event publication.
+# a real custom event bus and the first locked notification routing rules.
 #
-# Routing rules and targets are intentionally not configured in this PR. A
-# later wiring step will connect EventBridge to the SNS admin topic and the
-# existing notification-dispatch SQS queue.
+# The module owns EventBridge bus, rule, and target resources. Concrete target
+# resource policies stay in resource_policies.tf because they bind this event
+# bus and rules to this environment's actual SNS topic and SQS queue.
 module "eventbridge" {
   source = "../../modules/eventbridge"
 
   name_prefix = local.name_prefix
   tags        = local.tags
 
-  rules = {}
+  rules = {
+    admin_notifications = {
+      description = "Route event-management domain events to the admin notification topic."
+      event_pattern = {
+        source        = ["aws-serverless-events-platform"]
+        "detail-type" = ["event.created", "event.updated", "event.cancelled"]
+      }
+      targets = {
+        admin_topic = {
+          arn = module.sns_admin_notifications.topic_arn
+        }
+      }
+    }
+
+    participant_notification_dispatch = {
+      description = "Route participant notification planning events to SQS."
+      event_pattern = {
+        source        = ["aws-serverless-events-platform"]
+        "detail-type" = ["event.updated", "event.cancelled"]
+      }
+      targets = {
+        dispatch_queue = {
+          arn = module.sqs.queue_arns["notification-dispatch"]
+        }
+      }
+    }
+  }
 }
 
 ############################################
@@ -444,40 +470,4 @@ module "cloudfront" {
   price_class         = "PriceClass_100"
   enabled             = true
   default_root_object = "index.html"
-}
-
-############################################
-# CloudFront access to the private S3 origin
-############################################
-
-data "aws_iam_policy_document" "frontend_bucket_cloudfront_read" {
-  statement {
-    sid    = "AllowCloudFrontRead"
-    effect = "Allow"
-
-    actions = ["s3:GetObject"]
-
-    resources = [
-      "${module.s3_frontend_bucket.bucket_arn}/*",
-    ]
-
-    principals {
-      type        = "Service"
-      identifiers = ["cloudfront.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "AWS:SourceArn"
-      values   = [module.cloudfront.distribution_arn]
-    }
-  }
-}
-
-resource "aws_s3_bucket_policy" "frontend_origin" {
-  # OAC signs CloudFront requests, but S3 still needs an explicit bucket policy
-  # that trusts only this distribution ARN. The policy belongs here because the
-  # environment owns the concrete bucket/distribution relationship.
-  bucket = module.s3_frontend_bucket.bucket_id
-  policy = data.aws_iam_policy_document.frontend_bucket_cloudfront_read.json
 }

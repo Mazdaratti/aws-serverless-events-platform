@@ -83,6 +83,8 @@ The plan is useful to:
 - `variables.tf` declares the required environment inputs and validates that they are not empty
 - `providers.tf` configures the AWS provider and applies baseline default tags
 - `main.tf` composes the reusable modules for the dev environment
+- `resource_policies.tf` owns environment-specific resource policies that bind
+  concrete deployed resources together
 - `outputs.tf` re-exports outputs needed by later layers
 - `terraform.tfvars.example` shows the required local input shape for this environment
 
@@ -90,7 +92,9 @@ The plan is useful to:
 
 ## What This Environment Deploys
 
-The dev environment is composed of reusable modules.
+The dev environment is composed of reusable modules plus a small set of
+environment-owned resource policies for concrete relationships between deployed
+resources.
 
 Each section below corresponds to **one module block in `main.tf`**.
 
@@ -154,6 +158,8 @@ This environment currently wires in:
 
 - one standard queue: `notification-dispatch`
 - one dedicated dead-letter queue for that source queue
+- one environment-owned queue policy that allows the EventBridge participant
+  dispatch rule to send messages to `notification-dispatch`
 
 Why this module is wired now:
 
@@ -166,7 +172,10 @@ Important design notes:
 - the queue is intended for durable post-commit notification work
 - notification delivery behavior and consumers are not implemented yet
 - the primary RSVP business write remains synchronous through DynamoDB durable commit
-- IAM permissions for queue producers and consumers are deferred to the workload IAM step
+- the EventBridge-to-SQS queue policy is scoped to the concrete participant
+  dispatch rule ARN
+- Lambda consumer permissions remain separate from the queue resource policy and
+  are not changed by the EventBridge routing step
 
 The environment should stay thin:
 
@@ -184,7 +193,8 @@ Validation:
 
 ## EventBridge Async Event Bus Baseline
 
-Creates the custom EventBridge event bus baseline for the platform.
+Creates the custom EventBridge event bus and notification routing baseline for
+the platform.
 
 Implemented via:
 
@@ -193,41 +203,53 @@ Implemented via:
 This environment currently wires in:
 
 - one custom EventBridge event bus
-- no EventBridge rules
-- no EventBridge targets
+- one admin notification rule: `admin_notifications`
+- one participant dispatch rule: `participant_notification_dispatch`
+- one SNS target for admin notifications
+- one SQS target for participant notification planning
 
 Why this module is wired now:
 
 - the platform has locked EventBridge as the post-commit domain event router
-- the real `dev` environment now needs a concrete event bus before Lambda
-  publishing permissions and routing can be added
-- creating the bus separately keeps resource creation independent from later
-  fanout behavior
+- the real `dev` environment now has concrete fanout routes for the locked v1
+  event-management domain events
+- routing through EventBridge keeps write Lambdas from publishing separate
+  messages for separate downstream targets
 
 Important design notes:
 
 - the event bus is intended for compact domain events after durable business
   writes
+- EventBridge owns fanout to the current admin and participant notification
+  paths
+- `event.created`, `event.updated`, and `event.cancelled` are routed to the SNS
+  admin notification topic
+- `event.updated` and `event.cancelled` are routed to the existing
+  `notification-dispatch` SQS queue
+- SNS and SQS target resource policies are owned by `envs/dev` in
+  `resource_policies.tf` because they bind concrete rules to concrete targets
 - no write Lambda publishes to EventBridge yet
-- no EventBridge rules or targets are configured in this PR
-- no EventBridge-to-SNS routing is configured yet
-- no EventBridge-to-SQS routing is configured yet
 - no Lambda `events:PutEvents` permissions are added yet
 - no Lambda environment variables or code are changed
 - the synchronous API and DynamoDB business write path remain unchanged
 
 The environment should stay thin:
 
-- reusable AWS resource logic belongs in modules
+- reusable EventBridge resource logic belongs in `modules/eventbridge`
+- concrete target policies belong in the environment because they connect
+  environment-specific resources
 - `envs/dev` should focus on composition and environment-level identity and
   placement inputs
 
 Validation:
 
-- `terraform plan` confirms only the custom EventBridge event bus is added for
-  this module
+- `terraform plan` confirms the EventBridge bus, rules, and targets are included
+  in this routing step
 - confirmed the planned EventBridge bus name is:
   - `aws-serverless-events-platform-dev-events`
+- confirmed planned EventBridge rules are:
+  - `admin_notifications`
+  - `participant_notification_dispatch`
 
 ---
 
@@ -243,23 +265,27 @@ This environment currently wires in:
 
 - one SNS admin notification topic
 - zero SNS email subscriptions
+- one environment-owned topic policy that allows the EventBridge admin
+  notification rule to publish to the topic
 
 Why this module is wired now:
 
 - the platform has locked SNS as the direct admin/platform broadcast path
 - the real `dev` environment now needs a concrete SNS admin topic before
-  EventBridge routing and topic-policy permissions can be added
-- creating the topic separately keeps topic ownership independent from later
-  EventBridge fanout behavior
+  Lambda publishing is introduced
+- the topic is now connected to the EventBridge admin notification route through
+  a scoped topic policy
 
 Important design notes:
 
 - the topic is intended for platform/admin broadcast notifications
-- SNS email subscriptions are intentionally empty in this PR
+- SNS email subscriptions remain intentionally empty in dev
 - no personal email addresses are hardcoded
-- no SNS confirmation emails are sent by this wiring
-- no SNS topic policy is configured yet
-- no EventBridge-to-SNS routing is configured yet
+- no SNS confirmation emails are sent by the current wiring
+- the SNS topic policy is scoped to the concrete EventBridge
+  `admin_notifications` rule ARN
+- admin notifications are routed directly from EventBridge to SNS
+- participant notifications do not use this topic
 - no Lambda `events:PutEvents` permissions are added yet
 - no Lambda environment variables or code are changed
 - the synchronous API and DynamoDB business write path remain unchanged
@@ -272,11 +298,13 @@ The environment should stay thin:
 
 Validation:
 
-- `terraform plan` confirms only the SNS admin topic is added for this module
+- `terraform plan` confirms the SNS admin topic and its EventBridge publish
+  policy are included in this async routing step
 - confirmed the planned SNS admin topic name is:
   - `aws-serverless-events-platform-dev-admin-notifications`
 - confirmed planned SNS email subscriptions remain empty:
   - `sns_admin_email_subscription_arns = {}`
+- confirmed the topic policy principal is `events.amazonaws.com`
 
 ---
 
@@ -904,7 +932,8 @@ This environment currently wires in:
   - `/events/*`
 - one API Gateway origin using the existing `dev` stage path
 - optional attachment for the CloudFront-scoped WAF Web ACL
-- one environment-owned S3 bucket policy that allows CloudFront read access to the private frontend bucket
+- one environment-owned S3 bucket policy in `resource_policies.tf` that allows
+  CloudFront read access to the private frontend bucket
 
 Why this module is wired now:
 
@@ -917,7 +946,9 @@ Important design notes:
 - CloudFront serves `index.html` and future static frontend assets from the private S3 origin bucket
 - S3 direct public access remains denied
 - CloudFront accesses S3 through Origin Access Control, not legacy Origin Access Identity
-- the S3 bucket policy is owned by `envs/dev` because it binds this concrete bucket to this concrete distribution ARN
+- the S3 bucket policy is owned by `envs/dev` in `resource_policies.tf` because
+  it binds this concrete bucket to this concrete distribution ARN
+- `resource_policies.tf` also owns the current SNS and SQS EventBridge target policies
 - API Gateway remains the backend route/auth/integration layer
 - CloudFront forwards the existing backend route family through:
   - `/events`
@@ -1016,7 +1047,11 @@ Validation:
 |------|------|
 | [aws_cloudwatch_log_group.api_gateway_access](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
 | [aws_s3_bucket_policy.frontend_origin](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_policy) | resource |
+| [aws_sns_topic_policy.admin_notifications](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_policy) | resource |
+| [aws_sqs_queue_policy.notification_dispatch_eventbridge](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sqs_queue_policy) | resource |
 | [aws_iam_policy_document.frontend_bucket_cloudfront_read](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_iam_policy_document.notification_dispatch_eventbridge_send](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_iam_policy_document.sns_admin_eventbridge_publish](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 
 ## Inputs
 
@@ -1059,6 +1094,10 @@ Validation:
 | <a name="output_eventbridge_event_bus_arn"></a> [eventbridge\_event\_bus\_arn](#output\_eventbridge\_event\_bus\_arn) | ARN of the custom EventBridge event bus created for the dev environment. |
 | <a name="output_eventbridge_event_bus_id"></a> [eventbridge\_event\_bus\_id](#output\_eventbridge\_event\_bus\_id) | ID of the custom EventBridge event bus created for the dev environment. |
 | <a name="output_eventbridge_event_bus_name"></a> [eventbridge\_event\_bus\_name](#output\_eventbridge\_event\_bus\_name) | Name of the custom EventBridge event bus created for the dev environment. |
+| <a name="output_eventbridge_rule_arns"></a> [eventbridge\_rule\_arns](#output\_eventbridge\_rule\_arns) | Map of logical EventBridge rule key to rendered rule ARN for the dev environment. |
+| <a name="output_eventbridge_rule_names"></a> [eventbridge\_rule\_names](#output\_eventbridge\_rule\_names) | Map of logical EventBridge rule key to rendered rule name for the dev environment. |
+| <a name="output_eventbridge_target_arns"></a> [eventbridge\_target\_arns](#output\_eventbridge\_target\_arns) | Map of logical EventBridge target key in rule.target form to target ARN for the dev environment. |
+| <a name="output_eventbridge_target_ids"></a> [eventbridge\_target\_ids](#output\_eventbridge\_target\_ids) | Map of logical EventBridge target key in rule.target form to target ID for the dev environment. |
 | <a name="output_events_table_arn"></a> [events\_table\_arn](#output\_events\_table\_arn) | ARN of the DynamoDB events table created for the dev environment. |
 | <a name="output_events_table_name"></a> [events\_table\_name](#output\_events\_table\_name) | Name of the DynamoDB events table created for the dev environment. |
 | <a name="output_frontend_bucket_arn"></a> [frontend\_bucket\_arn](#output\_frontend\_bucket\_arn) | ARN of the private frontend origin bucket created for the dev environment. |

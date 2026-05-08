@@ -100,6 +100,28 @@ output "eventbridge_event_bus_id" {
   value       = module.eventbridge.event_bus_id
 }
 
+# These outputs expose the currently wired EventBridge routing identities for
+# later IAM, validation, and operational inspection.
+output "eventbridge_rule_names" {
+  description = "Map of logical EventBridge rule key to rendered rule name for the dev environment."
+  value       = module.eventbridge.rule_names
+}
+
+output "eventbridge_rule_arns" {
+  description = "Map of logical EventBridge rule key to rendered rule ARN for the dev environment."
+  value       = module.eventbridge.rule_arns
+}
+
+output "eventbridge_target_ids" {
+  description = "Map of logical EventBridge target key in rule.target form to target ID for the dev environment."
+  value       = module.eventbridge.target_ids
+}
+
+output "eventbridge_target_arns" {
+  description = "Map of logical EventBridge target key in rule.target form to target ARN for the dev environment."
+  value       = module.eventbridge.target_arns
+}
+
 ############################################
 # SNS admin notification topic baseline outputs
 ############################################

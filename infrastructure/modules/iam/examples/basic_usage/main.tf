@@ -96,9 +96,9 @@ module "iam" {
   name_prefix = local.name_prefix
   tags        = local.tags
 
-  events_table_arn                = aws_dynamodb_table.events.arn
-  rsvps_table_arn                 = aws_dynamodb_table.rsvps.arn
-  notification_dispatch_queue_arn = aws_sqs_queue.notification_dispatch.arn
+  events_table_arn                  = aws_dynamodb_table.events.arn
+  rsvps_table_arn                   = aws_dynamodb_table.rsvps.arn
+  notification_dispatch_queue_arn   = aws_sqs_queue.notification_dispatch.arn
   eventbridge_publish_event_bus_arn = aws_cloudwatch_event_bus.domain_events.arn
 
   workloads = {

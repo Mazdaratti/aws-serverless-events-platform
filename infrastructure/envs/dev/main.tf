@@ -471,39 +471,3 @@ module "cloudfront" {
   enabled             = true
   default_root_object = "index.html"
 }
-
-############################################
-# CloudFront access to the private S3 origin
-############################################
-
-data "aws_iam_policy_document" "frontend_bucket_cloudfront_read" {
-  statement {
-    sid    = "AllowCloudFrontRead"
-    effect = "Allow"
-
-    actions = ["s3:GetObject"]
-
-    resources = [
-      "${module.s3_frontend_bucket.bucket_arn}/*",
-    ]
-
-    principals {
-      type        = "Service"
-      identifiers = ["cloudfront.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "AWS:SourceArn"
-      values   = [module.cloudfront.distribution_arn]
-    }
-  }
-}
-
-resource "aws_s3_bucket_policy" "frontend_origin" {
-  # OAC signs CloudFront requests, but S3 still needs an explicit bucket policy
-  # that trusts only this distribution ARN. The policy belongs here because the
-  # environment owns the concrete bucket/distribution relationship.
-  bucket = module.s3_frontend_bucket.bucket_id
-  policy = data.aws_iam_policy_document.frontend_bucket_cloudfront_read.json
-}

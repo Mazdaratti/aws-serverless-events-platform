@@ -60,6 +60,43 @@ module "sqs" {
 }
 
 ############################################
+# EventBridge async event bus baseline
+############################################
+
+# This environment wires in the reusable EventBridge module so the platform has
+# a real custom event bus ready for later post-commit domain event publication.
+#
+# Routing rules and targets are intentionally not configured in this PR. A
+# later wiring step will connect EventBridge to the SNS admin topic and the
+# existing notification-dispatch SQS queue.
+module "eventbridge" {
+  source = "../../modules/eventbridge"
+
+  name_prefix = local.name_prefix
+  tags        = local.tags
+
+  rules = {}
+}
+
+############################################
+# SNS admin notification topic baseline
+############################################
+
+# This environment wires in the reusable SNS module for the admin/platform
+# broadcast notification topic.
+#
+# Email subscriptions are intentionally empty in dev for this PR so no personal
+# email addresses are hardcoded and no confirmation emails are sent. A later
+# environment wiring step can pass confirmed admin/dev recipients when needed.
+module "sns_admin_notifications" {
+  source = "../../modules/sns"
+
+  name_prefix         = local.name_prefix
+  tags                = local.tags
+  email_subscriptions = []
+}
+
+############################################
 # Lambda execution IAM baseline
 ############################################
 

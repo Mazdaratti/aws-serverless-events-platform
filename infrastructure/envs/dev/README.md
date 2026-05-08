@@ -182,6 +182,104 @@ Validation:
 
 ---
 
+## EventBridge Async Event Bus Baseline
+
+Creates the custom EventBridge event bus baseline for the platform.
+
+Implemented via:
+
+- `modules/eventbridge`
+
+This environment currently wires in:
+
+- one custom EventBridge event bus
+- no EventBridge rules
+- no EventBridge targets
+
+Why this module is wired now:
+
+- the platform has locked EventBridge as the post-commit domain event router
+- the real `dev` environment now needs a concrete event bus before Lambda
+  publishing permissions and routing can be added
+- creating the bus separately keeps resource creation independent from later
+  fanout behavior
+
+Important design notes:
+
+- the event bus is intended for compact domain events after durable business
+  writes
+- no write Lambda publishes to EventBridge yet
+- no EventBridge rules or targets are configured in this PR
+- no EventBridge-to-SNS routing is configured yet
+- no EventBridge-to-SQS routing is configured yet
+- no Lambda `events:PutEvents` permissions are added yet
+- no Lambda environment variables or code are changed
+- the synchronous API and DynamoDB business write path remain unchanged
+
+The environment should stay thin:
+
+- reusable AWS resource logic belongs in modules
+- `envs/dev` should focus on composition and environment-level identity and
+  placement inputs
+
+Validation:
+
+- `terraform plan` confirms only the custom EventBridge event bus is added for
+  this module
+- confirmed the planned EventBridge bus name is:
+  - `aws-serverless-events-platform-dev-events`
+
+---
+
+## SNS Admin Notification Topic Baseline
+
+Creates the SNS admin notification topic baseline for the platform.
+
+Implemented via:
+
+- `modules/sns`
+
+This environment currently wires in:
+
+- one SNS admin notification topic
+- zero SNS email subscriptions
+
+Why this module is wired now:
+
+- the platform has locked SNS as the direct admin/platform broadcast path
+- the real `dev` environment now needs a concrete SNS admin topic before
+  EventBridge routing and topic-policy permissions can be added
+- creating the topic separately keeps topic ownership independent from later
+  EventBridge fanout behavior
+
+Important design notes:
+
+- the topic is intended for platform/admin broadcast notifications
+- SNS email subscriptions are intentionally empty in this PR
+- no personal email addresses are hardcoded
+- no SNS confirmation emails are sent by this wiring
+- no SNS topic policy is configured yet
+- no EventBridge-to-SNS routing is configured yet
+- no Lambda `events:PutEvents` permissions are added yet
+- no Lambda environment variables or code are changed
+- the synchronous API and DynamoDB business write path remain unchanged
+
+The environment should stay thin:
+
+- reusable AWS resource logic belongs in modules
+- `envs/dev` should focus on composition and environment-level identity and
+  placement inputs
+
+Validation:
+
+- `terraform plan` confirms only the SNS admin topic is added for this module
+- confirmed the planned SNS admin topic name is:
+  - `aws-serverless-events-platform-dev-admin-notifications`
+- confirmed planned SNS email subscriptions remain empty:
+  - `sns_admin_email_subscription_arns = {}`
+
+---
+
 ## IAM Roles (Lambda Execution Baseline)
 
 Defines the Lambda execution IAM baseline for the platform.
@@ -894,7 +992,7 @@ Validation:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.44.0 |
 
 ## Modules
 
@@ -904,9 +1002,11 @@ Validation:
 | <a name="module_cloudfront"></a> [cloudfront](#module\_cloudfront) | ../../modules/cloudfront | n/a |
 | <a name="module_cognito"></a> [cognito](#module\_cognito) | ../../modules/cognito | n/a |
 | <a name="module_dynamodb_data_layer"></a> [dynamodb\_data\_layer](#module\_dynamodb\_data\_layer) | ../../modules/dynamodb_data_layer | n/a |
+| <a name="module_eventbridge"></a> [eventbridge](#module\_eventbridge) | ../../modules/eventbridge | n/a |
 | <a name="module_iam"></a> [iam](#module\_iam) | ../../modules/iam | n/a |
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
 | <a name="module_s3_frontend_bucket"></a> [s3\_frontend\_bucket](#module\_s3\_frontend\_bucket) | ../../modules/s3_frontend_bucket | n/a |
+| <a name="module_sns_admin_notifications"></a> [sns\_admin\_notifications](#module\_sns\_admin\_notifications) | ../../modules/sns | n/a |
 | <a name="module_sqs"></a> [sqs](#module\_sqs) | ../../modules/sqs | n/a |
 | <a name="module_waf"></a> [waf](#module\_waf) | ../../modules/waf | n/a |
 
@@ -956,6 +1056,9 @@ Validation:
 | <a name="output_cognito_user_pool_client_id"></a> [cognito\_user\_pool\_client\_id](#output\_cognito\_user\_pool\_client\_id) | ID of the Cognito User Pool Client created for the dev environment. |
 | <a name="output_cognito_user_pool_endpoint"></a> [cognito\_user\_pool\_endpoint](#output\_cognito\_user\_pool\_endpoint) | Endpoint of the Cognito User Pool created for the dev environment. |
 | <a name="output_cognito_user_pool_id"></a> [cognito\_user\_pool\_id](#output\_cognito\_user\_pool\_id) | ID of the Cognito User Pool created for the dev environment. |
+| <a name="output_eventbridge_event_bus_arn"></a> [eventbridge\_event\_bus\_arn](#output\_eventbridge\_event\_bus\_arn) | ARN of the custom EventBridge event bus created for the dev environment. |
+| <a name="output_eventbridge_event_bus_id"></a> [eventbridge\_event\_bus\_id](#output\_eventbridge\_event\_bus\_id) | ID of the custom EventBridge event bus created for the dev environment. |
+| <a name="output_eventbridge_event_bus_name"></a> [eventbridge\_event\_bus\_name](#output\_eventbridge\_event\_bus\_name) | Name of the custom EventBridge event bus created for the dev environment. |
 | <a name="output_events_table_arn"></a> [events\_table\_arn](#output\_events\_table\_arn) | ARN of the DynamoDB events table created for the dev environment. |
 | <a name="output_events_table_name"></a> [events\_table\_name](#output\_events\_table\_name) | Name of the DynamoDB events table created for the dev environment. |
 | <a name="output_frontend_bucket_arn"></a> [frontend\_bucket\_arn](#output\_frontend\_bucket\_arn) | ARN of the private frontend origin bucket created for the dev environment. |
@@ -971,6 +1074,10 @@ Validation:
 | <a name="output_lambda_log_group_names"></a> [lambda\_log\_group\_names](#output\_lambda\_log\_group\_names) | Map of workload CloudWatch Logs log group names for the dev environment. |
 | <a name="output_rsvps_table_arn"></a> [rsvps\_table\_arn](#output\_rsvps\_table\_arn) | ARN of the DynamoDB RSVP table created for the dev environment. |
 | <a name="output_rsvps_table_name"></a> [rsvps\_table\_name](#output\_rsvps\_table\_name) | Name of the DynamoDB RSVP table created for the dev environment. |
+| <a name="output_sns_admin_email_subscription_arns"></a> [sns\_admin\_email\_subscription\_arns](#output\_sns\_admin\_email\_subscription\_arns) | Map of admin email endpoint to SNS subscription ARN for the dev environment. |
+| <a name="output_sns_admin_topic_arn"></a> [sns\_admin\_topic\_arn](#output\_sns\_admin\_topic\_arn) | ARN of the SNS admin notification topic created for the dev environment. |
+| <a name="output_sns_admin_topic_id"></a> [sns\_admin\_topic\_id](#output\_sns\_admin\_topic\_id) | ID of the SNS admin notification topic created for the dev environment. |
+| <a name="output_sns_admin_topic_name"></a> [sns\_admin\_topic\_name](#output\_sns\_admin\_topic\_name) | Name of the SNS admin notification topic created for the dev environment. |
 | <a name="output_sqs_dlq_arns"></a> [sqs\_dlq\_arns](#output\_sqs\_dlq\_arns) | Map of logical queue key to rendered SQS DLQ ARN for queues that create a dedicated DLQ in the dev environment. |
 | <a name="output_sqs_dlq_names"></a> [sqs\_dlq\_names](#output\_sqs\_dlq\_names) | Map of logical queue key to rendered SQS DLQ name for queues that create a dedicated DLQ in the dev environment. |
 | <a name="output_sqs_dlq_urls"></a> [sqs\_dlq\_urls](#output\_sqs\_dlq\_urls) | Map of logical queue key to rendered SQS DLQ URL for queues that create a dedicated DLQ in the dev environment. |

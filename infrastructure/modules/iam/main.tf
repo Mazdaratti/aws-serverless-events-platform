@@ -279,6 +279,24 @@ data "aws_iam_policy_document" "workload" {
       resources = [var.notification_dispatch_queue_arn]
     }
   }
+
+  dynamic "statement" {
+    for_each = (
+      var.eventbridge_publish_event_bus_arn != null &&
+      contains(local.eventbridge_publish_access_profiles, each.value.access_profile)
+    ) ? [1] : []
+
+    content {
+      sid    = "PublishDomainEvents"
+      effect = "Allow"
+
+      actions = ["events:PutEvents"]
+
+      resources = [
+        var.eventbridge_publish_event_bus_arn
+      ]
+    }
+  }
 }
 
 ############################################

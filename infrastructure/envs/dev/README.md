@@ -228,11 +228,12 @@ Important design notes:
   `notification-dispatch` SQS queue
 - SNS and SQS target resource policies are owned by `envs/dev` in
   `resource_policies.tf` because they bind concrete rules to concrete targets
-- no write Lambda publishes to EventBridge yet
 - write Lambda `events:PutEvents` permissions are configured through the IAM module
 - write Lambdas receive the custom event bus name through
   `EVENTBRIDGE_EVENT_BUS_NAME`
-- no Lambda publishing code is changed yet
+- `cancel-event` now publishes `event.cancelled` after successful durable
+  cancellation
+- `create-event` and `update-event` publishing remain pending
 - the synchronous API and DynamoDB business write path remain unchanged
 
 The environment should stay thin:
@@ -245,13 +246,15 @@ The environment should stay thin:
 
 Validation:
 
-- `terraform plan` confirms the EventBridge bus, rules, and targets are included
-  in this routing step
-- confirmed the planned EventBridge bus name is:
+- validated via `terraform apply`, AWS inspection, EventBridge-routed SQS
+  message receipt, and a clean post-apply `terraform plan`
+- confirmed the deployed EventBridge bus name is:
   - `aws-serverless-events-platform-dev-events`
-- confirmed planned EventBridge rules are:
+- confirmed deployed EventBridge rules are:
   - `admin_notifications`
   - `participant_notification_dispatch`
+- confirmed `event.cancelled` from `cancel-event` routes to the existing
+  `notification-dispatch` SQS queue with compact notification-safe detail
 
 ---
 
@@ -291,7 +294,9 @@ Important design notes:
 - write Lambda `events:PutEvents` permissions are configured through the IAM module
 - write Lambdas receive the custom event bus name through
   `EVENTBRIDGE_EVENT_BUS_NAME`
-- no Lambda publishing code is changed yet
+- `cancel-event` now publishes `event.cancelled` after successful durable
+  cancellation
+- `create-event` and `update-event` publishing remain pending
 - the synchronous API and DynamoDB business write path remain unchanged
 
 The environment should stay thin:
@@ -309,6 +314,8 @@ Validation:
 - confirmed planned SNS email subscriptions remain empty:
   - `sns_admin_email_subscription_arns = {}`
 - confirmed the topic policy principal is `events.amazonaws.com`
+- SNS email delivery was not validated because dev has no confirmed email
+  subscriptions configured
 
 ---
 
@@ -365,7 +372,9 @@ Important design notes:
 - EventBridge publish access is scoped to the custom dev event bus ARN
 - the matching write Lambda environment variable is wired in the Lambda module
   composition
-- Lambda publishing code is intentionally deferred to later PRs
+- `cancel-event` uses this permission to publish `event.cancelled` after
+  durable cancellation
+- `create-event` and `update-event` publishing code remains pending
 
 The environment should stay thin:
 
@@ -678,14 +687,19 @@ Important design notes:
   - `create-event`, `update-event`, and `cancel-event` also receive
     `EVENTBRIDGE_EVENT_BUS_NAME`
 - `EVENTBRIDGE_EVENT_BUS_NAME` gives write Lambdas the custom bus identity for
-  later domain-event publishing code
+  domain-event publishing
+- `cancel-event` now uses `EVENTBRIDGE_EVENT_BUS_NAME` to publish
+  `event.cancelled` after durable cancellation
+- `create-event` and `update-event` publishing remain pending
 - `rsvp-authorizer` receives only the Cognito/JWT verification environment it actually needs:
   - `COGNITO_ISSUER`
   - `COGNITO_APP_CLIENT_ID`
   - `COGNITO_ADMIN_GROUP_NAME`
 - all deployed functions return an API Gateway-style wrapped response even before API Gateway is wired
-- no Lambda handler publishes to EventBridge yet
-- Lambda publishing behavior is intentionally added one handler at a time in later PRs
+- `cancel-event` publishes `event.cancelled` to EventBridge after durable
+  cancellation
+- `create-event` and `update-event` publishing behavior remains pending and is
+  intentionally added one handler at a time in later PRs
 - reusable AWS resource logic belongs in modules
 - packaging is prepared before Terraform
 
@@ -743,6 +757,10 @@ Current business behavior validated in this environment:
   - repeated routed invocation returns `200` idempotently
   - anonymous routed invocation is rejected at the API edge
   - cancelled items use the locked public event DTO under `item`
+  - successful durable cancellation publishes `event.cancelled` to EventBridge
+  - repeated idempotent cancellation does not publish another `event.cancelled`
+  - EventBridge-routed `event.cancelled` messages reach `notification-dispatch`
+    SQS with compact notification-safe detail
   - `status = CANCELLED` is returned
   - public GSI helper attributes are removed while creator visibility helpers remain in storage
 - `rsvp`
@@ -806,6 +824,15 @@ Validation:
 - the EventBridge bus-name environment variable update was validated with local
   `terraform plan`
 - confirmed only `create-event`, `update-event`, and `cancel-event` receive `EVENTBRIDGE_EVENT_BUS_NAME`
+- confirmed `cancel-event` publishes `event.cancelled` after durable
+  cancellation
+- confirmed EventBridge publication does not change the successful API response
+- confirmed repeated `cancel-event` invocation stays idempotent and does not
+  publish a second `event.cancelled`
+- confirmed unauthorized `cancel-event` invocation returns `403` and does not
+  publish `event.cancelled`
+- confirmed the EventBridge-routed `event.cancelled` message reaches the
+  existing `notification-dispatch` SQS queue
 - confirmed deployed function names and log groups for:
   - `create-event`
   - `get-event`
@@ -818,6 +845,8 @@ Validation:
   - `rsvp-authorizer`
 - confirmed Terraform outputs match the created Lambda and log group identities
 - see evidence screenshots under `docs/assets/lambda/`
+- see cancel-event EventBridge validation screenshots under
+  `docs/assets/lambda_api/`
 
 ---
 

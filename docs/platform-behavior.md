@@ -1286,6 +1286,39 @@ The returned `item` uses the locked public event DTO, including:
 - repeated cancel attempts return the normal wrapped `item` response instead of
   an error
 
+#### Post-commit EventBridge publication
+
+After a successful durable `ACTIVE -> CANCELLED` state transition,
+`cancel-event` publishes one `event.cancelled` domain event to EventBridge.
+
+The published detail is compact and notification-safe:
+
+- `event_id`
+- `title`
+- `actor_user_id`
+- `occurred_at`
+- `event_detail_path`
+
+The event detail path uses:
+
+- `/app/events/<event_id>`
+
+`cancel-event` must not publish `event.cancelled` when:
+
+- input validation fails
+- the event does not exist
+- the caller is not authorized
+- the event was already `CANCELLED` before the update
+- a conditional write failure re-read shows the event is already `CANCELLED`
+- DynamoDB cancellation does not durably succeed
+
+EventBridge publish failure after durable cancellation is logged, but it must
+not:
+
+- change the successful `200` API response
+- roll back the DynamoDB cancellation
+- turn the original API result into `500`
+
 #### GSI behavior
 
 On cancel:

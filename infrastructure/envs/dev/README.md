@@ -229,7 +229,7 @@ Important design notes:
 - SNS and SQS target resource policies are owned by `envs/dev` in
   `resource_policies.tf` because they bind concrete rules to concrete targets
 - no write Lambda publishes to EventBridge yet
-- no Lambda `events:PutEvents` permissions are added yet
+- write Lambda `events:PutEvents` permissions are configured through the IAM module
 - no Lambda environment variables or code are changed
 - the synchronous API and DynamoDB business write path remain unchanged
 
@@ -286,7 +286,7 @@ Important design notes:
   `admin_notifications` rule ARN
 - admin notifications are routed directly from EventBridge to SNS
 - participant notifications do not use this topic
-- no Lambda `events:PutEvents` permissions are added yet
+- write Lambda `events:PutEvents` permissions are configured through the IAM module
 - no Lambda environment variables or code are changed
 - the synchronous API and DynamoDB business write path remain unchanged
 
@@ -333,16 +333,20 @@ Why this module is wired now:
 
 - workload execution roles must exist before Lambda functions can be deployed cleanly
 - the platform now has real DynamoDB and SQS resources available for least-privilege IAM binding
+- the platform now has a real EventBridge bus ARN available for scoped domain-event publish permissions
 - the environment can now validate workload-specific execution roles against concrete AWS resource ARNs
 
 Important design notes:
 
 - each workload gets its own least-privilege execution role and customer-managed policy
-- `create-event` receives write access for creating canonical event records in the `events` table
+- `create-event` receives write access for creating canonical event records in
+  the `events` table and scoped EventBridge publish access to the custom event bus
 - `get-event` receives only direct `GetItem` access for the `events` table
 - `list-events` currently receives temporary `Scan` access for the `events` table as a short-term access-pattern accommodation
 - `list-my-events` receives `Query` access for the `creator-events` GSI
-- `update-event` and `cancel-event` receive narrow `GetItem` + `UpdateItem` access for the `events` table
+- `update-event` and `cancel-event` receive narrow `GetItem` + `UpdateItem`
+  access for the `events` table and scoped EventBridge publish access to the
+  custom event bus
 - `rsvp` is the transactional workload role and spans both business tables so it can:
   - read the current event state
   - read the current RSVP state
@@ -352,6 +356,11 @@ Important design notes:
   - `Query` on `rsvps`
 - `rsvp-authorizer` uses a logs-only execution profile because Cognito token validation and JWKS retrieval happen without direct Cognito IAM access
 - `notification-worker` is the only workload that currently receives SQS consumer permissions
+- only `create-event`, `update-event`, and `cancel-event` receive
+  `events:PutEvents`
+- EventBridge publish access is scoped to the custom dev event bus ARN
+- Lambda environment variables and Lambda publishing code are intentionally
+  deferred to later PRs
 
 The environment should stay thin:
 
@@ -360,8 +369,11 @@ The environment should stay thin:
 
 Validation:
 
-- validated via `terraform apply`, AWS inspection, and a clean post-apply `terraform plan`
+- validated via `terraform apply`, AWS inspection, and a clean post-apply `terraform plan` for the original IAM baseline
+- the EventBridge publish permission update was validated with local `terraform plan`
 - confirmed all wired workload roles were created with Lambda-only trust relationships
+- confirmed the planned IAM policy updates are limited to `create-event`, `update-event`, and `cancel-event`
+- confirmed no Lambda environment variables or Lambda code changes are included
 - confirmed `get-event` has narrow direct-read access for the events table
 - confirmed `list-events` has temporary `Scan` access for the events table only
 - confirmed `list-my-events` has narrow `Query` access for the `creator-events` GSI
@@ -1023,7 +1035,7 @@ Validation:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.44.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
 
 ## Modules
 

@@ -212,6 +212,11 @@ module "lambda" {
         contains(["create-event", "get-event", "list-events", "list-my-events", "update-event", "cancel-event", "rsvp", "get-event-rsvps"], function_key) ? {
           EVENTS_TABLE_NAME = module.dynamodb_data_layer.events_table_name
         } : {},
+        contains(["create-event", "update-event", "cancel-event"], function_key) ? {
+          # These write Lambdas already have scoped events:PutEvents IAM access.
+          # Handler publishing code is intentionally added in later PRs.
+          EVENTBRIDGE_EVENT_BUS_NAME = module.eventbridge.event_bus_name
+        } : {},
         function_key == "rsvp-authorizer" ? {
           COGNITO_ISSUER           = module.cognito.issuer
           COGNITO_APP_CLIENT_ID    = module.cognito.user_pool_client_id

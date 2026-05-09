@@ -32,6 +32,15 @@ locals {
     workload_key => "${var.name_prefix}-${workload_key}-policy"
   }
 
+  # Only event-management write workloads publish domain events. Read paths,
+  # RSVP, authorizers, and notification consumers must not receive EventBridge
+  # PutEvents access from this module.
+  eventbridge_publish_access_profiles = toset([
+    "create_event",
+    "update_event",
+    "cancel_event"
+  ])
+
   # Each access profile expands to a fixed least-privilege intent. The concrete
   # IAM actions will be generated from this profile data in main.tf.
   access_profiles = {

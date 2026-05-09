@@ -137,9 +137,10 @@ module "iam" {
   name_prefix = local.name_prefix
   tags        = local.tags
 
-  events_table_arn                = module.dynamodb_data_layer.events_table_arn
-  rsvps_table_arn                 = module.dynamodb_data_layer.rsvps_table_arn
-  notification_dispatch_queue_arn = module.sqs.queue_arns["notification-dispatch"]
+  events_table_arn                  = module.dynamodb_data_layer.events_table_arn
+  rsvps_table_arn                   = module.dynamodb_data_layer.rsvps_table_arn
+  notification_dispatch_queue_arn   = module.sqs.queue_arns["notification-dispatch"]
+  eventbridge_publish_event_bus_arn = module.eventbridge.event_bus_arn
 
   workloads = {
     create-event = {

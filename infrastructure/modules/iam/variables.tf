@@ -56,6 +56,20 @@ variable "notification_dispatch_queue_arn" {
   }
 }
 
+variable "eventbridge_publish_event_bus_arn" {
+  description = "ARN of the EventBridge event bus write workloads may publish domain events to. When null, no EventBridge publish permissions are granted."
+  type        = string
+  default     = null
+
+  validation {
+    condition = (
+      var.eventbridge_publish_event_bus_arn == null ||
+      length(trimspace(var.eventbridge_publish_event_bus_arn)) > 0
+    )
+    error_message = "eventbridge_publish_event_bus_arn must be null or a non-empty string."
+  }
+}
+
 ############################################
 # Workload role definitions
 ############################################

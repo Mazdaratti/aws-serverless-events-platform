@@ -6,6 +6,7 @@ import pytest
 from botocore.exceptions import ClientError
 
 from lambdas.cancel_event import handler
+from lambdas.shared.eventbridge import EventBridgePublishError
 
 
 def _authenticated_event(*, user_id: str = "alice", is_admin: bool = False) -> dict[str, object]:
@@ -78,7 +79,24 @@ def mock_table(monkeypatch):
     return table
 
 
-def test_lambda_handler_allows_creator_to_cancel_active_event(mock_table):
+@pytest.fixture
+def mock_eventbridge_publish(monkeypatch):
+    eventbridge_client = Mock()
+    publish = Mock()
+
+    monkeypatch.setenv("EVENTBRIDGE_EVENT_BUS_NAME", "example-event-bus")
+    monkeypatch.setattr(handler, "_get_eventbridge_client", lambda: eventbridge_client)
+    monkeypatch.setattr(handler, "_utc_now_iso", lambda: "2026-05-09T10:00:00Z")
+    monkeypatch.setattr(handler, "publish_domain_event", publish)
+
+    return publish, eventbridge_client
+
+
+def test_lambda_handler_allows_creator_to_cancel_active_event(
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
     mock_table.get_item.return_value = {
         "Item": _valid_item(),
     }
@@ -132,9 +150,163 @@ def test_lambda_handler_allows_creator_to_cancel_active_event(mock_table):
     assert update_kwargs["ExpressionAttributeNames"] == {
     "#status": "status",
     }
+    publish.assert_called_once()
 
 
-def test_lambda_handler_allows_admin_to_cancel_someone_elses_event(mock_table):
+def test_lambda_handler_publishes_event_cancelled_after_successful_transition(
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, eventbridge_client = mock_eventbridge_publish
+    mock_table.get_item.return_value = {
+        "Item": _valid_item(),
+    }
+    mock_table.update_item.return_value = {
+        "Attributes": _cancelled_item(),
+    }
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "event_id": "11111111-1111-1111-1111-111111111111",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    publish.assert_called_once_with(
+        eventbridge_client=eventbridge_client,
+        event_bus_name="example-event-bus",
+        source="aws-serverless-events-platform",
+        detail_type="event.cancelled",
+        detail={
+            "event_id": "11111111-1111-1111-1111-111111111111",
+            "title": "Platform Launch Event",
+            "actor_user_id": "alice",
+            "occurred_at": "2026-05-09T10:00:00Z",
+            "event_detail_path": "/app/events/11111111-1111-1111-1111-111111111111",
+        },
+    )
+
+
+def test_lambda_handler_published_event_detail_uses_only_notification_safe_fields(
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
+    mock_table.get_item.return_value = {
+        "Item": _valid_item(),
+    }
+    mock_table.update_item.return_value = {
+        "Attributes": _cancelled_item(),
+    }
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "event_id": "11111111-1111-1111-1111-111111111111",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    detail = publish.call_args.kwargs["detail"]
+    assert set(detail) == {
+        "event_id",
+        "title",
+        "actor_user_id",
+        "occurred_at",
+        "event_detail_path",
+    }
+    assert "email" not in detail
+    assert "anonymous_token" not in detail
+    assert "event_pk" not in detail
+    assert "rsvps" not in detail
+    assert "claims" not in detail
+
+
+def test_lambda_handler_keeps_success_response_when_eventbridge_publish_fails(
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
+    publish.side_effect = EventBridgePublishError("put events failed")
+    mock_table.get_item.return_value = {
+        "Item": _valid_item(),
+    }
+    mock_table.update_item.return_value = {
+        "Attributes": _cancelled_item(),
+    }
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "event_id": "11111111-1111-1111-1111-111111111111",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"])["item"]["status"] == "CANCELLED"
+    publish.assert_called_once()
+
+
+def test_lambda_handler_does_not_publish_for_invalid_input(mock_table, mock_eventbridge_publish):
+    publish, _eventbridge_client = mock_eventbridge_publish
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 400
+    publish.assert_not_called()
+
+
+def test_lambda_handler_does_not_publish_when_event_is_missing(mock_table, mock_eventbridge_publish):
+    publish, _eventbridge_client = mock_eventbridge_publish
+    mock_table.get_item.return_value = {}
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "event_id": "11111111-1111-1111-1111-111111111111",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 404
+    publish.assert_not_called()
+
+
+def test_lambda_handler_does_not_publish_when_caller_is_unauthorized(
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
+    mock_table.get_item.return_value = {
+        "Item": _valid_item(creator_id="bob"),
+    }
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="mallory"),
+            "event_id": "11111111-1111-1111-1111-111111111111",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 403
+    publish.assert_not_called()
+
+
+def test_lambda_handler_allows_admin_to_cancel_someone_elses_event(
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
     mock_table.get_item.return_value = {
         "Item": _valid_item(creator_id="bob"),
     }
@@ -153,9 +325,14 @@ def test_lambda_handler_allows_admin_to_cancel_someone_elses_event(mock_table):
     assert response["statusCode"] == 200
     assert json.loads(response["body"])["item"]["status"] == "CANCELLED"
     assert json.loads(response["body"])["item"]["created_by"] == "bob"
+    publish.assert_called_once()
 
 
-def test_lambda_handler_returns_success_idempotently_for_already_cancelled_event(mock_table):
+def test_lambda_handler_returns_success_idempotently_for_already_cancelled_event(
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
     mock_table.get_item.return_value = {
         "Item": _cancelled_item(),
     }
@@ -171,6 +348,7 @@ def test_lambda_handler_returns_success_idempotently_for_already_cancelled_event
     assert response["statusCode"] == 200
     assert json.loads(response["body"])["item"]["status"] == "CANCELLED"
     mock_table.update_item.assert_not_called()
+    publish.assert_not_called()
 
 
 def test_lambda_handler_returns_403_for_authenticated_non_owner_non_admin(mock_table):
@@ -207,7 +385,11 @@ def test_lambda_handler_returns_404_when_event_does_not_exist(mock_table):
     mock_table.update_item.assert_not_called()
 
 
-def test_lambda_handler_accepts_path_parameters_for_event_id(mock_table):
+def test_lambda_handler_accepts_path_parameters_for_event_id(
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
     mock_table.get_item.return_value = {
         "Item": _valid_item(event_pk="EVENT#22222222-2222-2222-2222-222222222222"),
     }
@@ -228,6 +410,7 @@ def test_lambda_handler_accepts_path_parameters_for_event_id(mock_table):
     mock_table.get_item.assert_called_once_with(
         Key={"event_pk": "EVENT#22222222-2222-2222-2222-222222222222"}
     )
+    assert publish.call_args.kwargs["detail"]["event_id"] == "22222222-2222-2222-2222-222222222222"
 
 
 def test_lambda_handler_returns_400_for_missing_event_id(mock_table):
@@ -271,7 +454,11 @@ def test_lambda_handler_returns_400_for_missing_caller_context(mock_table):
     mock_table.get_item.assert_not_called()
 
 
-def test_lambda_handler_returns_200_when_conditional_reread_shows_event_is_now_cancelled(mock_table):
+def test_lambda_handler_returns_200_when_conditional_reread_shows_event_is_now_cancelled(
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
     mock_table.get_item.side_effect = [
         {"Item": _valid_item()},
         {"Item": _cancelled_item()},
@@ -288,6 +475,7 @@ def test_lambda_handler_returns_200_when_conditional_reread_shows_event_is_now_c
 
     assert response["statusCode"] == 200
     assert json.loads(response["body"])["item"]["status"] == "CANCELLED"
+    publish.assert_not_called()
 
 
 def test_lambda_handler_returns_500_for_unexpected_conditional_cancel_failure(mock_table):

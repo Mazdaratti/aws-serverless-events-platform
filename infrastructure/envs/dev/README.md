@@ -230,7 +230,9 @@ Important design notes:
   `resource_policies.tf` because they bind concrete rules to concrete targets
 - no write Lambda publishes to EventBridge yet
 - write Lambda `events:PutEvents` permissions are configured through the IAM module
-- no Lambda environment variables or code are changed
+- write Lambdas receive the custom event bus name through
+  `EVENTBRIDGE_EVENT_BUS_NAME`
+- no Lambda publishing code is changed yet
 - the synchronous API and DynamoDB business write path remain unchanged
 
 The environment should stay thin:
@@ -287,7 +289,9 @@ Important design notes:
 - admin notifications are routed directly from EventBridge to SNS
 - participant notifications do not use this topic
 - write Lambda `events:PutEvents` permissions are configured through the IAM module
-- no Lambda environment variables or code are changed
+- write Lambdas receive the custom event bus name through
+  `EVENTBRIDGE_EVENT_BUS_NAME`
+- no Lambda publishing code is changed yet
 - the synchronous API and DynamoDB business write path remain unchanged
 
 The environment should stay thin:
@@ -359,8 +363,9 @@ Important design notes:
 - only `create-event`, `update-event`, and `cancel-event` receive
   `events:PutEvents`
 - EventBridge publish access is scoped to the custom dev event bus ARN
-- Lambda environment variables and Lambda publishing code are intentionally
-  deferred to later PRs
+- the matching write Lambda environment variable is wired in the Lambda module
+  composition
+- Lambda publishing code is intentionally deferred to later PRs
 
 The environment should stay thin:
 
@@ -373,7 +378,8 @@ Validation:
 - the EventBridge publish permission update was validated with local `terraform plan`
 - confirmed all wired workload roles were created with Lambda-only trust relationships
 - confirmed the planned IAM policy updates are limited to `create-event`, `update-event`, and `cancel-event`
-- confirmed no Lambda environment variables or Lambda code changes are included
+- confirmed the IAM update did not include Lambda environment variable or Lambda
+  code changes
 - confirmed `get-event` has narrow direct-read access for the events table
 - confirmed `list-events` has temporary `Scan` access for the events table only
 - confirmed `list-my-events` has narrow `Query` access for the `creator-events` GSI
@@ -667,13 +673,19 @@ Important design notes:
 - `envs/dev` stays thin and composition-only
 - each deployed function uses its matching least-privilege IAM role
 - each deployed function receives only the environment variables it actually needs:
-  - all current Lambda workloads receive `EVENTS_TABLE_NAME`
+  - event API workloads receive `EVENTS_TABLE_NAME`
   - `rsvp` and `get-event-rsvps` also receive `RSVPS_TABLE_NAME`
+  - `create-event`, `update-event`, and `cancel-event` also receive
+    `EVENTBRIDGE_EVENT_BUS_NAME`
+- `EVENTBRIDGE_EVENT_BUS_NAME` gives write Lambdas the custom bus identity for
+  later domain-event publishing code
 - `rsvp-authorizer` receives only the Cognito/JWT verification environment it actually needs:
   - `COGNITO_ISSUER`
   - `COGNITO_APP_CLIENT_ID`
   - `COGNITO_ADMIN_GROUP_NAME`
 - all deployed functions return an API Gateway-style wrapped response even before API Gateway is wired
+- no Lambda handler publishes to EventBridge yet
+- Lambda publishing behavior is intentionally added one handler at a time in later PRs
 - reusable AWS resource logic belongs in modules
 - packaging is prepared before Terraform
 
@@ -791,6 +803,9 @@ Public event DTO behavior validated across the event read/update/cancel flows:
 Validation:
 
 - validated via external artifact packaging, `terraform apply`, Lambda invocation, DynamoDB inspection, CloudWatch logs inspection, and a clean post-apply `terraform plan`
+- the EventBridge bus-name environment variable update was validated with local
+  `terraform plan`
+- confirmed only `create-event`, `update-event`, and `cancel-event` receive `EVENTBRIDGE_EVENT_BUS_NAME`
 - confirmed deployed function names and log groups for:
   - `create-event`
   - `get-event`

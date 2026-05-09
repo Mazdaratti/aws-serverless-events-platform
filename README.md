@@ -143,7 +143,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - SQS queue policy scoped to the EventBridge participant dispatch rule
     - write Lambda IAM publishing permissions scoped to the custom EventBridge bus
     - write Lambda EventBridge bus-name environment variable wiring
-    - no Lambda publishing code changes yet
+    - `cancel-event` publishes `event.cancelled` after durable cancellation
+    - `create-event` and `update-event` publishing remain pending
   - `infrastructure/envs/dev` wiring for the routed backend baseline
 - Core synchronous Lambda rollout
   - `create-event`
@@ -641,7 +642,7 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - add least-privilege EventBridge publishing permissions for write Lambdas ✅
    - wire EventBridge bus-name environment variable for write Lambdas ✅
    - publish `event.cancelled` from `cancel-event` after successful durable
-     cancellation, with tests and validation
+     cancellation, with tests and validation ✅
    - publish `event.created` from `create-event` after successful durable
      creation, with tests and validation
    - publish `event.updated` from `update-event` after successful durable

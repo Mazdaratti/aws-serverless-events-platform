@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -8,7 +9,11 @@ import boto3
 from botocore.exceptions import ClientError
 
 from shared.auth import require_authenticated_caller
+from shared.eventbridge import EventBridgePublishError, publish_domain_event
 
+
+EVENTBRIDGE_SOURCE = "aws-serverless-events-platform"
+EVENT_CANCELLED_DETAIL_TYPE = "event.cancelled"
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -30,7 +35,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # 3. read the current event item
     # 4. enforce existence, authorization, and lifecycle rules
     # 5. issue a conditional DynamoDB UpdateItem when the event is still active
-    # 6. return the current public event DTO in the standard wrapper
+    # 6. publish a compact post-commit domain event after a real cancellation
+    # 7. return the current public event DTO in the standard wrapper
     logger.info("cancel-event invocation started")
 
     try:
@@ -46,11 +52,13 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         events_table_name = _get_required_env("EVENTS_TABLE_NAME")
         table = _get_dynamodb_table(events_table_name)
 
-        response_body = _cancel_event(
+        response_body, cancellation_event_detail = _cancel_event(
             table=table,
             event_id=event_id,
             caller_context=caller_context,
+            occurred_at=_utc_now_iso(),
         )
+        _publish_event_cancelled_if_needed(cancellation_event_detail)
         logger.info("cancel-event completed for event_id %s", event_id)
 
         return _success_response(status_code=200, body=response_body)
@@ -105,7 +113,13 @@ def _resolve_event_id(event: dict[str, Any]) -> Any:
     return event.get("event_id")
 
 
-def _cancel_event(*, table: Any, event_id: str, caller_context: dict[str, Any]) -> dict[str, Any]:
+def _cancel_event(
+    *,
+    table: Any,
+    event_id: str,
+    caller_context: dict[str, Any],
+    occurred_at: str,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
     event_pk = f"EVENT#{event_id}"
     logger.info("reading current event item %s from DynamoDB", event_pk)
     current_response = table.get_item(Key={"event_pk": event_pk})
@@ -121,7 +135,7 @@ def _cancel_event(*, table: Any, event_id: str, caller_context: dict[str, Any]) 
     _authorize_cancel(caller_context=caller_context, current_state=current_state)
 
     if current_state["status"] == "CANCELLED":
-        return {"item": _to_event_dto(current_item)}
+        return {"item": _to_event_dto(current_item)}, None
 
     logger.info("cancelling event item %s in DynamoDB", event_pk)
     try:
@@ -152,7 +166,12 @@ def _cancel_event(*, table: Any, event_id: str, caller_context: dict[str, Any]) 
     if not isinstance(updated_item, dict):
         raise EventDtoMappingError("Updated DynamoDB item must be an object.")
 
-    return {"item": _to_event_dto(updated_item)}
+    updated_dto = _to_event_dto(updated_item)
+    return {"item": updated_dto}, _to_event_cancelled_detail(
+        event_dto=updated_dto,
+        actor_user_id=caller_context["user_id"],
+        occurred_at=occurred_at,
+    )
 
 
 def _handle_conditional_cancel_failure(
@@ -160,7 +179,7 @@ def _handle_conditional_cancel_failure(
     table: Any,
     event_id: str,
     caller_context: dict[str, Any],
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], None]:
     event_pk = f"EVENT#{event_id}"
     latest_response = table.get_item(Key={"event_pk": event_pk})
     latest_item = latest_response.get("Item")
@@ -175,11 +194,48 @@ def _handle_conditional_cancel_failure(
     _authorize_cancel(caller_context=caller_context, current_state=latest_state)
 
     if latest_state["status"] == "CANCELLED":
-        return {"item": _to_event_dto(latest_item)}
+        return {"item": _to_event_dto(latest_item)}, None
 
     raise ConditionalCancelStateError(
         "Conditional cancel failed for an unexpected internal state transition."
     )
+
+
+def _publish_event_cancelled_if_needed(detail: dict[str, Any] | None) -> None:
+    if detail is None:
+        return
+
+    try:
+        event_bus_name = _get_required_env("EVENTBRIDGE_EVENT_BUS_NAME")
+        publish_domain_event(
+            eventbridge_client=_get_eventbridge_client(),
+            event_bus_name=event_bus_name,
+            source=EVENTBRIDGE_SOURCE,
+            detail_type=EVENT_CANCELLED_DETAIL_TYPE,
+            detail=detail,
+        )
+        logger.info("published event.cancelled for event_id %s", detail["event_id"])
+    except (ClientError, EventBridgePublishError, RuntimeError, ValueError):
+        logger.exception("failed to publish event.cancelled for event_id %s", detail.get("event_id"))
+
+
+def _to_event_cancelled_detail(
+    *,
+    event_dto: dict[str, Any],
+    actor_user_id: str | None,
+    occurred_at: str,
+) -> dict[str, Any]:
+    return {
+        "event_id": event_dto["event_id"],
+        "title": event_dto["title"],
+        "actor_user_id": actor_user_id,
+        "occurred_at": occurred_at,
+        "event_detail_path": f"/app/events/{event_dto['event_id']}",
+    }
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _to_internal_event_state(item: dict[str, Any]) -> dict[str, Any]:
@@ -324,11 +380,8 @@ def _get_dynamodb_table(table_name: str):
     return boto3.resource("dynamodb").Table(table_name)
 
 
-def _coerce_bool(value: Any, field_name: str) -> bool:
-    if isinstance(value, bool):
-        return value
-
-    raise ValueError(f"{field_name} must be a boolean when provided.")
+def _get_eventbridge_client():
+    return boto3.client("events")
 
 
 def _success_response(*, status_code: int, body: dict[str, Any]) -> dict[str, Any]:

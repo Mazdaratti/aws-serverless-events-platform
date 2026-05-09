@@ -59,6 +59,18 @@ That bootstrap aligns local import-path behavior with CI so Lambda handlers can
 be tested locally using the same `shared/...` import layout expected by the
 packaged deployment artifacts.
 
+Install the local Lambda test dependencies into the repository virtual
+environment before running handler tests locally:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install pytest boto3
+```
+
+`boto3` also installs `botocore`, which the tests use for AWS SDK exception
+shapes and mocked client behavior. These dependencies are for local unit tests
+and helper scripts; they do not require AWS credentials for mocked handler
+tests.
+
 ## Docker
 
 Docker is currently required for the mixed-mode RSVP authorizer packaging flow.

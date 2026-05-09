@@ -56,10 +56,11 @@ That vendor directory is:
 
 It must not become a shared dependency bucket for other Lambdas.
 
-## Local Test Install
+## Authorizer Local Test Install
 
-For local unit tests, dependencies can be installed into the workload-local
-vendor directory so the handler test file can import them directly.
+For RSVP authorizer local unit tests, dependencies can be installed into the
+workload-local vendor directory so the handler test file can import them
+directly.
 
 Example:
 

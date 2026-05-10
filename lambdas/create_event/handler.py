@@ -6,9 +6,14 @@ from datetime import datetime, timezone
 from typing import Any
 
 import boto3
+from botocore.exceptions import ClientError
 
 from shared.auth import require_authenticated_caller
+from shared.eventbridge import EventBridgePublishError, publish_domain_event
 
+
+EVENTBRIDGE_SOURCE = "aws-serverless-events-platform"
+EVENT_CREATED_DETAIL_TYPE = "event.created"
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -20,7 +25,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # 2. parse and validate the request payload
     # 3. build the canonical DynamoDB item
     # 4. write it
-    # 5. return an API Gateway-style response
+    # 5. publish a compact post-commit domain event
+    # 6. return an API Gateway-style response
     logger.info("create-event invocation started")
 
     try:
@@ -49,9 +55,18 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         table.put_item(Item=item)
         logger.info("event item %s written successfully", event_pk)
 
+        public_event = _to_public_event_dto(item)
+        _publish_event_created(
+            _to_event_created_detail(
+                event_dto=public_event,
+                actor_user_id=caller_context["user_id"],
+                occurred_at=created_at,
+            )
+        )
+
         return _success_response(
             status_code=201,
-            body={"item": _to_public_event_dto(item)},
+            body={"item": public_event},
         )
     except ValueError as exc:
         logger.info("create-event validation failed: %s", exc)
@@ -192,6 +207,36 @@ def _to_public_event_dto(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _publish_event_created(detail: dict[str, Any]) -> None:
+    try:
+        event_bus_name = _get_required_env("EVENTBRIDGE_EVENT_BUS_NAME")
+        publish_domain_event(
+            eventbridge_client=_get_eventbridge_client(),
+            event_bus_name=event_bus_name,
+            source=EVENTBRIDGE_SOURCE,
+            detail_type=EVENT_CREATED_DETAIL_TYPE,
+            detail=detail,
+        )
+        logger.info("published event.created for event_id %s", detail["event_id"])
+    except (ClientError, EventBridgePublishError, RuntimeError, ValueError):
+        logger.exception("failed to publish event.created for event_id %s", detail.get("event_id"))
+
+
+def _to_event_created_detail(
+    *,
+    event_dto: dict[str, Any],
+    actor_user_id: str | None,
+    occurred_at: str,
+) -> dict[str, Any]:
+    return {
+        "event_id": event_dto["event_id"],
+        "title": event_dto["title"],
+        "actor_user_id": actor_user_id,
+        "occurred_at": occurred_at,
+        "event_detail_path": f"/app/events/{event_dto['event_id']}",
+    }
+
+
 def _normalize_event_date(raw_value: Any) -> str:
     # Normalize all accepted date inputs into one stored format so DynamoDB
     # items and index sort keys stay consistent.
@@ -239,6 +284,10 @@ def _get_dynamodb_table(table_name: str):
     # Create the DynamoDB table resource lazily so importing this module does
     # not require ambient AWS region configuration during tests.
     return boto3.resource("dynamodb").Table(table_name)
+
+
+def _get_eventbridge_client():
+    return boto3.client("events")
 
 
 def _coerce_bool(value: Any, field_name: str) -> bool:

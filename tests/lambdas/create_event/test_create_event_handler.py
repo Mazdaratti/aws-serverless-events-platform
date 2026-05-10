@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import pytest
 
 from lambdas.create_event import handler
+from lambdas.shared.eventbridge import EventBridgePublishError
 
 
 def _authenticated_event(*, user_id: str = "alice", is_admin: bool = False) -> dict[str, object]:
@@ -31,7 +32,24 @@ def mock_table(monkeypatch):
     return table
 
 
-def test_lambda_handler_returns_created_response_for_direct_payload(monkeypatch, mock_table):
+@pytest.fixture
+def mock_eventbridge_publish(monkeypatch):
+    eventbridge_client = Mock()
+    publish = Mock()
+
+    monkeypatch.setenv("EVENTBRIDGE_EVENT_BUS_NAME", "example-event-bus")
+    monkeypatch.setattr(handler, "_get_eventbridge_client", lambda: eventbridge_client)
+    monkeypatch.setattr(handler, "publish_domain_event", publish)
+
+    return publish, eventbridge_client
+
+
+def test_lambda_handler_returns_created_response_for_direct_payload(
+    monkeypatch,
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
     # Freeze the generated ID and timestamp so the response and DynamoDB item
     # shape can be asserted deterministically.
     monkeypatch.setattr(handler.uuid, "uuid4", lambda: "12345678-1234-1234-1234-123456789abc")
@@ -99,9 +117,10 @@ def test_lambda_handler_returns_created_response_for_direct_payload(monkeypatch,
         "public_upcoming_gsi_pk": "PUBLIC",
         "public_upcoming_gsi_sk": "2026-06-15T00:00:00Z#12345678-1234-1234-1234-123456789abc",
     }
+    publish.assert_called_once()
 
 
-def test_lambda_handler_accepts_body_wrapped_json(monkeypatch, mock_table):
+def test_lambda_handler_accepts_body_wrapped_json(monkeypatch, mock_table, mock_eventbridge_publish):
     # This mirrors the future API Gateway shape where the Lambda receives a
     # JSON string under "body" instead of a plain top-level payload.
     monkeypatch.setattr(handler.uuid, "uuid4", lambda: "aaaaaaaa-1234-1234-1234-aaaaaaaaaaaa")
@@ -140,7 +159,112 @@ def test_lambda_handler_accepts_body_wrapped_json(monkeypatch, mock_table):
     assert "public_upcoming_gsi_sk" not in item
 
 
-def test_lambda_handler_returns_400_when_caller_context_is_missing(mock_table):
+def test_lambda_handler_publishes_event_created_after_successful_create(
+    monkeypatch,
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, eventbridge_client = mock_eventbridge_publish
+    monkeypatch.setattr(handler.uuid, "uuid4", lambda: "dddddddd-1234-1234-1234-dddddddddddd")
+    monkeypatch.setattr(handler, "_utc_now_iso8601", lambda: "2026-05-10T10:00:00Z")
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "title": "EventBridge Created Validation",
+            "date": "2026-09-01T18:00:00Z",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 201
+    mock_table.put_item.assert_called_once()
+    publish.assert_called_once_with(
+        eventbridge_client=eventbridge_client,
+        event_bus_name="example-event-bus",
+        source="aws-serverless-events-platform",
+        detail_type="event.created",
+        detail={
+            "event_id": "dddddddd-1234-1234-1234-dddddddddddd",
+            "title": "EventBridge Created Validation",
+            "actor_user_id": "alice",
+            "occurred_at": "2026-05-10T10:00:00Z",
+            "event_detail_path": "/app/events/dddddddd-1234-1234-1234-dddddddddddd",
+        },
+    )
+
+
+def test_lambda_handler_published_event_detail_uses_only_notification_safe_fields(
+    monkeypatch,
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
+    monkeypatch.setattr(handler.uuid, "uuid4", lambda: "eeeeeeee-1234-1234-1234-eeeeeeeeeeee")
+    monkeypatch.setattr(handler, "_utc_now_iso8601", lambda: "2026-05-10T10:00:00Z")
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "title": "Safe Payload Check",
+            "date": "2026-09-01T18:00:00Z",
+            "description": "This should stay out of the EventBridge detail.",
+            "location": "Berlin",
+            "capacity": 20,
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 201
+    detail = publish.call_args.kwargs["detail"]
+    assert set(detail) == {
+        "event_id",
+        "title",
+        "actor_user_id",
+        "occurred_at",
+        "event_detail_path",
+    }
+    assert "email" not in detail
+    assert "anonymous_token" not in detail
+    assert "event_pk" not in detail
+    assert "rsvps" not in detail
+    assert "claims" not in detail
+    assert "description" not in detail
+    assert "location" not in detail
+
+
+def test_lambda_handler_keeps_success_response_when_eventbridge_publish_fails(
+    monkeypatch,
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
+    publish.side_effect = EventBridgePublishError("put events failed")
+    monkeypatch.setattr(handler.uuid, "uuid4", lambda: "ffffffff-1234-1234-1234-ffffffffffff")
+    monkeypatch.setattr(handler, "_utc_now_iso8601", lambda: "2026-05-10T10:00:00Z")
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "title": "Publish Failure Still Creates Event",
+            "date": "2026-09-01T18:00:00Z",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 201
+    body = json.loads(response["body"])
+    assert body["item"]["event_id"] == "ffffffff-1234-1234-1234-ffffffffffff"
+    assert body["item"]["status"] == "ACTIVE"
+    mock_table.put_item.assert_called_once()
+    publish.assert_called_once()
+
+
+def test_lambda_handler_returns_400_when_caller_context_is_missing(
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
     # Event creation is no longer anonymous. Missing caller context should fail
     # before any DynamoDB write is attempted.
     response = handler.lambda_handler(
@@ -156,9 +280,11 @@ def test_lambda_handler_returns_400_when_caller_context_is_missing(mock_table):
         "message": "Authenticated caller context is required."
     }
     mock_table.put_item.assert_not_called()
+    publish.assert_not_called()
 
 
-def test_lambda_handler_returns_400_when_title_is_missing(mock_table):
+def test_lambda_handler_returns_400_when_title_is_missing(mock_table, mock_eventbridge_publish):
+    publish, _eventbridge_client = mock_eventbridge_publish
     # Validation failures should not write anything to DynamoDB.
     response = handler.lambda_handler(
         {
@@ -173,9 +299,11 @@ def test_lambda_handler_returns_400_when_title_is_missing(mock_table):
         "message": "title is required and must not be empty."
     }
     mock_table.put_item.assert_not_called()
+    publish.assert_not_called()
 
 
-def test_lambda_handler_returns_400_when_date_is_invalid(mock_table):
+def test_lambda_handler_returns_400_when_date_is_invalid(mock_table, mock_eventbridge_publish):
+    publish, _eventbridge_client = mock_eventbridge_publish
     # Invalid dates should be rejected before normalization or persistence.
     response = handler.lambda_handler(
         {
@@ -191,9 +319,37 @@ def test_lambda_handler_returns_400_when_date_is_invalid(mock_table):
         "message": "date must use ISO 8601 format."
     }
     mock_table.put_item.assert_not_called()
+    publish.assert_not_called()
 
 
-def test_lambda_handler_ignores_request_body_creator_id(monkeypatch, mock_table):
+def test_lambda_handler_does_not_publish_when_dynamodb_create_fails(
+    monkeypatch,
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
+    monkeypatch.setattr(handler.uuid, "uuid4", lambda: "99999999-1234-1234-1234-999999999999")
+    monkeypatch.setattr(handler, "_utc_now_iso8601", lambda: "2026-05-10T10:00:00Z")
+    mock_table.put_item.side_effect = RuntimeError("DynamoDB write failed")
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "title": "Failed Create",
+            "date": "2026-09-01T18:00:00Z",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 500
+    publish.assert_not_called()
+
+
+def test_lambda_handler_ignores_request_body_creator_id(
+    monkeypatch,
+    mock_table,
+    mock_eventbridge_publish,
+):
     # A client must not be able to spoof event ownership by sending a different
     # creator_id in the request body.
     monkeypatch.setattr(handler.uuid, "uuid4", lambda: "bbbbbbbb-1234-1234-1234-bbbbbbbbbbbb")
@@ -220,7 +376,11 @@ def test_lambda_handler_ignores_request_body_creator_id(monkeypatch, mock_table)
     assert item["creator_events_gsi_pk"] == "CREATOR#alice"
 
 
-def test_lambda_handler_returns_400_for_admin_only_event_without_admin_role(mock_table):
+def test_lambda_handler_returns_400_for_admin_only_event_without_admin_role(
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
     # Admin-only event creation is a business authorization rule enforced
     # inside the Lambda after caller identity has already been resolved.
     response = handler.lambda_handler(
@@ -239,9 +399,14 @@ def test_lambda_handler_returns_400_for_admin_only_event_without_admin_role(mock
         "message": "admin privileges are required to create admin-only events."
     }
     mock_table.put_item.assert_not_called()
+    publish.assert_not_called()
 
 
-def test_lambda_handler_allows_admin_only_event_for_admin(monkeypatch, mock_table):
+def test_lambda_handler_allows_admin_only_event_for_admin(
+    monkeypatch,
+    mock_table,
+    mock_eventbridge_publish,
+):
     # The positive-path pair for the rule above: an admin caller may create an
     # admin-only event successfully.
     monkeypatch.setattr(handler.uuid, "uuid4", lambda: "cccccccc-1234-1234-1234-cccccccccccc")

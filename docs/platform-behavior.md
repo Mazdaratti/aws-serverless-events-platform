@@ -707,6 +707,36 @@ The deployed `create-event` Lambda now enforces the locked creation contract:
 - new canonical event records must include `status = ACTIVE`
 - returned event DTO must include `status`
 
+#### Post-commit EventBridge publication
+
+After successful durable event creation, `create-event` publishes one
+`event.created` domain event to EventBridge.
+
+The published detail is compact and notification-safe:
+
+- `event_id`
+- `title`
+- `actor_user_id`
+- `occurred_at`
+- `event_detail_path`
+
+The event detail path uses:
+
+- `/app/events/<event_id>`
+
+`create-event` must not publish `event.created` when:
+
+- caller authentication is missing or invalid
+- input validation fails
+- the caller is not authorized to create the requested event type
+- DynamoDB creation does not durably succeed
+
+EventBridge publication failure after durable creation is logged, but it must not:
+
+- change the successful `201` API response
+- roll back the DynamoDB creation
+- turn the original API result into `500`
+
 ### `list-events`
 
 Routed API shape:

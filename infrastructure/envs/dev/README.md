@@ -233,7 +233,9 @@ Important design notes:
   `EVENTBRIDGE_EVENT_BUS_NAME`
 - `cancel-event` now publishes `event.cancelled` after successful durable
   cancellation
-- `create-event` and `update-event` publishing remain pending
+- `create-event` now publishes `event.created` after successful durable
+  creation
+- `update-event` publishing remains pending
 - the synchronous API and DynamoDB business write path remain unchanged
 
 The environment should stay thin:
@@ -253,6 +255,10 @@ Validation:
 - confirmed deployed EventBridge rules are:
   - `admin_notifications`
   - `participant_notification_dispatch`
+- confirmed `event.created` from `create-event` is published after durable
+  creation
+- confirmed `event.created` does not route to the existing
+  `notification-dispatch` SQS queue
 - confirmed `event.cancelled` from `cancel-event` routes to the existing
   `notification-dispatch` SQS queue with compact notification-safe detail
 
@@ -296,7 +302,9 @@ Important design notes:
   `EVENTBRIDGE_EVENT_BUS_NAME`
 - `cancel-event` now publishes `event.cancelled` after successful durable
   cancellation
-- `create-event` and `update-event` publishing remain pending
+- `create-event` now publishes `event.created` after successful durable
+  creation
+- `update-event` publishing remains pending
 - the synchronous API and DynamoDB business write path remain unchanged
 
 The environment should stay thin:
@@ -374,7 +382,9 @@ Important design notes:
   composition
 - `cancel-event` uses this permission to publish `event.cancelled` after
   durable cancellation
-- `create-event` and `update-event` publishing code remains pending
+- `create-event` uses this permission to publish `event.created` after durable
+  creation
+- `update-event` publishing code remains pending
 
 The environment should stay thin:
 
@@ -690,16 +700,20 @@ Important design notes:
   domain-event publishing
 - `cancel-event` now uses `EVENTBRIDGE_EVENT_BUS_NAME` to publish
   `event.cancelled` after durable cancellation
-- `create-event` and `update-event` publishing remain pending
+- `create-event` now uses `EVENTBRIDGE_EVENT_BUS_NAME` to publish
+  `event.created` after durable creation
+- `update-event` publishing remains pending
 - `rsvp-authorizer` receives only the Cognito/JWT verification environment it actually needs:
   - `COGNITO_ISSUER`
   - `COGNITO_APP_CLIENT_ID`
   - `COGNITO_ADMIN_GROUP_NAME`
 - all deployed functions return an API Gateway-style wrapped response even before API Gateway is wired
+- `create-event` publishes `event.created` to EventBridge after durable
+  creation
 - `cancel-event` publishes `event.cancelled` to EventBridge after durable
   cancellation
-- `create-event` and `update-event` publishing behavior remains pending and is
-  intentionally added one handler at a time in later PRs
+- `update-event` publishing behavior remains pending and is intentionally added
+  in a later PR
 - reusable AWS resource logic belongs in modules
 - packaging is prepared before Terraform
 
@@ -713,6 +727,11 @@ Current business behavior validated in this environment:
   - canonical event items are written with `status = ACTIVE`
   - request-body `creator_id` spoofing is ignored in favor of caller-context ownership
   - public events populate the public upcoming GSI, while non-public events omit those helper attributes
+  - successful durable creation publishes `event.created` to EventBridge
+  - EventBridge-routed `event.created` does not reach `notification-dispatch`
+    SQS
+  - validation, authentication, and admin-only authorization failures do not
+    publish `event.created`
 - `list-events`
   - broad public listing succeeds
   - this is a public (unauthenticated) listing workload
@@ -824,6 +843,12 @@ Validation:
 - the EventBridge bus-name environment variable update was validated with local
   `terraform plan`
 - confirmed only `create-event`, `update-event`, and `cancel-event` receive `EVENTBRIDGE_EVENT_BUS_NAME`
+- confirmed `create-event` publishes `event.created` after durable creation
+- confirmed created event records remain `ACTIVE` in DynamoDB
+- confirmed EventBridge-routed `event.created` does not reach the existing
+  `notification-dispatch` SQS queue
+- confirmed invalid, anonymous, and unauthorized admin-only create attempts do
+  not publish `event.created`
 - confirmed `cancel-event` publishes `event.cancelled` after durable
   cancellation
 - confirmed EventBridge publication does not change the successful API response
@@ -845,7 +870,7 @@ Validation:
   - `rsvp-authorizer`
 - confirmed Terraform outputs match the created Lambda and log group identities
 - see evidence screenshots under `docs/assets/lambda/`
-- see cancel-event EventBridge validation screenshots under
+- see create-event and cancel-event EventBridge validation screenshots under
   `docs/assets/lambda_api/`
 
 ---

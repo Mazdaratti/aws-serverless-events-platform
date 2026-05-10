@@ -6,6 +6,7 @@ import pytest
 from botocore.exceptions import ClientError
 
 from lambdas.update_event import handler
+from shared.eventbridge import EventBridgePublishError
 
 
 def _authenticated_event(*, user_id: str = "alice", is_admin: bool = False) -> dict[str, object]:
@@ -67,7 +68,21 @@ def mock_table(monkeypatch):
     return table
 
 
-def test_lambda_handler_allows_creator_to_update_one_field(mock_table):
+@pytest.fixture
+def mock_eventbridge_publish(monkeypatch):
+    eventbridge_client = Mock()
+    publish = Mock()
+
+    monkeypatch.setenv("EVENTBRIDGE_EVENT_BUS_NAME", "example-event-bus")
+    monkeypatch.setattr(handler, "_get_eventbridge_client", lambda: eventbridge_client)
+    monkeypatch.setattr(handler, "_utc_now_iso", lambda: "2026-05-10T10:00:00Z")
+    monkeypatch.setattr(handler, "publish_domain_event", publish)
+
+    return publish, eventbridge_client
+
+
+def test_lambda_handler_allows_creator_to_update_one_field(mock_table, mock_eventbridge_publish):
+    publish, _eventbridge_client = mock_eventbridge_publish
     mock_table.get_item.return_value = {
         "Item": _valid_item(),
     }
@@ -109,9 +124,166 @@ def test_lambda_handler_allows_creator_to_update_one_field(mock_table):
         Key={"event_pk": "EVENT#11111111-1111-1111-1111-111111111111"}
     )
     mock_table.update_item.assert_called_once()
+    publish.assert_called_once()
 
 
-def test_lambda_handler_allows_creator_to_update_multiple_fields(mock_table):
+def test_lambda_handler_publishes_event_updated_after_successful_update(mock_table, mock_eventbridge_publish):
+    publish, eventbridge_client = mock_eventbridge_publish
+    mock_table.get_item.return_value = {
+        "Item": _valid_item(),
+    }
+    mock_table.update_item.return_value = {
+        "Attributes": _valid_item(title="Updated Launch Event"),
+    }
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "event_id": "11111111-1111-1111-1111-111111111111",
+            "title": "Updated Launch Event",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    publish.assert_called_once_with(
+        eventbridge_client=eventbridge_client,
+        event_bus_name="example-event-bus",
+        source="aws-serverless-events-platform",
+        detail_type="event.updated",
+        detail={
+            "event_id": "11111111-1111-1111-1111-111111111111",
+            "title": "Updated Launch Event",
+            "actor_user_id": "alice",
+            "occurred_at": "2026-05-10T10:00:00Z",
+            "event_detail_path": "/app/events/11111111-1111-1111-1111-111111111111",
+            "changed_fields": ["title"],
+        },
+    )
+
+
+def test_lambda_handler_published_event_detail_uses_only_notification_safe_fields(
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
+    mock_table.get_item.return_value = {
+        "Item": _valid_item(),
+    }
+    mock_table.update_item.return_value = {
+        "Attributes": _valid_item(title="Updated Launch Event", location="Hamburg"),
+    }
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "event_id": "11111111-1111-1111-1111-111111111111",
+            "title": "Updated Launch Event",
+            "location": "Hamburg",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    detail = publish.call_args.kwargs["detail"]
+    assert set(detail) == {
+        "event_id",
+        "title",
+        "actor_user_id",
+        "occurred_at",
+        "event_detail_path",
+        "changed_fields",
+    }
+    assert detail["changed_fields"] == ["location", "title"]
+    assert detail["actor_user_id"] == "alice"
+    assert detail["event_detail_path"] == "/app/events/11111111-1111-1111-1111-111111111111"
+    assert "email" not in detail
+    assert "event_pk" not in detail
+    assert "requestContext" not in detail
+    assert "claims" not in detail
+
+
+def test_lambda_handler_changed_fields_include_only_actual_changes(mock_table, mock_eventbridge_publish):
+    publish, _eventbridge_client = mock_eventbridge_publish
+    mock_table.get_item.return_value = {
+        "Item": _valid_item(title="Platform Launch Event", location="Berlin"),
+    }
+    mock_table.update_item.return_value = {
+        "Attributes": _valid_item(title="Updated Launch Event", location="Berlin"),
+    }
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "event_id": "11111111-1111-1111-1111-111111111111",
+            "title": "Updated Launch Event",
+            "location": "Berlin",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    assert publish.call_args.kwargs["detail"]["changed_fields"] == ["title"]
+    update_kwargs = mock_table.update_item.call_args.kwargs
+    assert "#field_title" in update_kwargs["ExpressionAttributeNames"]
+    assert "#field_location" not in update_kwargs["ExpressionAttributeNames"]
+
+
+def test_lambda_handler_returns_current_item_without_publish_for_no_actual_changes(
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
+    mock_table.get_item.return_value = {
+        "Item": _valid_item(),
+    }
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "event_id": "11111111-1111-1111-1111-111111111111",
+            "title": "Platform Launch Event",
+            "location": "Berlin",
+            "capacity": 50,
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"])["item"]["title"] == "Platform Launch Event"
+    mock_table.update_item.assert_not_called()
+    publish.assert_not_called()
+
+
+def test_lambda_handler_keeps_success_response_when_eventbridge_publish_fails(
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
+    publish.side_effect = EventBridgePublishError("EventBridge rejected the event")
+    mock_table.get_item.return_value = {
+        "Item": _valid_item(),
+    }
+    mock_table.update_item.return_value = {
+        "Attributes": _valid_item(title="Updated Launch Event"),
+    }
+
+    response = handler.lambda_handler(
+        {
+            **_authenticated_event(user_id="alice"),
+            "event_id": "11111111-1111-1111-1111-111111111111",
+            "title": "Updated Launch Event",
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"])["item"]["title"] == "Updated Launch Event"
+    mock_table.update_item.assert_called_once()
+    publish.assert_called_once()
+
+
+def test_lambda_handler_allows_creator_to_update_multiple_fields(mock_table, mock_eventbridge_publish):
     mock_table.get_item.return_value = {
         "Item": _valid_item(),
     }
@@ -141,7 +313,7 @@ def test_lambda_handler_allows_creator_to_update_multiple_fields(mock_table):
     assert json.loads(response["body"])["item"]["capacity"] == 75
 
 
-def test_lambda_handler_allows_admin_to_update_someone_elses_event(mock_table):
+def test_lambda_handler_allows_admin_to_update_someone_elses_event(mock_table, mock_eventbridge_publish):
     mock_table.get_item.return_value = {
         "Item": _valid_item(creator_id="bob"),
     }
@@ -163,7 +335,7 @@ def test_lambda_handler_allows_admin_to_update_someone_elses_event(mock_table):
     assert json.loads(response["body"])["item"]["requires_admin"] is True
 
 
-def test_lambda_handler_accepts_api_gateway_body_json(mock_table):
+def test_lambda_handler_accepts_api_gateway_body_json(mock_table, mock_eventbridge_publish):
     mock_table.get_item.return_value = {
         "Item": _valid_item(),
     }
@@ -186,7 +358,7 @@ def test_lambda_handler_accepts_api_gateway_body_json(mock_table):
     assert json.loads(response["body"])["item"]["description"] == "Updated from API Gateway body"
 
 
-def test_lambda_handler_prefers_path_parameters_over_top_level_event_id(mock_table):
+def test_lambda_handler_prefers_path_parameters_over_top_level_event_id(mock_table, mock_eventbridge_publish):
     mock_table.get_item.return_value = {
         "Item": _valid_item(event_pk="EVENT#22222222-2222-2222-2222-222222222222"),
     }
@@ -213,7 +385,7 @@ def test_lambda_handler_prefers_path_parameters_over_top_level_event_id(mock_tab
     )
 
 
-def test_lambda_handler_recomputes_gsi_helpers_when_date_changes(mock_table):
+def test_lambda_handler_recomputes_gsi_helpers_when_date_changes(mock_table, mock_eventbridge_publish):
     mock_table.get_item.return_value = {
         "Item": _valid_item(),
     }
@@ -247,7 +419,10 @@ def test_lambda_handler_recomputes_gsi_helpers_when_date_changes(mock_table):
     )
 
 
-def test_lambda_handler_removes_public_gsi_helpers_when_event_becomes_private(mock_table):
+def test_lambda_handler_removes_public_gsi_helpers_when_event_becomes_private(
+    mock_table,
+    mock_eventbridge_publish,
+):
     mock_table.get_item.return_value = {
         "Item": _valid_item(is_public=True),
     }
@@ -273,7 +448,10 @@ def test_lambda_handler_removes_public_gsi_helpers_when_event_becomes_private(mo
     assert "REMOVE #public_upcoming_gsi_pk, #public_upcoming_gsi_sk" in update_expression
 
 
-def test_lambda_handler_adds_public_gsi_helpers_when_event_becomes_public(mock_table):
+def test_lambda_handler_adds_public_gsi_helpers_when_event_becomes_public(
+    mock_table,
+    mock_eventbridge_publish,
+):
     mock_table.get_item.return_value = {
         "Item": _valid_item(
             is_public=False,
@@ -303,7 +481,7 @@ def test_lambda_handler_adds_public_gsi_helpers_when_event_becomes_public(mock_t
     assert update_kwargs["ExpressionAttributeValues"][":public_upcoming_gsi_pk"] == "PUBLIC"
 
 
-def test_lambda_handler_allows_capacity_to_be_set_to_null(mock_table):
+def test_lambda_handler_allows_capacity_to_be_set_to_null(mock_table, mock_eventbridge_publish):
     mock_table.get_item.return_value = {
         "Item": _valid_item(capacity=Decimal("50")),
     }
@@ -459,7 +637,9 @@ def test_lambda_handler_returns_400_when_status_is_provided_in_payload(mock_tabl
     assert "Immutable fields cannot be updated" in json.loads(response["body"])["message"]
 
 
-def test_lambda_handler_returns_400_for_invalid_title(mock_table):
+def test_lambda_handler_returns_400_for_invalid_title(mock_table, mock_eventbridge_publish):
+    publish, _eventbridge_client = mock_eventbridge_publish
+
     response = handler.lambda_handler(
         {
             **_authenticated_event(user_id="alice"),
@@ -471,6 +651,7 @@ def test_lambda_handler_returns_400_for_invalid_title(mock_table):
 
     assert response["statusCode"] == 400
     assert json.loads(response["body"]) == {"message": "title must be a non-empty string when provided."}
+    publish.assert_not_called()
 
 
 def test_lambda_handler_returns_400_for_invalid_date(mock_table):
@@ -539,7 +720,8 @@ def test_lambda_handler_returns_400_when_capacity_is_below_current_attending_cou
     }
 
 
-def test_lambda_handler_returns_400_for_cancelled_event(mock_table):
+def test_lambda_handler_returns_400_for_cancelled_event(mock_table, mock_eventbridge_publish):
+    publish, _eventbridge_client = mock_eventbridge_publish
     mock_table.get_item.return_value = {
         "Item": _valid_item(status="CANCELLED"),
     }
@@ -557,9 +739,11 @@ def test_lambda_handler_returns_400_for_cancelled_event(mock_table):
     assert json.loads(response["body"]) == {
         "message": "Cancelled events cannot be updated."
     }
+    publish.assert_not_called()
 
 
-def test_lambda_handler_returns_403_for_authenticated_non_owner_non_admin(mock_table):
+def test_lambda_handler_returns_403_for_authenticated_non_owner_non_admin(mock_table, mock_eventbridge_publish):
+    publish, _eventbridge_client = mock_eventbridge_publish
     mock_table.get_item.return_value = {
         "Item": _valid_item(creator_id="bob"),
     }
@@ -575,9 +759,11 @@ def test_lambda_handler_returns_403_for_authenticated_non_owner_non_admin(mock_t
 
     assert response["statusCode"] == 403
     assert json.loads(response["body"]) == {"message": "You are not allowed to update this event."}
+    publish.assert_not_called()
 
 
-def test_lambda_handler_returns_404_when_event_does_not_exist(mock_table):
+def test_lambda_handler_returns_404_when_event_does_not_exist(mock_table, mock_eventbridge_publish):
+    publish, _eventbridge_client = mock_eventbridge_publish
     mock_table.get_item.return_value = {}
 
     response = handler.lambda_handler(
@@ -591,6 +777,7 @@ def test_lambda_handler_returns_404_when_event_does_not_exist(mock_table):
 
     assert response["statusCode"] == 404
     assert json.loads(response["body"]) == {"message": "Event not found."}
+    publish.assert_not_called()
 
 
 def test_lambda_handler_returns_400_when_capacity_race_is_detected_on_conditional_reread(mock_table):
@@ -615,7 +802,11 @@ def test_lambda_handler_returns_400_when_capacity_race_is_detected_on_conditiona
     }
 
 
-def test_lambda_handler_returns_500_for_unexpected_conditional_update_failure(mock_table):
+def test_lambda_handler_returns_500_for_unexpected_conditional_update_failure(
+    mock_table,
+    mock_eventbridge_publish,
+):
+    publish, _eventbridge_client = mock_eventbridge_publish
     mock_table.get_item.side_effect = [
         {"Item": _valid_item(attending_count=Decimal("2"))},
         {"Item": _valid_item(attending_count=Decimal("2"))},
@@ -633,6 +824,7 @@ def test_lambda_handler_returns_500_for_unexpected_conditional_update_failure(mo
 
     assert response["statusCode"] == 500
     assert json.loads(response["body"]) == {"message": "Internal server error."}
+    publish.assert_not_called()
 
 
 def test_lambda_handler_returns_500_for_invalid_stored_event_key_shape(mock_table):

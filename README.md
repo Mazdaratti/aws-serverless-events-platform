@@ -648,6 +648,12 @@ Infrastructure is implemented using modular Terraform design with environment-sp
      creation, with tests and validation ✅
    - publish `event.updated` from `update-event` after successful durable
      update, with tests and validation ✅
+   - add configurable dev admin SNS email subscription without hardcoded
+     personal email addresses
+   - confirm the admin SNS email subscription
+   - add admin SNS message formatting through EventBridge input transformers
+   - validate end-to-end admin email delivery for `event.created`,
+     `event.updated`, and `event.cancelled`
    - keep synchronous API outcomes independent from async notification results
 
 20. Notification planner/sender workers and SES participant notifications

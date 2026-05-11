@@ -1182,9 +1182,14 @@ The update path should use:
 
 - `GetItem` first
 - authorization and business validation against the current item
-- `UpdateItem` second
+- compare requested mutable values against the current item
+- `UpdateItem` second, only when at least one mutable value actually changes
 
 The write should use a condition that the item still exists.
+
+Valid update requests that do not change any mutable value should return `200`
+with the current public event DTO, without writing to DynamoDB and without
+publishing `event.updated`.
 
 #### GSI maintenance rules
 
@@ -1254,6 +1259,44 @@ update contract in `dev`:
   instead of generic failures
 - returned items use the locked public event DTO under `item`
 - internal GSI helper fields remain hidden from the response
+- valid no-op update requests return the current public event DTO without a
+  DynamoDB update or EventBridge publication
+
+#### Post-commit EventBridge publication
+
+After successful durable event update, `update-event` publishes one
+`event.updated` domain event to EventBridge.
+
+The published detail is compact and notification-safe:
+
+- `event_id`
+- `title`
+- `actor_user_id`
+- `occurred_at`
+- `event_detail_path`
+- `changed_fields`
+
+The event detail path uses:
+
+- `/app/events/<event_id>`
+
+`changed_fields` contains only mutable fields that actually changed.
+
+`update-event` must not publish `event.updated` when:
+
+- caller authentication is missing or invalid
+- input validation fails
+- the event does not exist
+- the caller is not authorized
+- the event is already `CANCELLED`
+- the request contains no actual mutable value changes
+- DynamoDB update does not durably succeed
+
+EventBridge publication failure after durable update is logged, but it must not:
+
+- change the successful `200` API response
+- roll back the DynamoDB update
+- turn the original API result into `500`
 
 Lifecycle note:
 

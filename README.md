@@ -27,7 +27,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- EventBridge + SNS integration / async notification foundation
+- Notification planner/sender workers and SES participant notifications
 
 ### Completed milestones
 
@@ -120,6 +120,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - custom EventBridge event bus baseline
     - EventBridge rule support
     - EventBridge target support
+    - optional EventBridge target input transformer support
     - structured event pattern input
     - multiple targets per rule
     - `examples/basic_usage`
@@ -135,17 +136,28 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - `infrastructure/envs/dev` wiring for the async notification foundation
     - custom EventBridge event bus composed into `dev`
     - SNS admin notification topic composed into `dev`
-    - EventBridge admin notification route configured for `event.created`,
-      `event.updated`, and `event.cancelled`
+    - EventBridge admin lifecycle notification route configured for
+      `event.created` and `event.cancelled`
+    - EventBridge admin update notification route configured for
+      `event.updated`
     - EventBridge participant dispatch route configured for `event.updated` and
       `event.cancelled`
-    - SNS topic policy scoped to the EventBridge admin notification rule
+    - SNS topic policy scoped to the concrete EventBridge admin notification
+      rules
     - SQS queue policy scoped to the EventBridge participant dispatch rule
     - write Lambda IAM publishing permissions scoped to the custom EventBridge bus
     - write Lambda EventBridge bus-name environment variable wiring
     - `cancel-event` publishes `event.cancelled` after durable cancellation
     - `create-event` publishes `event.created` after durable creation
     - `update-event` publishes `event.updated` after durable updates
+    - configurable dev SNS admin email subscription without hardcoded personal
+      email addresses
+    - confirmed dev SNS admin email subscription
+    - EventBridge input-transformer formatting for direct admin SNS emails
+    - admin SNS email validation for `event.created`, `event.updated`, and
+      `event.cancelled`
+    - admin SNS emails include the full CloudFront event URL
+    - `event.updated` admin emails include `changed_fields`
   - `infrastructure/envs/dev` wiring for the routed backend baseline
 - Core synchronous Lambda rollout
   - `create-event`
@@ -264,7 +276,6 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Next milestones
 
-- EventBridge, SNS admin notifications, and SQS fanout
 - Notification planner/sender workers and SES participant notifications
 - Observability baseline
 - Remote Terraform backend + GitHub OIDC
@@ -346,7 +357,8 @@ CloudFront handles SPA deep-link routing for `/app/*` without affecting API beha
 12. After a successful durable event-management write, one compact domain event
 is published to **Amazon EventBridge**.
 13. EventBridge routes admin notifications directly to an **Amazon SNS** admin
-topic.
+topic. In the current direct-SNS baseline, EventBridge input transformers
+provide lightweight admin email formatting with the full CloudFront event URL.
 14. EventBridge routes participant-notification planning work to **Amazon SQS**.
 15. The participant notification path is planned as:
 
@@ -470,6 +482,7 @@ aws-serverless-events-platform/
 |   |-- envs/
 |   |   `-- dev/
 |   |       |-- README.md
+|   |       |-- data.tf
 |   |       |-- locals.tf
 |   |       |-- main.tf
 |   |       |-- outputs.tf
@@ -649,11 +662,11 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - publish `event.updated` from `update-event` after successful durable
      update, with tests and validation ✅
    - add configurable dev admin SNS email subscription without hardcoded
-     personal email addresses
-   - confirm the admin SNS email subscription
-   - add admin SNS message formatting through EventBridge input transformers
+     personal email addresses ✅
+   - confirm the admin SNS email subscription ✅
+   - add admin SNS message formatting through EventBridge input transformers ✅
    - validate end-to-end admin email delivery for `event.created`,
-     `event.updated`, and `event.cancelled`
+     `event.updated`, and `event.cancelled` ✅
    - keep synchronous API outcomes independent from async notification results
 
 20. Notification planner/sender workers and SES participant notifications

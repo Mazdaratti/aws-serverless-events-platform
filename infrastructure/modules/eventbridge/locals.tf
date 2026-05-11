@@ -49,6 +49,7 @@ locals {
           target_key = target_key
           arn        = target.arn
           role_arn   = try(target.role_arn, null)
+          input_transformer = try(target.input_transformer, null)
         }
       ]
     ]) :

@@ -26,3 +26,12 @@ dynamodb_point_in_time_recovery_enabled = false
 # Keep WAF disabled in dev until the frontend is actively used to avoid steady
 # Web ACL and rule charges in this portfolio environment.
 enable_waf = false
+
+############################################
+# Admin notification subscriptions
+############################################
+
+# Optional admin/developer email endpoints for SNS admin notifications.
+# Keep this empty in committed examples. Put real email addresses only in local
+# untracked terraform.tfvars.
+sns_admin_email_subscriptions = []

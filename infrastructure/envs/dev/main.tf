@@ -72,19 +72,81 @@ module "sqs" {
 module "eventbridge" {
   source = "../../modules/eventbridge"
 
-  name_prefix = local.name_prefix
-  tags        = local.tags
+  name_prefix    = local.name_prefix
+  event_bus_name = local.eventbridge_event_bus_name
+  tags           = local.tags
 
   rules = {
-    admin_notifications = {
-      description = "Route event-management domain events to the admin notification topic."
+    admin_lifecycle_notifications = {
+      description = "Route created and cancelled event-management domain events to the admin notification topic."
       event_pattern = {
         source        = ["aws-serverless-events-platform"]
-        "detail-type" = ["event.created", "event.updated", "event.cancelled"]
+        "detail-type" = ["event.created", "event.cancelled"]
       }
       targets = {
         admin_topic = {
           arn = module.sns_admin_notifications.topic_arn
+
+          input_transformer = {
+            input_paths = {
+              detail_type       = "$.detail-type"
+              event_id          = "$.detail.event_id"
+              title             = "$.detail.title"
+              actor_user_id     = "$.detail.actor_user_id"
+              event_detail_path = "$.detail.event_detail_path"
+              occurred_at       = "$.detail.occurred_at"
+            }
+
+            input_template = jsonencode(<<-EOT
+              AWS Serverless Events Platform admin notification
+
+              Event type: <detail_type>
+              Event title: <title>
+              Event ID: <event_id>
+              Actor user ID: <actor_user_id>
+              Event URL: https://${module.cloudfront.distribution_domain_name}<event_detail_path>
+              Occurred at: <occurred_at>
+            EOT
+            )
+          }
+        }
+      }
+    }
+
+    admin_update_notifications = {
+      description = "Route updated event-management domain events to the admin notification topic."
+      event_pattern = {
+        source        = ["aws-serverless-events-platform"]
+        "detail-type" = ["event.updated"]
+      }
+      targets = {
+        admin_topic = {
+          arn = module.sns_admin_notifications.topic_arn
+
+          input_transformer = {
+            input_paths = {
+              detail_type       = "$.detail-type"
+              event_id          = "$.detail.event_id"
+              title             = "$.detail.title"
+              actor_user_id     = "$.detail.actor_user_id"
+              event_detail_path = "$.detail.event_detail_path"
+              occurred_at       = "$.detail.occurred_at"
+              changed_fields    = "$.detail.changed_fields"
+            }
+
+            input_template = jsonencode(<<-EOT
+              AWS Serverless Events Platform admin notification
+
+              Event type: <detail_type>
+              Event title: <title>
+              Event ID: <event_id>
+              Actor user ID: <actor_user_id>
+              Event URL: https://${module.cloudfront.distribution_domain_name}<event_detail_path>
+              Changed fields: <changed_fields>
+              Occurred at: <occurred_at>
+            EOT
+            )
+          }
         }
       }
     }
@@ -111,15 +173,14 @@ module "eventbridge" {
 # This environment wires in the reusable SNS module for the admin/platform
 # broadcast notification topic.
 #
-# Email subscriptions are intentionally empty in dev for this PR so no personal
-# email addresses are hardcoded and no confirmation emails are sent. A later
-# environment wiring step can pass confirmed admin/dev recipients when needed.
+# Email subscriptions are configurable through local untracked tfvars so no
+# personal email addresses are hardcoded in committed Terraform.
 module "sns_admin_notifications" {
   source = "../../modules/sns"
 
   name_prefix         = local.name_prefix
   tags                = local.tags
-  email_subscriptions = []
+  email_subscriptions = var.sns_admin_email_subscriptions
 }
 
 ############################################
@@ -140,7 +201,7 @@ module "iam" {
   events_table_arn                  = module.dynamodb_data_layer.events_table_arn
   rsvps_table_arn                   = module.dynamodb_data_layer.rsvps_table_arn
   notification_dispatch_queue_arn   = module.sqs.queue_arns["notification-dispatch"]
-  eventbridge_publish_event_bus_arn = module.eventbridge.event_bus_arn
+  eventbridge_publish_event_bus_arn = local.eventbridge_event_bus_arn
 
   workloads = {
     create-event = {
@@ -213,9 +274,9 @@ module "lambda" {
           EVENTS_TABLE_NAME = module.dynamodb_data_layer.events_table_name
         } : {},
         contains(["create-event", "update-event", "cancel-event"], function_key) ? {
-          # These write Lambdas already have scoped events:PutEvents IAM access.
-          # Handler publishing code is intentionally added in later PRs.
-          EVENTBRIDGE_EVENT_BUS_NAME = module.eventbridge.event_bus_name
+          # These write Lambdas already have scoped events:PutEvents IAM access
+          # and use this bus name for post-commit domain-event publishing.
+          EVENTBRIDGE_EVENT_BUS_NAME = local.eventbridge_event_bus_name
         } : {},
         function_key == "rsvp-authorizer" ? {
           COGNITO_ISSUER           = module.cognito.issuer

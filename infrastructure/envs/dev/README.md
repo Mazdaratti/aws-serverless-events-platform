@@ -235,7 +235,7 @@ Important design notes:
   cancellation
 - `create-event` now publishes `event.created` after successful durable
   creation
-- `update-event` publishing remains pending
+- `update-event` now publishes `event.updated` after successful durable updates
 - the synchronous API and DynamoDB business write path remain unchanged
 
 The environment should stay thin:
@@ -259,6 +259,9 @@ Validation:
   creation
 - confirmed `event.created` does not route to the existing
   `notification-dispatch` SQS queue
+- confirmed `event.updated` from `update-event` routes to the existing
+  `notification-dispatch` SQS queue with compact notification-safe detail and
+  `changed_fields`
 - confirmed `event.cancelled` from `cancel-event` routes to the existing
   `notification-dispatch` SQS queue with compact notification-safe detail
 
@@ -304,7 +307,7 @@ Important design notes:
   cancellation
 - `create-event` now publishes `event.created` after successful durable
   creation
-- `update-event` publishing remains pending
+- `update-event` now publishes `event.updated` after successful durable updates
 - the synchronous API and DynamoDB business write path remain unchanged
 
 The environment should stay thin:
@@ -384,7 +387,8 @@ Important design notes:
   durable cancellation
 - `create-event` uses this permission to publish `event.created` after durable
   creation
-- `update-event` publishing code remains pending
+- `update-event` uses this permission to publish `event.updated` after durable
+  updates
 
 The environment should stay thin:
 
@@ -702,7 +706,8 @@ Important design notes:
   `event.cancelled` after durable cancellation
 - `create-event` now uses `EVENTBRIDGE_EVENT_BUS_NAME` to publish
   `event.created` after durable creation
-- `update-event` publishing remains pending
+- `update-event` now uses `EVENTBRIDGE_EVENT_BUS_NAME` to publish
+  `event.updated` after durable updates
 - `rsvp-authorizer` receives only the Cognito/JWT verification environment it actually needs:
   - `COGNITO_ISSUER`
   - `COGNITO_APP_CLIENT_ID`
@@ -712,8 +717,7 @@ Important design notes:
   creation
 - `cancel-event` publishes `event.cancelled` to EventBridge after durable
   cancellation
-- `update-event` publishing behavior remains pending and is intentionally added
-  in a later PR
+- `update-event` publishes `event.updated` to EventBridge after durable updates
 - reusable AWS resource logic belongs in modules
 - packaging is prepared before Terraform
 
@@ -769,6 +773,15 @@ Current business behavior validated in this environment:
   - direct invocation and API Gateway-style body input both work
   - partial updates preserve omitted mutable fields
   - returned updated items use the locked public event DTO under `item`
+  - successful durable updates publish `event.updated` to EventBridge
+  - `event.updated` messages include compact notification-safe detail and
+    `changed_fields`
+  - EventBridge-routed `event.updated` messages reach `notification-dispatch`
+    SQS
+  - valid no-op updates return `200` without writing to DynamoDB or publishing
+    `event.updated`
+  - unauthorized and cancelled-event update attempts do not publish
+    `event.updated`
 - `cancel-event`
   - protected routed invocation via `POST /events/{event_id}/cancel` succeeds for authenticated owners
   - protected routed invocation via `POST /events/{event_id}/cancel` succeeds for authenticated admins
@@ -849,6 +862,13 @@ Validation:
   `notification-dispatch` SQS queue
 - confirmed invalid, anonymous, and unauthorized admin-only create attempts do
   not publish `event.created`
+- confirmed `update-event` publishes `event.updated` after durable updates
+- confirmed updated event records remain `ACTIVE` in DynamoDB
+- confirmed EventBridge-routed `event.updated` reaches the existing
+  `notification-dispatch` SQS queue with compact notification-safe detail and
+  `changed_fields`
+- confirmed unauthorized, cancelled-event, and no-op update attempts do not
+  publish `event.updated`
 - confirmed `cancel-event` publishes `event.cancelled` after durable
   cancellation
 - confirmed EventBridge publication does not change the successful API response
@@ -870,7 +890,7 @@ Validation:
   - `rsvp-authorizer`
 - confirmed Terraform outputs match the created Lambda and log group identities
 - see evidence screenshots under `docs/assets/lambda/`
-- see create-event and cancel-event EventBridge validation screenshots under
+- see create-event, update-event, and cancel-event EventBridge validation screenshots under
   `docs/assets/lambda_api/`
 
 ---

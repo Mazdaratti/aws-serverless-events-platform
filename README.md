@@ -145,7 +145,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - write Lambda EventBridge bus-name environment variable wiring
     - `cancel-event` publishes `event.cancelled` after durable cancellation
     - `create-event` publishes `event.created` after durable creation
-    - `update-event` publishing remains pending
+    - `update-event` publishes `event.updated` after durable updates
   - `infrastructure/envs/dev` wiring for the routed backend baseline
 - Core synchronous Lambda rollout
   - `create-event`
@@ -647,7 +647,7 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - publish `event.created` from `create-event` after successful durable
      creation, with tests and validation ✅
    - publish `event.updated` from `update-event` after successful durable
-     update, with tests and validation
+     update, with tests and validation ✅
    - keep synchronous API outcomes independent from async notification results
 
 20. Notification planner/sender workers and SES participant notifications

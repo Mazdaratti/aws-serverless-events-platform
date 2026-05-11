@@ -2252,16 +2252,26 @@ Rules:
 - the admin path uses SNS directly
 - no SQS worker is required for admin notifications in v1
 - no Cognito admin-group lookup is required for admin notifications in v1
-- the SNS topic should support a confirmed admin or dev email subscription, but
-  personal email addresses must not be hardcoded into reusable modules
+- the SNS topic supports confirmed admin or dev email subscriptions, but
+  personal email addresses must not be hardcoded into reusable modules or
+  committed environment configuration
+- dev admin email subscriptions are configured through local untracked tfvars
+- EventBridge target input transformers may format direct SNS admin messages
+  with environment-specific presentation details such as a full browser URL
+- exact direct SNS email rendering is not a business contract; polished admin
+  email formatting can be introduced later through a dedicated formatter if
+  needed
 
 Admin notification messages should be able to include:
 
 - event title
-- event detail path or link
 - event type
 - actor user id
+- full event link derived from the published `event_detail_path`
 - changed fields for `event.updated`
+
+For `event.created` and `event.cancelled`, admin notification messages should
+not include an empty or irrelevant `changed_fields` line.
 
 ### Participant notification path
 

@@ -492,6 +492,11 @@ Admin notification path:
 
 `EventBridge -> SNS admin topic`
 
+The direct admin SNS path uses lightweight EventBridge target formatting for
+admin-readable messages. Environment-specific formatting can combine the
+published app-relative `event_detail_path` with the deployed frontend domain to
+produce a browser URL without changing the Lambda domain event payload.
+
 Participant notification path:
 
 `EventBridge -> notification-dispatch SQS -> notification-planner Lambda -> notification-email SQS -> notification-sender Lambda -> SES`
@@ -606,6 +611,10 @@ Admin notifications use direct EventBridge-to-SNS routing for:
 - `event.created`
 - `event.updated`
 - `event.cancelled`
+
+The direct SNS admin path is intentionally lightweight. It is suitable for the
+current platform/admin validation baseline, while richer email presentation can
+be introduced later through a dedicated formatter if needed.
 
 Participant notifications use EventBridge-to-SQS routing for:
 

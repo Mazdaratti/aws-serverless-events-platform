@@ -40,6 +40,16 @@ resource "aws_sqs_queue" "participant_dispatch" {
   })
 }
 
+# This topic gives the example a second target type so the input transformer
+# option can be demonstrated without creating real email subscriptions.
+resource "aws_sns_topic" "admin_notifications" {
+  name = "${local.name_prefix}-example-admin-notifications"
+
+  tags = merge(local.tags, {
+    Name = "${local.name_prefix}-example-admin-notifications"
+  })
+}
+
 ############################################
 # EventBridge basic usage example
 ############################################
@@ -47,7 +57,8 @@ resource "aws_sqs_queue" "participant_dispatch" {
 # This example demonstrates the platform-ready EventBridge module shape:
 # - one custom event bus
 # - one rule using a structured event pattern
-# - one target attached to that rule
+# - multiple targets across rules
+# - one target-level input transformer
 module "eventbridge" {
   source = "../../"
 
@@ -55,6 +66,31 @@ module "eventbridge" {
   tags        = local.tags
 
   rules = {
+    admin_notifications = {
+      description = "Route event-management domain events to the admin notification topic."
+
+      event_pattern = {
+        source        = ["aws-serverless-events-platform"]
+        "detail-type" = ["event.created", "event.updated", "event.cancelled"]
+      }
+
+      targets = {
+        admin_topic = {
+          arn = aws_sns_topic.admin_notifications.arn
+
+          input_transformer = {
+            input_paths = {
+              detail_type = "$.detail-type"
+              event_id    = "$.detail.event_id"
+              title       = "$.detail.title"
+            }
+
+            input_template = "\"Example admin notification: <detail_type> for <title> (<event_id>)\""
+          }
+        }
+      }
+    }
+
     participant_notification_dispatch = {
       description = "Route participant notification planning events to SQS."
 
@@ -73,12 +109,46 @@ module "eventbridge" {
 }
 
 ############################################
-# Example target resource policy
+# Example target resource policies
 ############################################
 
 # EventBridge target permissions belong outside the EventBridge module because
-# they protect the target resource. Since this example owns the SQS queue, it
-# also owns the queue policy that allows the EventBridge rule to send messages.
+# they protect the target resource. Since this example owns the SNS topic and
+# SQS queue, it also owns the target policies.
+data "aws_iam_policy_document" "admin_notifications_eventbridge_publish" {
+  statement {
+    sid    = "AllowEventBridgeAdminNotifications"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+
+    actions = [
+      "sns:Publish",
+    ]
+
+    resources = [
+      aws_sns_topic.admin_notifications.arn,
+    ]
+
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values = [
+        module.eventbridge.rule_arns["admin_notifications"],
+      ]
+    }
+  }
+}
+
+resource "aws_sns_topic_policy" "admin_notifications" {
+  arn    = aws_sns_topic.admin_notifications.arn
+  policy = data.aws_iam_policy_document.admin_notifications_eventbridge_publish.json
+}
+
+# Allow the participant dispatch rule to send messages to the example queue.
 data "aws_iam_policy_document" "participant_dispatch_eventbridge_send" {
   statement {
     sid    = "AllowEventBridgeParticipantDispatch"

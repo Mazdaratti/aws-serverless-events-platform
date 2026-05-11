@@ -51,3 +51,29 @@ variable "enable_waf" {
   type        = bool
   default     = false
 }
+
+############################################
+# Admin notification subscriptions
+############################################
+
+variable "sns_admin_email_subscriptions" {
+  description = "Admin or developer email endpoints to subscribe to the SNS admin notification topic in dev. Email subscriptions require confirmation before receiving messages."
+  type        = set(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for email in var.sns_admin_email_subscriptions :
+      length(trimspace(email)) > 0
+    ])
+    error_message = "sns_admin_email_subscriptions must contain only non-empty strings."
+  }
+
+  validation {
+    condition = alltrue([
+      for email in var.sns_admin_email_subscriptions :
+      trimspace(email) == email
+    ])
+    error_message = "sns_admin_email_subscriptions values must not contain leading or trailing whitespace."
+  }
+}

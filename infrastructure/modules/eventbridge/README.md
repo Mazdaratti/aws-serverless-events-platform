@@ -18,7 +18,7 @@ This module currently creates:
 
 - one custom EventBridge event bus
 - zero or more EventBridge rules on that bus
-- one or more EventBridge targets per declared rule
+- one or more EventBridge targets per declared rule, with optional input transformers
 
 It also exposes the core outputs later platform layers need, including:
 
@@ -42,6 +42,7 @@ platform clearly needs next:
 - rule creation from caller-supplied event patterns
 - target attachment for matched events
 - multiple targets per rule
+- optional target-level input transformers for formatted downstream messages
 
 The module does not create SNS topics, SQS queues, SQS queue policies, SNS topic
 policies, Lambda publishing permissions, Lambda environment variables, Lambda
@@ -118,6 +119,10 @@ Targets are nested under each rule in the input because that is easiest for a
 caller to read. The module flattens them internally so Terraform can create one
 `aws_cloudwatch_event_target` resource per target.
 
+Targets may also define an optional EventBridge input transformer. This is
+useful when a downstream target, such as an SNS topic, needs a readable message
+shape without changing the compact domain event payload published by Lambdas.
+
 ---
 
 ## Example
@@ -129,9 +134,11 @@ This module includes a runnable example:
 The example shows how to:
 
 - create a custom EventBridge event bus
-- define one rule using a structured event pattern
-- attach one SQS target to that rule
-- keep the SQS queue policy outside the EventBridge module while still making
+- define rules using structured event patterns
+- attach an SNS target with an input transformer
+- attach an SQS target without an input transformer
+- keep SNS topic and SQS queue policies outside the EventBridge module while
+  still making
   the example runnable
 
 The example is safe to validate with local state and does not require
@@ -170,7 +177,7 @@ environment wiring.
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Shared environment naming prefix used to derive EventBridge resource names. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
 | <a name="input_event_bus_name"></a> [event\_bus\_name](#input\_event\_bus\_name) | Optional explicit custom EventBridge event bus name. When null, the module derives the name from name\_prefix. | `string` | `null` | no |
-| <a name="input_rules"></a> [rules](#input\_rules) | EventBridge rules and targets to create on the custom event bus.<br/><br/>Each rule defines one event pattern and one or more targets. Target<br/>resource policies, such as SNS topic policies or SQS queue policies, are<br/>intentionally owned outside this module by the target resource owner or<br/>environment composition. | <pre>map(object({<br/>    name          = optional(string)<br/>    description   = optional(string)<br/>    event_pattern = any<br/>    targets = map(object({<br/>      arn      = string<br/>      role_arn = optional(string)<br/>    }))<br/>  }))</pre> | `{}` | no |
+| <a name="input_rules"></a> [rules](#input\_rules) | EventBridge rules and targets to create on the custom event bus.<br/><br/>Each rule defines one event pattern and one or more targets. Target<br/>resource policies, such as SNS topic policies or SQS queue policies, are<br/>intentionally owned outside this module by the target resource owner or<br/>environment composition. | <pre>map(object({<br/>    name          = optional(string)<br/>    description   = optional(string)<br/>    event_pattern = any<br/>    targets = map(object({<br/>      arn      = string<br/>      role_arn = optional(string)<br/>      input_transformer = optional(object({<br/>        input_paths    = map(string)<br/>        input_template = string<br/>      }))<br/>    }))<br/>  }))</pre> | `{}` | no |
 
 ## Outputs
 

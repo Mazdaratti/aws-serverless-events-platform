@@ -44,11 +44,12 @@ locals {
     for target in flatten([
       for rule_key, rule in local.normalized_rules : [
         for target_key, target in rule.targets : {
-          map_key    = "${rule_key}.${target_key}"
-          rule_key   = rule_key
-          target_key = target_key
-          arn        = target.arn
-          role_arn   = try(target.role_arn, null)
+          map_key           = "${rule_key}.${target_key}"
+          rule_key          = rule_key
+          target_key        = target_key
+          arn               = target.arn
+          role_arn          = try(target.role_arn, null)
+          input_transformer = try(target.input_transformer, null)
         }
       ]
     ]) :

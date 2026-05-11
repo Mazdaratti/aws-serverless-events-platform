@@ -70,7 +70,8 @@ data "aws_iam_policy_document" "sns_admin_eventbridge_publish" {
       test     = "ArnEquals"
       variable = "aws:SourceArn"
       values = [
-        module.eventbridge.rule_arns["admin_notifications"],
+        module.eventbridge.rule_arns["admin_lifecycle_notifications"],
+        module.eventbridge.rule_arns["admin_update_notifications"],
       ]
     }
   }
@@ -78,8 +79,8 @@ data "aws_iam_policy_document" "sns_admin_eventbridge_publish" {
 
 resource "aws_sns_topic_policy" "admin_notifications" {
   # EventBridge can publish admin notifications only from the concrete admin
-  # notification rule. The topic policy belongs here because the environment
-  # owns the concrete rule/topic relationship.
+  # lifecycle and update rules. The topic policy belongs here because the
+  # environment owns the concrete rule/topic relationship.
   arn    = module.sns_admin_notifications.topic_arn
   policy = data.aws_iam_policy_document.sns_admin_eventbridge_publish.json
 }

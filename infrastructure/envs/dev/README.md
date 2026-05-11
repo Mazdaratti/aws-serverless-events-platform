@@ -203,9 +203,10 @@ Implemented via:
 This environment currently wires in:
 
 - one custom EventBridge event bus
-- one admin notification rule: `admin_notifications`
+- one admin lifecycle notification rule: `admin_lifecycle_notifications`
+- one admin update notification rule: `admin_update_notifications`
 - one participant dispatch rule: `participant_notification_dispatch`
-- one SNS target for admin notifications
+- two SNS targets for formatted admin notifications
 - one SQS target for participant notification planning
 
 Why this module is wired now:
@@ -222,10 +223,16 @@ Important design notes:
   writes
 - EventBridge owns fanout to the current admin and participant notification
   paths
-- `event.created`, `event.updated`, and `event.cancelled` are routed to the SNS
-  admin notification topic
+- `event.created` and `event.cancelled` are routed to the SNS admin
+  notification topic through the lifecycle admin rule
+- `event.updated` is routed to the SNS admin notification topic through the
+  update admin rule
 - `event.updated` and `event.cancelled` are routed to the existing
   `notification-dispatch` SQS queue
+- admin SNS targets use EventBridge input transformers to render lightweight
+  email text with the CloudFront event URL
+- direct EventBridge-to-SNS email delivery still shows AWS/SNS line quoting
+  artifacts, so polished email formatting remains a future formatter concern
 - SNS and SQS target resource policies are owned by `envs/dev` in
   `resource_policies.tf` because they bind concrete rules to concrete targets
 - write Lambda `events:PutEvents` permissions are configured through the IAM module
@@ -253,8 +260,15 @@ Validation:
 - confirmed the deployed EventBridge bus name is:
   - `aws-serverless-events-platform-dev-events`
 - confirmed deployed EventBridge rules are:
-  - `admin_notifications`
+  - `admin_lifecycle_notifications`
+  - `admin_update_notifications`
   - `participant_notification_dispatch`
+- confirmed `event.created`, `event.updated`, and `event.cancelled` deliver
+  admin SNS emails to a confirmed dev email subscription
+- confirmed admin SNS emails include the full CloudFront event URL
+- confirmed `event.updated` admin email includes `changed_fields`
+- confirmed `event.created` and `event.cancelled` admin emails do not include
+  an empty or irrelevant `changed_fields` line
 - confirmed `event.created` from `create-event` is published after durable
   creation
 - confirmed `event.created` does not route to the existing
@@ -278,27 +292,34 @@ Implemented via:
 This environment currently wires in:
 
 - one SNS admin notification topic
-- zero SNS email subscriptions
+- configurable SNS email subscriptions for dev admin notification validation
+- one confirmed dev SNS email subscription when local untracked tfvars provide
+  an email endpoint
 - one environment-owned topic policy that allows the EventBridge admin
-  notification rule to publish to the topic
+  lifecycle and update notification rules to publish to the topic
 
 Why this module is wired now:
 
 - the platform has locked SNS as the direct admin/platform broadcast path
-- the real `dev` environment now needs a concrete SNS admin topic before
-  Lambda publishing is introduced
+- the real `dev` environment now has a concrete SNS admin topic for the locked
+  v1 write-Lambda domain events
 - the topic is now connected to the EventBridge admin notification route through
   a scoped topic policy
+- the confirmed dev email subscription proves the direct admin notification
+  path before Step 20 participant email workers are introduced
 
 Important design notes:
 
 - the topic is intended for platform/admin broadcast notifications
-- SNS email subscriptions remain intentionally empty in dev
-- no personal email addresses are hardcoded
-- no SNS confirmation emails are sent by the current wiring
+- SNS email subscriptions are configured through local untracked tfvars
+- no personal email addresses are hardcoded in committed Terraform
 - the SNS topic policy is scoped to the concrete EventBridge
-  `admin_notifications` rule ARN
+  `admin_lifecycle_notifications` and `admin_update_notifications` rule ARNs
 - admin notifications are routed directly from EventBridge to SNS
+- admin SNS email text is formatted by EventBridge input transformers and
+  includes a full CloudFront event URL
+- direct EventBridge-to-SNS email delivery is intentionally lightweight and may
+  show AWS/SNS line quoting artifacts
 - participant notifications do not use this topic
 - write Lambda `events:PutEvents` permissions are configured through the IAM module
 - write Lambdas receive the custom event bus name through
@@ -318,15 +339,23 @@ The environment should stay thin:
 
 Validation:
 
-- `terraform plan` confirms the SNS admin topic and its EventBridge publish
-  policy are included in this async routing step
-- confirmed the planned SNS admin topic name is:
+- validated via `terraform apply`, confirmed SNS email subscription, received
+  admin emails, EventBridge-routed SQS checks, and a clean post-apply
+  `terraform plan`
+- confirmed the SNS admin topic name is:
   - `aws-serverless-events-platform-dev-admin-notifications`
-- confirmed planned SNS email subscriptions remain empty:
-  - `sns_admin_email_subscription_arns = {}`
+- confirmed the configured dev email subscription is confirmed, not pending
 - confirmed the topic policy principal is `events.amazonaws.com`
-- SNS email delivery was not validated because dev has no confirmed email
-  subscriptions configured
+- confirmed `event.created`, `event.updated`, and `event.cancelled` each
+  deliver an admin SNS email
+- confirmed all admin SNS emails contain the full CloudFront event URL
+- confirmed `event.updated` email includes `changed_fields`
+- confirmed `event.created` and `event.cancelled` emails do not include an
+  empty or irrelevant `changed_fields` line
+- confirmed `event.created` does not route to `notification-dispatch`
+- confirmed `event.updated` and `event.cancelled` still route to
+  `notification-dispatch`
+- see evidence screenshots under `docs/assets/lambda_api/`
 
 ---
 
@@ -1150,9 +1179,11 @@ Validation:
 | [aws_s3_bucket_policy.frontend_origin](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_policy) | resource |
 | [aws_sns_topic_policy.admin_notifications](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_policy) | resource |
 | [aws_sqs_queue_policy.notification_dispatch_eventbridge](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sqs_queue_policy) | resource |
+| [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_iam_policy_document.frontend_bucket_cloudfront_read](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.notification_dispatch_eventbridge_send](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.sns_admin_eventbridge_publish](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_partition.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/partition) | data source |
 
 ## Inputs
 
@@ -1163,6 +1194,7 @@ Validation:
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Project name used for naming and tagging resources. | `string` | n/a | yes |
 | <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 | <a name="input_enable_waf"></a> [enable\_waf](#input\_enable\_waf) | Whether to create and attach the CloudFront-scoped WAF Web ACL in this dev environment. | `bool` | `false` | no |
+| <a name="input_sns_admin_email_subscriptions"></a> [sns\_admin\_email\_subscriptions](#input\_sns\_admin\_email\_subscriptions) | Admin or developer email endpoints to subscribe to the SNS admin notification topic in dev. Email subscriptions require confirmation before receiving messages. | `set(string)` | `[]` | no |
 
 ## Outputs
 

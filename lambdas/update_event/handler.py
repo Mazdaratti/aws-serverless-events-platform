@@ -9,7 +9,11 @@ import boto3
 from botocore.exceptions import ClientError
 
 from shared.auth import require_authenticated_caller
+from shared.eventbridge import EventBridgePublishError, publish_domain_event
 
+
+EVENTBRIDGE_SOURCE = "aws-serverless-events-platform"
+EVENT_UPDATED_DETAIL_TYPE = "event.updated"
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -52,8 +56,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # 4. read the current event item
     # 5. enforce existence, authorization, and business rules
     # 6. compute the effective post-update state and helper attributes
-    # 7. issue a conditional DynamoDB UpdateItem
-    # 8. return the updated public event DTO in the standard wrapper
+    # 7. issue a conditional DynamoDB UpdateItem when values actually change
+    # 8. publish a compact post-commit domain event after a real update
+    # 9. return the updated public event DTO in the standard wrapper
     logger.info("update-event invocation started")
 
     try:
@@ -71,12 +76,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         events_table_name = _get_required_env("EVENTS_TABLE_NAME")
         table = _get_dynamodb_table(events_table_name)
 
-        response_body = _update_event(
+        response_body, update_event_detail = _update_event(
             table=table,
             event_id=event_id,
             caller_context=caller_context,
             updates=validated_updates,
+            occurred_at=_utc_now_iso(),
         )
+        _publish_event_updated_if_needed(update_event_detail)
         logger.info("update-event completed for event_id %s", event_id)
 
         return _success_response(status_code=200, body=response_body)
@@ -259,7 +266,8 @@ def _update_event(
     event_id: str,
     caller_context: dict[str, Any],
     updates: dict[str, Any],
-) -> dict[str, Any]:
+    occurred_at: str,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
     event_pk = f"EVENT#{event_id}"
     logger.info("reading current event item %s from DynamoDB", event_pk)
     current_response = table.get_item(Key={"event_pk": event_pk})
@@ -275,14 +283,19 @@ def _update_event(
     _authorize_update(caller_context=caller_context, current_state=current_state)
     _validate_business_rules(updates=updates, current_state=current_state)
 
+    actual_updates = _actual_changed_updates(current_item=current_item, updates=updates)
+    if not actual_updates:
+        logger.info("update-event request contained no actual changes for event_id %s", event_id)
+        return {"item": _to_event_dto(current_item)}, None
+
     effective_state = _build_effective_state(
         event_id=event_id,
         current_state=current_state,
-        updates=updates,
+        updates=actual_updates,
     )
     update_expression = _build_update_expression(
         effective_state=effective_state,
-        updates=updates,
+        updates=actual_updates,
     )
 
     logger.info("updating event item %s in DynamoDB", event_pk)
@@ -302,7 +315,7 @@ def _update_event(
         _handle_conditional_update_failure(
             table=table,
             event_id=event_id,
-            updates=updates,
+            updates=actual_updates,
         )
         raise
 
@@ -310,7 +323,31 @@ def _update_event(
     if not isinstance(updated_item, dict):
         raise EventDtoMappingError("Updated DynamoDB item must be an object.")
 
-    return {"item": _to_event_dto(updated_item)}
+    updated_dto = _to_event_dto(updated_item)
+    return {"item": updated_dto}, _to_event_updated_detail(
+        event_dto=updated_dto,
+        actor_user_id=caller_context["user_id"],
+        occurred_at=occurred_at,
+        changed_fields=sorted(actual_updates.keys()),
+    )
+
+
+def _actual_changed_updates(*, current_item: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]:
+    current_values = {
+        "title": _normalize_text(current_item.get("title"), field_name="title"),
+        "date": _normalize_text(current_item.get("date"), field_name="date"),
+        "description": _normalize_text(current_item.get("description"), field_name="description"),
+        "location": _normalize_text(current_item.get("location"), field_name="location"),
+        "capacity": _normalize_capacity(current_item.get("capacity")),
+        "is_public": _normalize_bool(current_item.get("is_public"), field_name="is_public"),
+        "requires_admin": _normalize_bool(current_item.get("requires_admin"), field_name="requires_admin"),
+    }
+
+    return {
+        field_name: value
+        for field_name, value in updates.items()
+        if current_values[field_name] != value
+    }
 
 
 def _handle_conditional_update_failure(*, table: Any, event_id: str, updates: dict[str, Any]) -> None:
@@ -336,6 +373,45 @@ def _handle_conditional_update_failure(*, table: Any, event_id: str, updates: di
     raise ConditionalUpdateStateError(
         "Conditional update failed for an unexpected internal state transition."
     )
+
+
+def _publish_event_updated_if_needed(detail: dict[str, Any] | None) -> None:
+    if detail is None:
+        return
+
+    try:
+        event_bus_name = _get_required_env("EVENTBRIDGE_EVENT_BUS_NAME")
+        publish_domain_event(
+            eventbridge_client=_get_eventbridge_client(),
+            event_bus_name=event_bus_name,
+            source=EVENTBRIDGE_SOURCE,
+            detail_type=EVENT_UPDATED_DETAIL_TYPE,
+            detail=detail,
+        )
+        logger.info("published event.updated for event_id %s", detail["event_id"])
+    except (ClientError, EventBridgePublishError, RuntimeError, ValueError):
+        logger.exception("failed to publish event.updated for event_id %s", detail.get("event_id"))
+
+
+def _to_event_updated_detail(
+    *,
+    event_dto: dict[str, Any],
+    actor_user_id: str | None,
+    occurred_at: str,
+    changed_fields: list[str],
+) -> dict[str, Any]:
+    return {
+        "event_id": event_dto["event_id"],
+        "title": event_dto["title"],
+        "actor_user_id": actor_user_id,
+        "occurred_at": occurred_at,
+        "event_detail_path": f"/app/events/{event_dto['event_id']}",
+        "changed_fields": changed_fields,
+    }
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _to_internal_event_state(item: dict[str, Any]) -> dict[str, Any]:
@@ -630,6 +706,10 @@ def _get_required_env(name: str) -> str:
 
 def _get_dynamodb_table(table_name: str):
     return boto3.resource("dynamodb").Table(table_name)
+
+
+def _get_eventbridge_client():
+    return boto3.client("events")
 
 
 def _coerce_bool(value: Any, field_name: str) -> bool:

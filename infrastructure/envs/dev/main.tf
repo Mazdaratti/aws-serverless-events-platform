@@ -97,17 +97,18 @@ module "eventbridge" {
               occurred_at       = "$.detail.occurred_at"
             }
 
-            input_template = jsonencode(<<-EOT
-              AWS Serverless Events Platform admin notification
-
-              Event type: <detail_type>
-              Event title: <title>
-              Event ID: <event_id>
-              Actor user ID: <actor_user_id>
-              Event URL: https://${module.cloudfront.distribution_domain_name}<event_detail_path>
-              Occurred at: <occurred_at>
+            # EventBridge renders multiline text output when each output line
+            # is a separate quoted string in the input template.
+            input_template = <<-EOT
+              "AWS Serverless Events Platform admin notification"
+              ""
+              "Event type: <detail_type>"
+              "Event title: <title>"
+              "Event ID: <event_id>"
+              "Actor user ID: <actor_user_id>"
+              "Event URL: https://${module.cloudfront.distribution_domain_name}<event_detail_path>"
+              "Occurred at: <occurred_at>"
             EOT
-            )
           }
         }
       }
@@ -134,18 +135,19 @@ module "eventbridge" {
               changed_fields    = "$.detail.changed_fields"
             }
 
-            input_template = jsonencode(<<-EOT
-              AWS Serverless Events Platform admin notification
-
-              Event type: <detail_type>
-              Event title: <title>
-              Event ID: <event_id>
-              Actor user ID: <actor_user_id>
-              Event URL: https://${module.cloudfront.distribution_domain_name}<event_detail_path>
-              Changed fields: <changed_fields>
-              Occurred at: <occurred_at>
+            # EventBridge renders multiline text output when each output line
+            # is a separate quoted string in the input template.
+            input_template = <<-EOT
+              "AWS Serverless Events Platform admin notification"
+              ""
+              "Event type: <detail_type>"
+              "Event title: <title>"
+              "Event ID: <event_id>"
+              "Actor user ID: <actor_user_id>"
+              "Event URL: https://${module.cloudfront.distribution_domain_name}<event_detail_path>"
+              "Changed fields: <changed_fields>"
+              "Occurred at: <occurred_at>"
             EOT
-            )
           }
         }
       }

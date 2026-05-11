@@ -17,6 +17,14 @@ locals {
     ManagedBy   = "Terraform"
   }
 
+  # The EventBridge bus name follows the same convention the reusable module
+  # derives by default. Keeping the name and ARN available as env-level locals
+  # lets IAM and Lambda wiring use deterministic values without depending on
+  # module.eventbridge outputs. That keeps the dependency graph acyclic when
+  # EventBridge target formatting references CloudFront.
+  eventbridge_event_bus_name = "${local.name_prefix}-events"
+  eventbridge_event_bus_arn  = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/${local.eventbridge_event_bus_name}"
+
   # Keep Lambda deployment inputs thinner in main.tf by defining only the
   # workload-specific values here. Shared deployment defaults can then be
   # derived centrally when the Lambda module is called.

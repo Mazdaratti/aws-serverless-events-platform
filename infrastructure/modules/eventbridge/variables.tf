@@ -57,6 +57,10 @@ variable "rules" {
     targets = map(object({
       arn      = string
       role_arn = optional(string)
+      input_transformer = optional(object({
+        input_paths    = map(string)
+        input_template = string
+      }))
     }))
   }))
 
@@ -154,5 +158,56 @@ variable "rules" {
       ]
     ]))
     error_message = "Each target role_arn must be omitted or set to a non-empty string."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for rule in values(var.rules) : [
+        for target in values(rule.targets) :
+        try(target.input_transformer, null) == null ||
+        length(trimspace(target.input_transformer.input_template)) > 0
+      ]
+    ]))
+    error_message = "Each target input_transformer input_template must be omitted or set to a non-empty string."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for rule in values(var.rules) : [
+        for target in values(rule.targets) :
+        try(target.input_transformer, null) == null ||
+        length(target.input_transformer.input_paths) > 0
+      ]
+    ]))
+    error_message = "Each target input_transformer input_paths map must contain at least one entry when input_transformer is provided."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for rule in values(var.rules) : [
+        for target in values(rule.targets) :
+        try(target.input_transformer, null) == null ||
+        alltrue([
+          for path_key in keys(target.input_transformer.input_paths) :
+          length(trimspace(path_key)) > 0 &&
+          trimspace(path_key) == path_key
+        ])
+      ]
+    ]))
+    error_message = "Each target input_transformer input_paths key must be a non-empty string with no leading or trailing whitespace."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for rule in values(var.rules) : [
+        for target in values(rule.targets) :
+        try(target.input_transformer, null) == null ||
+        alltrue([
+          for path_value in values(target.input_transformer.input_paths) :
+          length(trimspace(path_value)) > 0
+        ])
+      ]
+    ]))
+    error_message = "Each target input_transformer input_paths value must be a non-empty string."
   }
 }

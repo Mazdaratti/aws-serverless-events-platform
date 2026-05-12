@@ -512,12 +512,14 @@ SQS is used for participant notification durability and retry isolation:
 The notification worker layer is intentionally split:
 
 - `notification-planner`
+  - has a dedicated least-privilege IAM role prepared in `dev`
   - consumes event-level participant notification work
   - queries RSVP records by event
   - creates one recipient-level email job per authenticated RSVP user
   - includes both attending and not-attending RSVP users
   - skips anonymous RSVP subjects in v1
 - `notification-sender`
+  - has a dedicated least-privilege IAM role prepared in `dev`
   - consumes recipient-level email jobs
   - resolves the current recipient email through Cognito at send time using the
     canonical Cognito `sub`
@@ -527,6 +529,12 @@ The notification worker layer is intentionally split:
 This keeps EventBridge responsible for fanout, SQS responsible for durable
 participant work buffering, and SES responsible for direct participant email
 delivery when that layer is implemented.
+
+The current infrastructure milestone prepares the split IAM boundary for the
+future workers. The planner role can consume `notification-dispatch`, query
+RSVPs, and send to `notification-email`. The sender role can consume
+`notification-email` and resolve users through Cognito. SES permissions remain
+intentionally deferred.
 
 Participant emails are user-facing product emails, not admin/debug messages.
 The planner produces safe recipient-level jobs, and the sender owns final
@@ -632,10 +640,14 @@ The participant path is planned as:
 
 `EventBridge -> notification-dispatch SQS -> notification-planner Lambda -> notification-email SQS -> notification-sender Lambda -> SES`
 
-The planner creates one recipient-level email job per authenticated RSVP user.
-The sender resolves the current email address through Cognito at send time
-using the canonical Cognito `sub`, renders user-facing participant email
-content through stable templates, and sends through SES.
+The future planner creates one recipient-level email job per authenticated RSVP
+user. The future sender resolves the current email address through Cognito at
+send time using the canonical Cognito `sub`, renders user-facing participant
+email content through stable templates, and sends through SES.
+
+The split planner/sender IAM roles are already represented in infrastructure so
+the permission boundary is ready before worker Lambda code, event source
+mappings, or SES sending permissions are introduced.
 
 This enables:
 

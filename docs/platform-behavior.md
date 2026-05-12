@@ -2293,6 +2293,8 @@ Rules:
 - the existing `notification-dispatch` queue is the event-level planning queue
 - `notification-email` is the recipient-level user-facing email work queue
   between the future planner and sender
+- the planner and sender have separate least-privilege IAM roles prepared in
+  the current infrastructure baseline
 - SQS provides durable buffering, retry isolation, and rate/concurrency control
 - one event-level message can produce many recipient-level messages
 - each recipient-level message represents one authenticated RSVP user recipient
@@ -2303,6 +2305,9 @@ Participant emails are user-facing product emails, not admin/debug messages.
 The planner produces safe recipient-level jobs, and the sender owns final
 presentation through stable templates. EventBridge does not send directly to
 `notification-email`.
+
+Worker Lambda code, event source mappings, SES permissions, SES resources, and
+sender templates are intentionally not implemented yet.
 
 Participant notification emails should eventually include:
 
@@ -2349,6 +2354,9 @@ avoids spreading personal contact data into RSVP business rows.
 The future `notification-planner` Lambda consumes event-level messages from
 `notification-dispatch`.
 
+The planner IAM role is already prepared to consume `notification-dispatch`,
+query RSVP records, and send recipient-level jobs to `notification-email`.
+
 Responsibilities:
 
 - parse EventBridge-routed SQS messages for `event.updated` and
@@ -2371,6 +2379,12 @@ Non-responsibilities:
 
 The future `notification-sender` Lambda consumes recipient-level messages from
 `notification-email`.
+
+The sender IAM role is already prepared to consume `notification-email` and
+call `cognito-idp:ListUsers` against the configured Cognito user pool. The
+current Cognito lookup direction is a constrained `ListUsers` lookup by
+canonical `sub`, because participant recipient messages carry
+`recipient_user_id` as the Cognito `sub`.
 
 Responsibilities:
 
@@ -2403,6 +2417,7 @@ The following are intentionally deferred:
 - SES implementation inside Step 19A
 - deployed AWS notification tests in CI
 
+
 These features should be introduced only when their behavior is explicitly
 locked in a future implementation step.
 
@@ -2420,7 +2435,8 @@ The currently locked Lambda set and rollout status are:
 6. `cancel-event` ✅
 7. `rsvp` ✅
 8. `get-event-rsvps` ✅
-9. notification worker layer:
+9. notification worker IAM layer ✅
+10. notification worker Lambda implementation ⏳
    - `notification-planner`
    - `notification-sender`
 

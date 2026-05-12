@@ -156,8 +156,10 @@ Implemented via:
 
 This environment currently wires in:
 
-- one standard queue: `notification-dispatch`
-- one dedicated dead-letter queue for that source queue
+- two standard queues:
+  - `notification-dispatch`
+  - `notification-email`
+- one dedicated dead-letter queue for each source queue
 - one environment-owned queue policy that allows the EventBridge participant
   dispatch rule to send messages to `notification-dispatch`
 
@@ -165,12 +167,22 @@ Why this module is wired now:
 
 - the platform already reserves SQS for asynchronous work after durable state changes
 - notification dispatch is the clearest first async side effect to separate from API response time
-- the queue and DLQ establish a concrete messaging extension point without changing the synchronous RSVP write path
+- the email queue establishes the recipient-level user-facing email work buffer
+  between the future participant notification planner and sender
+- the queues and DLQs establish concrete messaging extension points without
+  changing the synchronous RSVP write path
 
 Important design notes:
 
-- the queue is intended for durable post-commit notification work
-- notification delivery behavior and consumers are not implemented yet
+- `notification-dispatch` is intended for event-level participant notification
+  planning work from EventBridge
+- `notification-email` is intended for recipient-level user-facing email jobs
+  produced by the future planner
+- participant emails are user-facing product emails, not admin/debug messages
+- the planner produces safe recipient-level jobs, and the sender owns final
+  presentation through stable templates
+- EventBridge does not send directly to `notification-email`
+- notification planner/sender behavior and Lambda consumers are not implemented yet
 - the primary RSVP business write remains synchronous through DynamoDB durable commit
 - the EventBridge-to-SQS queue policy is scoped to the concrete participant
   dispatch rule ARN

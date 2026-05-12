@@ -29,8 +29,8 @@ locals {
 ############################################
 
 # The IAM module generates least-privilege policies from concrete resource
-# ARNs, so the example creates a very small set of DynamoDB and SQS resources
-# to bind those policies to.
+# ARNs, so the example creates a very small set of DynamoDB, SQS, and Cognito
+# resources to bind those policies to.
 resource "aws_dynamodb_table" "events" {
   name         = "${local.name_prefix}-events"
   billing_mode = "PAY_PER_REQUEST"
@@ -75,6 +75,22 @@ resource "aws_sqs_queue" "notification_dispatch" {
   })
 }
 
+resource "aws_sqs_queue" "notification_email" {
+  name = "${local.name_prefix}-notification-email"
+
+  tags = merge(local.tags, {
+    Name = "${local.name_prefix}-notification-email"
+  })
+}
+
+resource "aws_cognito_user_pool" "users" {
+  name = "${local.name_prefix}-users"
+
+  tags = merge(local.tags, {
+    Name = "${local.name_prefix}-users"
+  })
+}
+
 # The IAM module can optionally grant write workloads permission to publish
 # compact domain events. This example creates a small custom bus so that
 # permission can be scoped to a concrete EventBridge resource.
@@ -99,6 +115,8 @@ module "iam" {
   events_table_arn                  = aws_dynamodb_table.events.arn
   rsvps_table_arn                   = aws_dynamodb_table.rsvps.arn
   notification_dispatch_queue_arn   = aws_sqs_queue.notification_dispatch.arn
+  notification_email_queue_arn      = aws_sqs_queue.notification_email.arn
+  cognito_user_pool_arn             = aws_cognito_user_pool.users.arn
   eventbridge_publish_event_bus_arn = aws_cloudwatch_event_bus.domain_events.arn
 
   workloads = {
@@ -160,8 +178,14 @@ module "iam" {
       enable_xray    = false
     }
 
-    notification-worker = {
-      access_profile = "notification_consume"
+    notification-planner = {
+      access_profile = "notification_planner"
+      enable_logs    = true
+      enable_xray    = false
+    }
+
+    notification-sender = {
+      access_profile = "notification_sender"
       enable_logs    = true
       enable_xray    = false
     }

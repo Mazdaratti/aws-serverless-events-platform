@@ -47,12 +47,32 @@ variable "rsvps_table_arn" {
 }
 
 variable "notification_dispatch_queue_arn" {
-  description = "ARN of the notification-dispatch SQS queue used by the notification worker IAM policy."
+  description = "ARN of the notification-dispatch SQS queue consumed by the notification planner."
   type        = string
 
   validation {
     condition     = length(trimspace(var.notification_dispatch_queue_arn)) > 0
     error_message = "notification_dispatch_queue_arn must not be empty."
+  }
+}
+
+variable "notification_email_queue_arn" {
+  description = "ARN of the notification-email SQS queue written by the notification planner and consumed by the notification sender."
+  type        = string
+
+  validation {
+    condition     = length(trimspace(var.notification_email_queue_arn)) > 0
+    error_message = "notification_email_queue_arn must not be empty."
+  }
+}
+
+variable "cognito_user_pool_arn" {
+  description = "ARN of the Cognito User Pool used by the notification sender to resolve recipient email addresses by canonical user ID."
+  type        = string
+
+  validation {
+    condition     = length(trimspace(var.cognito_user_pool_arn)) > 0
+    error_message = "cognito_user_pool_arn must not be empty."
   }
 }
 
@@ -88,7 +108,8 @@ variable "workloads" {
     - rsvp-authorizer
     - rsvp
     - get-event-rsvps
-    - notification-worker
+    - notification-planner
+    - notification-sender
   EOT
 
   type = map(object({
@@ -115,10 +136,11 @@ variable "workloads" {
         "rsvp-authorizer",
         "rsvp",
         "get-event-rsvps",
-        "notification-worker"
+        "notification-planner",
+        "notification-sender"
       ], workload_key)
     ])
-    error_message = "workloads may only contain the supported keys: create-event, get-event, list-events, list-my-events, update-event, cancel-event, rsvp-authorizer, rsvp, get-event-rsvps, notification-worker."
+    error_message = "workloads may only contain the supported keys: create-event, get-event, list-events, list-my-events, update-event, cancel-event, rsvp-authorizer, rsvp, get-event-rsvps, notification-planner, notification-sender."
   }
 
   validation {
@@ -134,10 +156,11 @@ variable "workloads" {
         "authorizer_logs_only",
         "rsvp_transaction",
         "get_event_rsvps",
-        "notification_consume"
+        "notification_planner",
+        "notification_sender"
       ], workload.access_profile)
     ])
-    error_message = "Each workload must use one of the supported access profiles: create_event, get_event, list_events, list_my_events, update_event, cancel_event, authorizer_logs_only, rsvp_transaction, get_event_rsvps, notification_consume."
+    error_message = "Each workload must use one of the supported access profiles: create_event, get_event, list_events, list_my_events, update_event, cancel_event, authorizer_logs_only, rsvp_transaction, get_event_rsvps, notification_planner, notification_sender."
   }
 
   validation {
@@ -173,10 +196,13 @@ variable "workloads" {
         workload_key == "get-event-rsvps" &&
         workload.access_profile == "get_event_rsvps"
         ) || (
-        workload_key == "notification-worker" &&
-        workload.access_profile == "notification_consume"
+        workload_key == "notification-planner" &&
+        workload.access_profile == "notification_planner"
+        ) || (
+        workload_key == "notification-sender" &&
+        workload.access_profile == "notification_sender"
       )
     ])
-    error_message = "Each workload key must use its matching access profile: create-event/create_event, get-event/get_event, list-events/list_events, list-my-events/list_my_events, update-event/update_event, cancel-event/cancel_event, rsvp-authorizer/authorizer_logs_only, rsvp/rsvp_transaction, get-event-rsvps/get_event_rsvps, notification-worker/notification_consume."
+    error_message = "Each workload key must use its matching access profile: create-event/create_event, get-event/get_event, list-events/list_events, list-my-events/list_my_events, update-event/update_event, cancel-event/cancel_event, rsvp-authorizer/authorizer_logs_only, rsvp/rsvp_transaction, get-event-rsvps/get_event_rsvps, notification-planner/notification_planner, notification-sender/notification_sender."
   }
 }

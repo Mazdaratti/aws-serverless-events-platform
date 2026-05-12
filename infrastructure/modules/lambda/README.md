@@ -94,7 +94,8 @@ This keeps the module reusable for future workloads such as:
 - `create-event`
 - `list-events`
 - `rsvp`
-- `notification-worker`
+- `notification-planner`
+- `notification-sender`
 
 without turning the module into a speculative catch-all abstraction.
 

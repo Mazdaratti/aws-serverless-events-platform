@@ -74,6 +74,12 @@ data "aws_iam_policy_document" "sns_admin_eventbridge_publish" {
         module.eventbridge.rule_arns["admin_update_notifications"],
       ]
     }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
   }
 }
 
@@ -115,6 +121,12 @@ data "aws_iam_policy_document" "notification_dispatch_eventbridge_send" {
       values = [
         module.eventbridge.rule_arns["participant_notification_dispatch"],
       ]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
     }
   }
 }

@@ -33,7 +33,7 @@ locals {
   }
 
   # Only event-management write workloads publish domain events. Read paths,
-  # RSVP, authorizers, and notification consumers must not receive EventBridge
+  # RSVP, authorizers, and notification workers must not receive EventBridge
   # PutEvents access from this module.
   eventbridge_publish_access_profiles = toset([
     "create_event",
@@ -138,14 +138,33 @@ locals {
       temporary_scan = false
     }
 
-    # Notification-worker is intentionally isolated to asynchronous queue
-    # consumption rather than synchronous business-table access.
-    notification_consume = {
+    # Notification-planner consumes event-level work, reads RSVP recipients,
+    # and writes recipient-level jobs. It does not resolve email addresses or
+    # send participant email.
+    notification_planner = {
+      dynamodb_table_arns = [var.rsvps_table_arn]
+      sqs_queue_arns = [
+        var.notification_dispatch_queue_arn,
+        var.notification_email_queue_arn
+      ]
+      cognito_user_pool_arns = []
+      include_logs           = true
+      include_xray           = false
+      temporary_scan         = false
+    }
+
+    # Notification-sender consumes recipient-level jobs and may look up the
+    # current Cognito user attributes later. SES access is intentionally absent
+    # until the sender implementation and SES strategy are introduced.
+    notification_sender = {
       dynamodb_table_arns = []
-      sqs_queue_arns      = [var.notification_dispatch_queue_arn]
-      include_logs        = true
-      include_xray        = false
-      temporary_scan      = false
+      sqs_queue_arns      = [var.notification_email_queue_arn]
+      cognito_user_pool_arns = [
+        var.cognito_user_pool_arn
+      ]
+      include_logs   = true
+      include_xray   = false
+      temporary_scan = false
     }
   }
 

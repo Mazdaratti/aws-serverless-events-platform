@@ -32,247 +32,76 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 ### Completed milestones
 
 - Platform foundations
-  - AWS account setup and security baseline
-  - repository structure and modular Terraform design
-  - API domain contract defined
-  - architecture decision validation
-- Environment and shared infrastructure
-  - `infrastructure/envs/dev` environment foundation
-  - `dynamodb_data_layer` module (events + RSVPs tables)
-  - `infrastructure/envs/dev` wiring for the DynamoDB data layer
-  - `sqs` module (standard queues + optional dedicated DLQs)
-  - `infrastructure/envs/dev` wiring for the SQS messaging baseline
-  - `iam` module (Lambda execution roles + workload-specific policies)
-  - `infrastructure/envs/dev` wiring for the Lambda execution IAM baseline
-  - `lambda` module (ZIP-packaged Lambda deployment baseline)
-  - `cognito` module (managed identity baseline)
-  - `infrastructure/envs/dev` wiring for the Cognito identity baseline
-  - `api_gateway` module baseline for routed HTTP API delivery
-  - `api_gateway` module hardening:
-    - stricter module input validation
-    - optional CORS support
-    - optional stage access logging
-    - default stage throttling
-    - per-route throttling overrides
-    - `examples/basic_usage`
-    - module `README.md`
-    - Terraform validation CI coverage for the module and example
-  - `s3_frontend_bucket` module baseline for private frontend-origin storage
-    - private S3 origin bucket baseline
-    - block-all-public-access baseline
-    - bucket ownership controls
-    - SSE-S3 encryption
-    - configurable versioning and force-destroy behavior
-    - `examples/basic_usage`
-    - module `README.md`
-    - Terraform validation CI coverage for the module and example
-  - `infrastructure/envs/dev` wiring for the private frontend origin bucket
-    - private S3 bucket created in AWS
-    - bucket-level public access blocking validated
-    - SSE-S3 encryption validated
-    - versioning intentionally left suspended in `dev`
-    - placeholder `index.html` upload validated
-    - direct public object access denied
-  - `waf` module baseline for CloudFront edge protection
-    - CloudFront-scoped WAFv2 Web ACL baseline
-    - fixed AWS managed-rule baseline
-    - simple IP-based rate limiting
-    - visibility configuration enabled by default
-    - `examples/basic_usage`
-    - module `README.md`
-    - Terraform validation CI coverage for the module and example
-  - `infrastructure/envs/dev` optional wiring for the WAF edge protection baseline
-    - CloudFront-scoped Web ACL created in AWS
-    - Web ACL managed through the required `us-east-1` provider path
-    - managed rules validated
-    - rate-limit rule validated
-    - visibility configuration and tags validated
-    - disabled by default in `dev` for cost control until the frontend is actively used
-  - `cloudfront` module baseline for edge distribution
-    - CloudFront distribution baseline
-    - S3 Origin Access Control for private frontend-origin access
-    - CloudFront Function for targeted SPA navigation rewrites
-    - default static asset behavior backed by S3
-    - ordered frontend SPA behaviors for `/app` and `/app/*`
-    - ordered backend API behaviors for `/events` and `/events/*`
-    - HTTPS redirect behavior
-    - managed static caching and API no-cache policies
-    - optional WAF Web ACL association input
-    - `examples/basic_usage`
-    - module `README.md`
-    - Terraform validation CI coverage for the module and example
-  - `infrastructure/envs/dev` wiring for the CloudFront edge distribution baseline
-    - CloudFront distribution created in AWS
-    - private S3 frontend bucket attached through Origin Access Control
-    - caller-owned S3 bucket policy scoped to the CloudFront distribution ARN
-    - frontend SPA route namespace `/app` and `/app/*` routed to S3
-    - targeted CloudFront Function rewrite for eligible browser HTML navigations
-    - API Gateway origin attached with the existing `/events` route shape
-    - optional WAF Web ACL association supported for the distribution
-    - HTTPS redirect validated
-    - static placeholder delivery through CloudFront validated
-    - `/app` SPA deep-link routing through CloudFront validated
-    - missing static assets under `/app/*` confirmed not to rewrite to the SPA entrypoint
-    - `/events` API routing through CloudFront validated
-    - direct S3 public object access remains denied
-    - clean post-apply Terraform plan validated
-  - `eventbridge` module baseline for async domain event routing
-    - custom EventBridge event bus baseline
-    - EventBridge rule support
-    - EventBridge target support
-    - optional EventBridge target input transformer support
-    - structured event pattern input
-    - multiple targets per rule
-    - `examples/basic_usage`
-    - module `README.md`
-    - Terraform validation CI coverage for the module and example
-  - `sns` module baseline for admin notification topics
-    - SNS admin notification topic baseline
-    - optional email subscription support
-    - email subscriptions intentionally empty by default
-    - `examples/basic_usage`
-    - module `README.md`
-    - Terraform validation CI coverage for the module and example
-  - `infrastructure/envs/dev` wiring for the async notification foundation
-    - custom EventBridge event bus composed into `dev`
-    - SNS admin notification topic composed into `dev`
-    - EventBridge admin lifecycle notification route configured for
-      `event.created` and `event.cancelled`
-    - EventBridge admin update notification route configured for
-      `event.updated`
-    - EventBridge participant dispatch route configured for `event.updated` and
-      `event.cancelled`
-    - SNS topic policy scoped to the concrete EventBridge admin notification
-      rules
-    - SQS queue policy scoped to the EventBridge participant dispatch rule
-    - write Lambda IAM publishing permissions scoped to the custom EventBridge bus
-    - write Lambda EventBridge bus-name environment variable wiring
-    - `cancel-event` publishes `event.cancelled` after durable cancellation
-    - `create-event` publishes `event.created` after durable creation
-    - `update-event` publishes `event.updated` after durable updates
-    - configurable dev SNS admin email subscription without hardcoded personal
-      email addresses
-    - confirmed dev SNS admin email subscription
-    - EventBridge input-transformer formatting for direct admin SNS emails
-    - admin SNS email validation for `event.created`, `event.updated`, and
-      `event.cancelled`
-    - admin SNS emails include the full CloudFront event URL
-    - `event.updated` admin emails include `changed_fields`
-  - `infrastructure/envs/dev` wiring for the routed backend baseline
-- Core synchronous Lambda rollout
+  - AWS account and repository foundation
+  - modular Terraform structure
+  - local-state-first `dev` environment
+  - architecture and behavior contracts
+
+- Core infrastructure
+  - DynamoDB data layer for events and RSVPs
+  - SQS queues and DLQs for async notification work:
+    - `notification-dispatch`
+    - `notification-email`
+  - least-privilege IAM roles for deployed Lambda workloads
+  - split IAM roles prepared for `notification-planner` and `notification-sender`
+  - ZIP-packaged Lambda deployment baseline
+  - Cognito User Pool, app client, and admin group
+  - routed API Gateway HTTP API baseline
+
+- Edge and frontend delivery
+  - private S3 frontend origin
+  - CloudFront distribution as the browser-facing entry point
+  - CloudFront Function for `/app` SPA deep-link rewrites
+  - API forwarding for `/events` and `/events/*`
+  - optional CloudFront-scoped WAF baseline
+  - local frontend deployment helper for S3 sync and CloudFront invalidation
+
+- Routed backend workloads
   - `create-event`
-    - implementation
-    - `envs/dev` wiring
-    - routed AWS validation and deployment evidence
-    - JWT-protected `POST /events` route validated in AWS
   - `list-events`
-    - implementation
-    - `envs/dev` wiring
-    - routed AWS validation and deployment evidence
-    - now locked as the public broad-list workload
-    - public `GET /events` route validated in AWS
   - `list-my-events`
-    - implementation
-    - `envs/dev` wiring
-    - routed AWS validation and deployment evidence
-    - dedicated creator-scoped authenticated listing workload
-    - JWT-protected `GET /events/mine` route validated in AWS
   - `get-event`
-    - implementation
-    - `envs/dev` wiring
-    - routed AWS validation and deployment evidence
-    - public `GET /events/{event_id}` route validated in AWS
   - `update-event`
-    - implementation
-    - `envs/dev` wiring
-    - routed AWS validation and deployment evidence
-    - conditional writes, partial updates, and GSI consistency handling
-    - JWT-protected `PATCH /events/{event_id}` route validated in AWS
   - `cancel-event`
-    - implementation
-    - `envs/dev` wiring
-    - routed AWS validation and deployment evidence
-    - soft-delete lifecycle transition
-    - JWT-protected `POST /events/{event_id}/cancel` route validated in AWS
   - `rsvp`
-    - implementation
-    - `envs/dev` wiring
-    - routed AWS validation and deployment evidence
-    - transactional RSVP upsert and helper-counter maintenance
-    - mixed-mode `POST /events/{event_id}/rsvp` route validated in AWS
   - `get-event-rsvps`
-    - implementation
-    - `envs/dev` wiring
-    - routed AWS validation and deployment evidence
-    - creator/admin RSVP read path with pagination
-    - JWT-protected `GET /events/{event_id}/rsvps` route validated in AWS
   - `rsvp-authorizer`
-    - implementation
-    - `envs/dev` wiring
-    - AWS validation and deployment evidence
-    - mixed anonymous/authenticated caller projection for routed RSVP
-- Frontend foundation and product functionality
-  - React + Vite + TypeScript app under `frontend/`
-  - React Router `BrowserRouter` with `/app` basename
-  - Amplify Auth modular Cognito configuration
-  - Cognito token storage explicitly configured to `sessionStorage`
-  - build-time `VITE_*` public frontend configuration
-  - fetch-based API client using same-origin relative `/events` paths
-  - public event list page using `GET /events`
-  - public event detail page using `GET /events/{event_id}`
-  - anonymous RSVP token helper using non-auth `localStorage`
-  - mixed-mode RSVP panel using `POST /events/{event_id}/rsvp`
-  - authenticated create-event page using `POST /events`
-  - authenticated edit-event page using `PATCH /events/{event_id}`
-  - authenticated cancel workflow using `POST /events/{event_id}/cancel`
-  - authenticated my-events page using `GET /events/mine`
-  - creator/admin RSVP list page using `GET /events/{event_id}/rsvps`
-  - register, confirm registration, login, and logout flow
-  - reusable loading, status, success, and error message components
-  - Tailwind CSS v4 styling baseline with shared UI style primitives
-  - reusable layout primitives for page, panel, action, and grid composition
-  - responsive event list, detail, create/edit, my-events, RSVP, and auth pages
-  - event visibility labels for public, protected, and admin-only events
-  - client-side search, sort, event-state, visibility, and RSVP availability controls
-    for already loaded event lists
-  - public event list controls exclude cancelled-management options that are not
-    visible in public API results
-  - accessible skip link, status/error feedback, labelled lists, form feedback,
-    and destructive-action confirmation semantics
-  - auth return-path preservation for protected UI prompts such as my-events,
-    protected event RSVP, and RSVP-list access
-  - route-level lazy loading with production bundle output review
-  - local typecheck/build validation completed
-  - manual CloudFront runtime validation completed in the frontend foundation phase
-- Frontend deployment integration
-  - `infrastructure/envs/dev` exposes the public outputs needed for frontend deployment
-  - local/manual deployment helper added at `scripts/deploy_frontend.py`
-  - helper reads Terraform outputs and injects only public `VITE_*` values
-  - helper runs `npm ci`, `npm run typecheck`, and `npm run build`
-  - helper previews S3 upload with `aws s3 sync --dryrun`
-  - `--apply` syncs `frontend/dist/` to the private S3 frontend bucket
-  - `--apply` creates a CloudFront invalidation after upload
-  - CloudFront runtime validation completed for frontend routes, API forwarding,
-    and SPA refresh/deep-link behavior
-  - no backend, Lambda, Cognito, API Gateway, or route model changes were made
+
+- Async notification foundation
+  - EventBridge custom event bus
+  - compact post-commit domain events for:
+    - `event.created`
+    - `event.updated`
+    - `event.cancelled`
+  - SNS admin notification topic and confirmed dev email subscription
+  - EventBridge-routed admin notifications
+  - participant dispatch routing to `notification-dispatch` for:
+    - `event.updated`
+    - `event.cancelled`
+  - `notification-email` queue for future recipient-level participant email jobs
+  - EventBridge-to-SNS and EventBridge-to-SQS policies hardened with source ARN
+    and `aws:SourceAccount`
+  - synchronous API outcomes remain independent from async notification delivery
+
+- Frontend application
+  - React + Vite + TypeScript SPA under `/app`
+  - same-origin API client using `/events` paths
+  - Cognito auth with sessionStorage token handling
+  - public event listing and detail pages
+  - mixed-mode RSVP UI
+  - authenticated create, edit, cancel, my-events, and RSVP-list flows
+  - responsive Tailwind CSS UI
+  - route-level lazy loading
+  - accessibility and user-feedback baseline
+
 - Validation and developer workflow
-  - external Lambda artifact packaging workflow via `scripts/package_lambda.py`
-  - Python handler validation for implemented Lambda handlers
-  - local pytest bootstrap aligned with CI import-path behavior
-  - frontend Vitest + React Testing Library baseline added
-  - initial frontend component tests added for shared event list controls, event
-    form validation, and loading semantics
-  - frontend Playwright Chromium smoke baseline added for `/app`, public events
-    shell rendering, and protected my-events prompt rendering
-  - frontend CI validation now runs:
-    - `npm ci`
-    - `npm run typecheck`
-    - `npm run build`
-    - `npm run test`
-    - `npm run test:e2e`
-  - local `terraform plan` validation for the wired dev environment
-  - repository-wide `terraform-docs` configuration
-  - Terraform validation CI workflow for DynamoDB module/example, SQS module/example, EventBridge module/example, SNS module/example, IAM module/example, Lambda module/example, Cognito module/example, API Gateway module/example, S3 frontend bucket module/example, WAF module/example, CloudFront module/example, and the dev root
+  - Python Lambda tests
+  - frontend Vitest and Playwright tests
+  - Terraform module/example/dev validation in CI
+  - frontend CI validation for install, typecheck, build, component tests, and
+    browser smoke tests
+  - deterministic Lambda ZIP packaging helper
+  - terraform-docs documentation workflow
 
 ### Next milestones
 
@@ -369,6 +198,9 @@ authenticated RSVP user for event update and cancellation notifications.
 17. The planned `notification-sender` resolves the current recipient email
 through Cognito at send time using the canonical user identity and sends
 participant email through **Amazon SES**.
+
+The planner and sender execution roles are provisioned separately with
+least-privilege IAM.
 
 Participant emails are user-facing product emails, not admin/debug messages.
 The planner produces safe recipient-level jobs, and the sender owns final
@@ -542,12 +374,14 @@ Infrastructure is implemented using modular Terraform design with environment-sp
 
 3. SQS queues and dead-letter queues ✅
    - notification dispatch queue ✅
-   - dedicated DLQ wiring ✅
+   - notification email queue ✅
+   - dedicated DLQ wiring for both notification queues ✅
 
 4. IAM roles and policies for workloads ✅
    - least-privilege execution roles ✅
    - workload-specific access profiles ✅
    - DynamoDB and SQS policy wiring ✅
+   - split notification planner/sender IAM roles ✅
 
 5. Lambda compute layer ✅
    - ZIP-based Lambda deployment baseline ✅
@@ -657,6 +491,8 @@ Infrastructure is implemented using modular Terraform design with environment-sp
      `notification-dispatch` SQS queue ✅
    - add SNS and SQS resource policies scoped to concrete EventBridge rule
      ARNs ✅
+   - add `aws:SourceAccount` hardening to EventBridge-to-SNS and
+     EventBridge-to-SQS resource policies ✅
    - add least-privilege EventBridge publishing permissions for write Lambdas ✅
    - wire EventBridge bus-name environment variable for write Lambdas ✅
    - publish `event.cancelled` from `cancel-event` after successful durable
@@ -675,8 +511,10 @@ Infrastructure is implemented using modular Terraform design with environment-sp
 
 20. Notification planner/sender workers and SES participant notifications
    - add `notification-email` SQS queue and DLQ ✅
-   - add least-privilege IAM for `notification-planner`
-   - add least-privilege IAM for `notification-sender`
+   - harden `notification-dispatch` queue timing for future Lambda SQS
+     consumption ✅
+   - add least-privilege IAM for `notification-planner` ✅
+   - add least-privilege IAM for `notification-sender` ✅
    - implement `notification-planner` to consume `notification-dispatch`
      messages
    - query RSVP records by event and enqueue one recipient-level email job per

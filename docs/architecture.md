@@ -466,7 +466,7 @@ custom Lambda authorizer, not in the business handler.
 
 ---
 
-## Asynchronous Processing Layer
+## Event-Driven Async Processing
 
 Asynchronous services are used **after durable business state changes**.
 
@@ -485,6 +485,20 @@ The platform uses:
   - notification planner and sender workers
 - **Amazon SES**
   - intended participant email delivery service
+
+After successful event-management writes, compact domain events are published to
+EventBridge. These events are emitted only after the primary DynamoDB business
+write succeeds.
+
+The v1 event-management domain events are:
+
+- `event.created`
+- `event.updated`
+- `event.cancelled`
+
+Each successful business change publishes exactly one EventBridge domain event.
+Write Lambdas do not publish separate events for separate notification targets.
+EventBridge owns fanout.
 
 The locked notification foundation uses separate admin and participant paths.
 
@@ -512,21 +526,27 @@ SQS is used for participant notification durability and retry isolation:
 The notification worker layer is intentionally split:
 
 - `notification-planner`
-  - consumes event-level participant notification work
+  - has a dedicated least-privilege IAM role prepared in `dev`
+  - will consume event-level participant notification work
   - queries RSVP records by event
-  - creates one recipient-level email job per authenticated RSVP user
+  - will create one recipient-level email job per authenticated RSVP user
   - includes both attending and not-attending RSVP users
   - skips anonymous RSVP subjects in v1
 - `notification-sender`
-  - consumes recipient-level email jobs
-  - resolves the current recipient email through Cognito at send time using the
-    canonical Cognito `sub`
-  - renders user-facing participant email content through stable templates
-  - sends participant email through SES
+  - has a dedicated least-privilege IAM role prepared in `dev`
+  - will consume recipient-level email jobs
+  - will resolve the current recipient email through Cognito at send time using
+    the canonical Cognito `sub`
+  - will render user-facing participant email content through stable templates
+  - will send participant email through SES
 
 This keeps EventBridge responsible for fanout, SQS responsible for durable
 participant work buffering, and SES responsible for direct participant email
 delivery when that layer is implemented.
+
+The planner and sender IAM roles are already prepared in `dev`, but worker
+Lambda code, event source mappings, SES permissions, and sender templates are
+not implemented yet.
 
 Participant emails are user-facing product emails, not admin/debug messages.
 The planner produces safe recipient-level jobs, and the sender owns final
@@ -582,67 +602,6 @@ Those access patterns intentionally support the current Lambda rollout order:
 - broad event discovery
 - creator-owned event listing
 - later transactional RSVP handling
-
----
-
-## Event-Driven Extensions
-
-After successful event-management writes, compact domain events are published
-to:
-
-- **Amazon EventBridge**
-
-These events are emitted only after the primary DynamoDB business write
-succeeds.
-
-Event publication and notification delivery failures must not retroactively
-change the synchronous API result.
-
-The v1 event-management domain events are:
-
-- `event.created`
-- `event.updated`
-- `event.cancelled`
-
-Each successful business change publishes exactly one EventBridge domain event.
-Write Lambdas do not publish separate events for separate notification targets.
-EventBridge owns fanout.
-
-EventBridge routes events to:
-
-- **Amazon SNS** for admin/platform broadcast notifications
-- **Amazon SQS** for participant-notification planning work
-
-Admin notifications use direct EventBridge-to-SNS routing for:
-
-- `event.created`
-- `event.updated`
-- `event.cancelled`
-
-The direct SNS admin path is intentionally lightweight. It is suitable for the
-current platform/admin validation baseline, while richer email presentation can
-be introduced later through a dedicated formatter if needed.
-
-Participant notifications use EventBridge-to-SQS routing for:
-
-- `event.updated`
-- `event.cancelled`
-
-The participant path is planned as:
-
-`EventBridge -> notification-dispatch SQS -> notification-planner Lambda -> notification-email SQS -> notification-sender Lambda -> SES`
-
-The planner creates one recipient-level email job per authenticated RSVP user.
-The sender resolves the current email address through Cognito at send time
-using the canonical Cognito `sub`, renders user-facing participant email
-content through stable templates, and sends through SES.
-
-This enables:
-
-- loose coupling
-- durable participant notification buffering
-- retry isolation between planning and email sending
-- notification delivery that remains independent from core API responses
 
 ---
 

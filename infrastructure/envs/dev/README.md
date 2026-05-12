@@ -162,6 +162,8 @@ This environment currently wires in:
 - one dedicated dead-letter queue for each source queue
 - one environment-owned queue policy that allows the EventBridge participant
   dispatch rule to send messages to `notification-dispatch`
+- Lambda-ready queue timing for `notification-dispatch` with a 60 second
+  visibility timeout and 20 second long polling
 
 Why this module is wired now:
 
@@ -185,7 +187,7 @@ Important design notes:
 - notification planner/sender behavior and Lambda consumers are not implemented yet
 - the primary RSVP business write remains synchronous through DynamoDB durable commit
 - the EventBridge-to-SQS queue policy is scoped to the concrete participant
-  dispatch rule ARN
+  dispatch rule ARN and the current AWS account through `aws:SourceAccount`
 - Lambda consumer permissions remain separate from the queue resource policy and
   are not changed by the EventBridge routing step
 
@@ -334,6 +336,8 @@ Important design notes:
   show AWS/SNS line quoting artifacts
 - participant notifications do not use this topic
 - write Lambda `events:PutEvents` permissions are configured through the IAM module
+- the SNS topic policy is also scoped to the current AWS account through
+  `aws:SourceAccount`
 - write Lambdas receive the custom event bus name through
   `EVENTBRIDGE_EVENT_BUS_NAME`
 - `cancel-event` now publishes `event.cancelled` after successful durable
@@ -390,7 +394,8 @@ This environment currently wires in:
 - one execution role for `rsvp-authorizer`
 - one execution role for `rsvp`
 - one execution role for `get-event-rsvps`
-- one execution role for `notification-worker`
+- one execution role for `notification-planner`
+- one execution role for `notification-sender`
 
 Why this module is wired now:
 
@@ -417,8 +422,19 @@ Important design notes:
 - `get-event-rsvps` is the read-only RSVP visibility role and receives:
   - `GetItem` on `events`
   - `Query` on `rsvps`
-- `rsvp-authorizer` uses a logs-only execution profile because Cognito token validation and JWKS retrieval happen without direct Cognito IAM access
-- `notification-worker` is the only workload that currently receives SQS consumer permissions
+- `rsvp-authorizer` uses a logs-only execution profile because Cognito token
+  validation and JWKS retrieval happen without direct Cognito IAM access
+- `notification-planner` is the participant notification planning role and receives:
+  - SQS consumer permissions for `notification-dispatch`
+  - `Query` access for the RSVP table
+  - `sqs:SendMessage` access for `notification-email`
+- `notification-sender` is the participant notification email role and receives:
+  - SQS consumer permissions for `notification-email`
+  - `cognito-idp:ListUsers` access scoped to the dev user pool for resolving a
+    recipient's current email address from the canonical Cognito `sub`
+- `notification-sender` does not receive SES permissions yet
+- neither notification worker has Lambda code or an event source mapping in this
+  milestone
 - only `create-event`, `update-event`, and `cancel-event` receive
   `events:PutEvents`
 - EventBridge publish access is scoped to the custom dev event bus ARN
@@ -439,7 +455,9 @@ The environment should stay thin:
 Validation:
 
 - validated via `terraform apply`, AWS inspection, and a clean post-apply `terraform plan` for the original IAM baseline
-- the EventBridge publish permission update was validated with local `terraform plan`
+- the EventBridge publish permission update and notification planner/sender IAM
+  split were validated with `terraform apply`, AWS inspection, and a clean
+  post-apply `terraform plan`
 - confirmed all wired workload roles were created with Lambda-only trust relationships
 - confirmed the planned IAM policy updates are limited to `create-event`, `update-event`, and `cancel-event`
 - confirmed the IAM update did not include Lambda environment variable or Lambda
@@ -454,7 +472,16 @@ Validation:
 - confirmed `get-event-rsvps` has read-only DynamoDB access across the two business tables:
   - `GetItem` on `events`
   - `Query` on `rsvps`
-- confirmed only `notification-worker` has SQS consumer permissions
+- confirmed `notification-planner` has SQS consumer permissions for
+  `notification-dispatch`
+- confirmed `notification-planner` can query RSVP records and send messages to
+  `notification-email`
+- confirmed `notification-sender` has SQS consumer permissions for
+  `notification-email`
+- confirmed `notification-sender` can list users in the dev Cognito user pool
+- confirmed `notification-sender` has no SES permissions
+- confirmed the old generic `notification-worker` role is no longer part of the
+  active dev IAM composition
 - confirmed Terraform outputs match the created IAM role identities
 - see evidence screenshots under `docs/assets/iam/`
 
@@ -1165,7 +1192,7 @@ Validation:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.44.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
 
 ## Modules
 

@@ -56,6 +56,14 @@ module "sqs" {
       receive_wait_time_seconds  = 0
       max_receive_count          = 5
     }
+
+    notification-email = {
+      create_dlq                 = true
+      visibility_timeout_seconds = 60
+      message_retention_seconds  = 345600
+      receive_wait_time_seconds  = 20
+      max_receive_count          = 5
+    }
   }
 }
 

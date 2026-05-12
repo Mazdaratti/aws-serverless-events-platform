@@ -2414,7 +2414,6 @@ The following are intentionally deferred:
 - anonymous RSVP email collection
 - Step Functions
 - EventBridge Pipes
-- SES implementation inside Step 19A
 - deployed AWS notification tests in CI
 
 

@@ -2291,12 +2291,18 @@ Rules:
 
 - participant notifications use the two-queue/two-worker design
 - the existing `notification-dispatch` queue is the event-level planning queue
-- the future `notification-email` queue is the recipient-level email work queue
+- `notification-email` is the recipient-level user-facing email work queue
+  between the future planner and sender
 - SQS provides durable buffering, retry isolation, and rate/concurrency control
 - one event-level message can produce many recipient-level messages
 - each recipient-level message represents one authenticated RSVP user recipient
 - one worker must not query all recipients and send all emails in the same
   invocation
+
+Participant emails are user-facing product emails, not admin/debug messages.
+The planner produces safe recipient-level jobs, and the sender owns final
+presentation through stable templates. EventBridge does not send directly to
+`notification-email`.
 
 Participant notification emails should eventually include:
 
@@ -2370,7 +2376,8 @@ Responsibilities:
 
 - resolve the current recipient email address from Cognito at send time using
   the canonical `recipient_user_id`
-- construct the email content for the notification type
+- render user-facing email content for the notification type through stable
+  templates
 - send email through SES
 - use retry-friendly and partial-batch-friendly behavior when implemented
 
@@ -2378,6 +2385,7 @@ Non-responsibilities:
 
 - do not query the RSVP table
 - do not depend on RSVP-stored email addresses
+- do not send raw EventBridge or DynamoDB payloads to participants
 - do not treat stale copied email data as the source of truth
 
 ### Intentionally deferred notification scope

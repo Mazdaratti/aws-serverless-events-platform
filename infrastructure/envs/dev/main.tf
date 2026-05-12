@@ -55,9 +55,9 @@ module "sqs" {
   queues = {
     notification-dispatch = {
       create_dlq                 = true
-      visibility_timeout_seconds = 30
+      visibility_timeout_seconds = 60
       message_retention_seconds  = 345600
-      receive_wait_time_seconds  = 0
+      receive_wait_time_seconds  = 20
       max_receive_count          = 5
     }
 
@@ -215,6 +215,8 @@ module "iam" {
   events_table_arn                  = module.dynamodb_data_layer.events_table_arn
   rsvps_table_arn                   = module.dynamodb_data_layer.rsvps_table_arn
   notification_dispatch_queue_arn   = module.sqs.queue_arns["notification-dispatch"]
+  notification_email_queue_arn      = module.sqs.queue_arns["notification-email"]
+  cognito_user_pool_arn             = module.cognito.user_pool_arn
   eventbridge_publish_event_bus_arn = local.eventbridge_event_bus_arn
 
   workloads = {
@@ -254,8 +256,12 @@ module "iam" {
       access_profile = "get_event_rsvps"
     }
 
-    notification-worker = {
-      access_profile = "notification_consume"
+    notification-planner = {
+      access_profile = "notification_planner"
+    }
+
+    notification-sender = {
+      access_profile = "notification_sender"
     }
   }
 }

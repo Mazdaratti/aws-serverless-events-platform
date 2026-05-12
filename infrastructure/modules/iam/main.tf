@@ -262,10 +262,10 @@ data "aws_iam_policy_document" "workload" {
   }
 
   dynamic "statement" {
-    for_each = each.value.access_profile == "notification_consume" ? [1] : []
+    for_each = each.value.access_profile == "notification_planner" ? [1] : []
 
     content {
-      sid    = "NotificationQueueConsume"
+      sid    = "NotificationPlannerConsumeDispatchQueue"
       effect = "Allow"
 
       actions = [
@@ -277,6 +277,71 @@ data "aws_iam_policy_document" "workload" {
       ]
 
       resources = [var.notification_dispatch_queue_arn]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = each.value.access_profile == "notification_planner" ? [1] : []
+
+    content {
+      sid    = "NotificationPlannerQueryRsvps"
+      effect = "Allow"
+
+      actions = ["dynamodb:Query"]
+
+      # The planner reads RSVP recipients by event and does not need write,
+      # scan, or event-table access.
+      resources = [var.rsvps_table_arn]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = each.value.access_profile == "notification_planner" ? [1] : []
+
+    content {
+      sid    = "NotificationPlannerSendEmailQueue"
+      effect = "Allow"
+
+      actions = ["sqs:SendMessage"]
+
+      # The planner only writes recipient-level jobs. It does not consume from
+      # the email queue or send email directly.
+      resources = [var.notification_email_queue_arn]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = each.value.access_profile == "notification_sender" ? [1] : []
+
+    content {
+      sid    = "NotificationSenderConsumeEmailQueue"
+      effect = "Allow"
+
+      actions = [
+        "sqs:ChangeMessageVisibility",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes",
+        "sqs:GetQueueUrl",
+        "sqs:ReceiveMessage"
+      ]
+
+      resources = [var.notification_email_queue_arn]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = each.value.access_profile == "notification_sender" ? [1] : []
+
+    content {
+      sid    = "NotificationSenderListCognitoUsers"
+      effect = "Allow"
+
+      actions = ["cognito-idp:ListUsers"]
+
+      # The sender will later resolve the current email address by applying an
+      # exact server-side Cognito filter on the canonical Cognito sub. SES
+      # permissions remain intentionally deferred.
+      resources = [var.cognito_user_pool_arn]
     }
   }
 

@@ -156,8 +156,10 @@ Implemented via:
 
 This environment currently wires in:
 
-- one standard queue: `notification-dispatch`
-- one dedicated dead-letter queue for that source queue
+- two standard queues:
+  - `notification-dispatch`
+  - `notification-email`
+- one dedicated dead-letter queue for each source queue
 - one environment-owned queue policy that allows the EventBridge participant
   dispatch rule to send messages to `notification-dispatch`
 
@@ -165,12 +167,22 @@ Why this module is wired now:
 
 - the platform already reserves SQS for asynchronous work after durable state changes
 - notification dispatch is the clearest first async side effect to separate from API response time
-- the queue and DLQ establish a concrete messaging extension point without changing the synchronous RSVP write path
+- the email queue establishes the recipient-level user-facing email work buffer
+  between the future participant notification planner and sender
+- the queues and DLQs establish concrete messaging extension points without
+  changing the synchronous RSVP write path
 
 Important design notes:
 
-- the queue is intended for durable post-commit notification work
-- notification delivery behavior and consumers are not implemented yet
+- `notification-dispatch` is intended for event-level participant notification
+  planning work from EventBridge
+- `notification-email` is intended for recipient-level user-facing email jobs
+  produced by the future planner
+- participant emails are user-facing product emails, not admin/debug messages
+- the planner produces safe recipient-level jobs, and the sender owns final
+  presentation through stable templates
+- EventBridge does not send directly to `notification-email`
+- notification planner/sender behavior and Lambda consumers are not implemented yet
 - the primary RSVP business write remains synchronous through DynamoDB durable commit
 - the EventBridge-to-SQS queue policy is scoped to the concrete participant
   dispatch rule ARN
@@ -1153,7 +1165,7 @@ Validation:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.44.0 |
 
 ## Modules
 
@@ -1190,10 +1202,10 @@ Validation:
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region where resources will be deployed. | `string` | n/a | yes |
-| <a name="input_environment"></a> [environment](#input\_environment) | Deployment environment name. | `string` | n/a | yes |
-| <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Project name used for naming and tagging resources. | `string` | n/a | yes |
 | <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
 | <a name="input_enable_waf"></a> [enable\_waf](#input\_enable\_waf) | Whether to create and attach the CloudFront-scoped WAF Web ACL in this dev environment. | `bool` | `false` | no |
+| <a name="input_environment"></a> [environment](#input\_environment) | Deployment environment name. | `string` | n/a | yes |
+| <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Project name used for naming and tagging resources. | `string` | n/a | yes |
 | <a name="input_sns_admin_email_subscriptions"></a> [sns\_admin\_email\_subscriptions](#input\_sns\_admin\_email\_subscriptions) | Admin or developer email endpoints to subscribe to the SNS admin notification topic in dev. Email subscriptions require confirmation before receiving messages. | `set(string)` | `[]` | no |
 
 ## Outputs

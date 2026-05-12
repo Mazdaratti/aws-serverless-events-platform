@@ -506,7 +506,8 @@ SQS is used for participant notification durability and retry isolation:
 - `notification-dispatch`
   - event-level planning queue for `event.updated` and `event.cancelled`
 - `notification-email`
-  - future recipient-level email work queue
+  - recipient-level user-facing email work queue between the future planner and
+    sender
 
 The notification worker layer is intentionally split:
 
@@ -520,11 +521,17 @@ The notification worker layer is intentionally split:
   - consumes recipient-level email jobs
   - resolves the current recipient email through Cognito at send time using the
     canonical Cognito `sub`
+  - renders user-facing participant email content through stable templates
   - sends participant email through SES
 
 This keeps EventBridge responsible for fanout, SQS responsible for durable
 participant work buffering, and SES responsible for direct participant email
 delivery when that layer is implemented.
+
+Participant emails are user-facing product emails, not admin/debug messages.
+The planner produces safe recipient-level jobs, and the sender owns final
+presentation through stable templates. EventBridge does not send directly to
+`notification-email`.
 
 Queues are **not used in the primary RSVP write path**, but remain essential
 for decoupled notification processing and failure isolation.
@@ -627,7 +634,8 @@ The participant path is planned as:
 
 The planner creates one recipient-level email job per authenticated RSVP user.
 The sender resolves the current email address through Cognito at send time
-using the canonical Cognito `sub` and sends through SES.
+using the canonical Cognito `sub`, renders user-facing participant email
+content through stable templates, and sends through SES.
 
 This enables:
 

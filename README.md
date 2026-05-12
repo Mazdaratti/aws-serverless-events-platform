@@ -370,6 +370,10 @@ authenticated RSVP user for event update and cancellation notifications.
 through Cognito at send time using the canonical user identity and sends
 participant email through **Amazon SES**.
 
+Participant emails are user-facing product emails, not admin/debug messages.
+The planner produces safe recipient-level jobs, and the sender owns final
+presentation through stable templates.
+
 The v1 event-management domain events are:
 
 - `event.created`
@@ -670,7 +674,7 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - keep synchronous API outcomes independent from async notification results
 
 20. Notification planner/sender workers and SES participant notifications
-   - add `notification-email` SQS queue and DLQ
+   - add `notification-email` SQS queue and DLQ ✅
    - add least-privilege IAM for `notification-planner`
    - add least-privilege IAM for `notification-sender`
    - implement `notification-planner` to consume `notification-dispatch`
@@ -681,6 +685,8 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - skip anonymous RSVP subjects in v1
    - implement `notification-sender` to consume `notification-email` messages
    - resolve current recipient email at send time through Cognito
+   - render user-facing participant email content through stable sender
+     templates
    - send participant emails through SES
    - wire planner and sender Lambdas into `infrastructure/envs/dev`
    - keep user-facing API responses independent from notification delivery

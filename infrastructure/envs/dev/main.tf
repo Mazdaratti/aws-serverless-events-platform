@@ -37,8 +37,12 @@ module "dynamodb_data_layer" {
 ############################################
 
 # This environment wires in the first reusable messaging module for the
-# platform. The queue is intended for durable post-commit notification work,
-# while the synchronous RSVP write path remains outside SQS.
+# platform. These queues are intended for durable post-commit participant
+# notification work, while the synchronous RSVP write path remains outside SQS.
+#
+# The dispatch queue receives event-level planning work from EventBridge. The
+# email queue will later buffer recipient-level user-facing email jobs produced
+# by the planner; EventBridge does not send directly to it.
 #
 # The module owns the queue and DLQ design so envs/dev can stay focused on
 # composition and environment-level context only.
@@ -54,6 +58,14 @@ module "sqs" {
       visibility_timeout_seconds = 30
       message_retention_seconds  = 345600
       receive_wait_time_seconds  = 0
+      max_receive_count          = 5
+    }
+
+    notification-email = {
+      create_dlq                 = true
+      visibility_timeout_seconds = 60
+      message_retention_seconds  = 345600
+      receive_wait_time_seconds  = 20
       max_receive_count          = 5
     }
   }

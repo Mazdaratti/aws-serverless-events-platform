@@ -4,7 +4,7 @@ Create a deterministic Lambda ZIP artifact for one Lambda workload.
 
 What this script packages:
 - the selected Lambda source directory
-- the shared Lambda helpers under `lambdas/shared`
+- the shared Lambda helpers under `lambdas/shared` unless explicitly skipped
 - optionally, one vendored dependency directory
 
 Why this script exists:
@@ -59,11 +59,12 @@ def main() -> int:
 
     source_dir = args.source_dir.resolve()
     output_path = args.output_path.resolve()
-    shared_dir = resolve_shared_dir()
+    shared_dir = None if args.no_shared else resolve_shared_dir()
     vendor_dir = args.vendor_dir.resolve() if args.vendor_dir is not None else None
 
     validate_source_dir(source_dir)
-    validate_shared_dir(shared_dir)
+    if shared_dir is not None:
+        validate_shared_dir(shared_dir)
     if vendor_dir is not None:
         validate_vendor_dir(vendor_dir)
 
@@ -102,6 +103,14 @@ def parse_args() -> argparse.Namespace:
             "can be imported directly."
         ),
     )
+    parser.add_argument(
+        "--no-shared",
+        action="store_true",
+        help=(
+            "Do not include lambdas/shared in the ZIP artifact. Use this for "
+            "workloads that do not import shared helper modules."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -136,7 +145,7 @@ def validate_vendor_dir(vendor_dir: Path) -> None:
 def package_lambda(
     *,
     source_dir: Path,
-    shared_dir: Path,
+    shared_dir: Path | None,
     vendor_dir: Path | None,
     output_path: Path,
 ) -> None:
@@ -168,7 +177,7 @@ def package_lambda(
 def collect_files_to_package(
     *,
     source_dir: Path,
-    shared_dir: Path,
+    shared_dir: Path | None,
     vendor_dir: Path | None,
 ) -> list[tuple[Path, str]]:
     # Collect every file once and compute the exact archive path it will have
@@ -203,7 +212,8 @@ def collect_files_to_package(
         archive_base=source_dir,
         skipped_roots=(vendor_dir,) if vendor_dir is not None else (),
     )
-    add_directory(shared_dir, archive_base=shared_dir.parent)
+    if shared_dir is not None:
+        add_directory(shared_dir, archive_base=shared_dir.parent)
     if vendor_dir is not None:
         add_directory(vendor_dir, archive_base=vendor_dir)
 

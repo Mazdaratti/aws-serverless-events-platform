@@ -170,7 +170,7 @@ Why this module is wired now:
 - the platform already reserves SQS for asynchronous work after durable state changes
 - notification dispatch is the clearest first async side effect to separate from API response time
 - the email queue establishes the recipient-level user-facing email work buffer
-  between the future participant notification planner and sender
+  between the participant notification planner and future sender
 - the queues and DLQs establish concrete messaging extension points without
   changing the synchronous RSVP write path
 
@@ -179,12 +179,15 @@ Important design notes:
 - `notification-dispatch` is intended for event-level participant notification
   planning work from EventBridge
 - `notification-email` is intended for recipient-level user-facing email jobs
-  produced by the future planner
+  produced by the notification planner
 - participant emails are user-facing product emails, not admin/debug messages
 - the planner produces safe recipient-level jobs, and the sender owns final
   presentation through stable templates
 - EventBridge does not send directly to `notification-email`
-- notification planner/sender behavior and Lambda consumers are not implemented yet
+- `notification-planner` is implemented and consumes `notification-dispatch`
+  through a Lambda event source mapping
+- `notification-sender`, SES permissions/resources, Cognito email resolution,
+  and sender templates remain future work
 - the primary RSVP business write remains synchronous through DynamoDB durable commit
 - the EventBridge-to-SQS queue policy is scoped to the concrete participant
   dispatch rule ARN and the current AWS account through `aws:SourceAccount`
@@ -433,8 +436,9 @@ Important design notes:
   - `cognito-idp:ListUsers` access scoped to the dev user pool for resolving a
     recipient's current email address from the canonical Cognito `sub`
 - `notification-sender` does not receive SES permissions yet
-- neither notification worker has Lambda code or an event source mapping in this
-  milestone
+- `notification-planner` now has Lambda code and an event source mapping from
+  `notification-dispatch`
+- `notification-sender` does not have Lambda code or an event source mapping yet
 - only `create-event`, `update-event`, and `cancel-event` receive
   `events:PutEvents`
 - EventBridge publish access is scoped to the custom dev event bus ARN
@@ -749,6 +753,7 @@ This environment currently wires in these deployed Lambda workloads:
 - `get-event-rsvps`
 - `list-my-events`
 - `rsvp-authorizer`
+- `notification-planner`
 
 Why this module is wired now:
 
@@ -780,6 +785,9 @@ Important design notes:
   - `COGNITO_ISSUER`
   - `COGNITO_APP_CLIENT_ID`
   - `COGNITO_ADMIN_GROUP_NAME`
+- `notification-planner` receives `RSVPS_TABLE_NAME` and
+  `NOTIFICATION_EMAIL_QUEUE_URL` for participant notification planning work
+- `notification-sender` is not deployed yet
 - all deployed functions return an API Gateway-style wrapped response even before API Gateway is wired
 - `create-event` publishes `event.created` to EventBridge after durable
   creation
@@ -897,6 +905,23 @@ Current business behavior validated in this environment:
   - internal storage fields stay hidden from the response
   - cancelled and past events remain readable for the creator and admins
   - pagination works through opaque `next_cursor`
+- `notification-planner`
+  - consumes `event.updated` and `event.cancelled` planning messages from
+    `notification-dispatch`
+  - uses a Lambda event source mapping with `ReportBatchItemFailures`
+  - queries RSVP records for the affected event
+  - includes authenticated RSVP users with both `attending = true` and
+    `attending = false`
+  - skips anonymous RSVP subjects
+  - creates one recipient-level job per authenticated RSVP user in
+    `notification-email`
+  - recipient-level jobs contain `recipient_user_id`, not email or username
+  - recipient-level jobs do not expose anonymous tokens or internal DynamoDB keys
+  - unsupported event types are ignored successfully
+  - malformed supported messages fail only the affected SQS record
+  - no emails are sent
+  - `notification-sender`, SES permissions/resources, Cognito email resolution,
+    and sender templates remain future work
 
 Public event DTO behavior validated across the event read/update/cancel flows:
 
@@ -956,7 +981,15 @@ Validation:
   - `rsvp`
   - `get-event-rsvps`
   - `rsvp-authorizer`
+  - `notification-planner`
 - confirmed Terraform outputs match the created Lambda and log group identities
+- confirmed `notification-planner` has an enabled event source mapping from
+  `notification-dispatch` with `ReportBatchItemFailures`
+- confirmed `event.updated` and `event.cancelled` messages create
+  recipient-level jobs in `notification-email`
+- confirmed anonymous RSVP records are skipped while authenticated attending
+  and not-attending RSVP records are included
+- confirmed `notification-sender` is not deployed and SES identities are absent
 - see evidence screenshots under `docs/assets/lambda/`
 - see create-event, update-event, and cancel-event EventBridge validation screenshots under
   `docs/assets/lambda_api/`
@@ -1215,6 +1248,7 @@ Validation:
 | Name | Type |
 |------|------|
 | [aws_cloudwatch_log_group.api_gateway_access](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
+| [aws_lambda_event_source_mapping.notification_planner_dispatch](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_event_source_mapping) | resource |
 | [aws_s3_bucket_policy.frontend_origin](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_policy) | resource |
 | [aws_sns_topic_policy.admin_notifications](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_policy) | resource |
 | [aws_sqs_queue_policy.notification_dispatch_eventbridge](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sqs_queue_policy) | resource |

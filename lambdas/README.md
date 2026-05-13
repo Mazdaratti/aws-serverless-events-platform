@@ -15,7 +15,7 @@ artifact differences when the inputs have not changed.
 For ordinary Lambda workloads, the packaging flow is:
 
 1. package the selected Lambda source directory
-2. include `lambdas/shared`
+2. include `lambdas/shared` when the workload imports shared helpers
 3. write the ZIP artifact under `artifacts/lambda/`
 
 This is the default packaging model currently used by the existing business
@@ -33,6 +33,29 @@ The resulting ZIP places:
 
 - the workload source files at ZIP root
 - the shared helpers under `shared/...`
+
+## Packaging Without Shared Helpers
+
+Worker Lambdas that do not import the shared helper package should skip
+`lambdas/shared` with `--no-shared`.
+
+This keeps small worker artifacts focused on the code they actually execute.
+
+Current notification-worker packaging commands:
+
+```powershell
+python scripts/package_lambda.py `
+  lambdas/notification_planner `
+  artifacts/lambda/notification-planner.zip `
+  --no-shared
+```
+
+```powershell
+python scripts/package_lambda.py `
+  lambdas/notification_sender `
+  artifacts/lambda/notification-sender.zip `
+  --no-shared
+```
 
 ## Mixed-Mode Authorizer Exception
 

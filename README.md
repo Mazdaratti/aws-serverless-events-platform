@@ -27,7 +27,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Notification planner/sender workers and SES participant notifications
+- Notification sender, SES strategy, and participant email delivery
 
 ### Completed milestones
 
@@ -78,7 +78,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - participant dispatch routing to `notification-dispatch` for:
     - `event.updated`
     - `event.cancelled`
-  - `notification-email` queue for future recipient-level participant email jobs
+  - deployed `notification-planner` worker for participant notification planning
+  - `notification-email` queue for recipient-level participant email jobs
   - EventBridge-to-SNS and EventBridge-to-SQS policies hardened with source ARN
     and `aws:SourceAccount`
   - synchronous API outcomes remain independent from async notification delivery
@@ -193,8 +194,8 @@ provide lightweight admin email formatting with the full CloudFront event URL.
 
 `EventBridge -> notification-dispatch SQS -> notification-planner Lambda -> notification-email SQS -> notification-sender Lambda -> SES`
 
-16. The planned `notification-planner` creates one recipient-level email job per
-authenticated RSVP user for event update and cancellation notifications.
+16. The deployed `notification-planner` creates one recipient-level email job
+per authenticated RSVP user for event update and cancellation notifications.
 17. The planned `notification-sender` resolves the current recipient email
 through Cognito at send time using the canonical user identity and sends
 participant email through **Amazon SES**.
@@ -516,17 +517,18 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - add least-privilege IAM for `notification-planner` ✅
    - add least-privilege IAM for `notification-sender` ✅
    - implement `notification-planner` to consume `notification-dispatch`
-     messages
+     messages ✅
    - query RSVP records by event and enqueue one recipient-level email job per
-     authenticated RSVP user
-   - include both attending and not-attending RSVP users
-   - skip anonymous RSVP subjects in v1
+     authenticated RSVP user ✅
+   - include both attending and not-attending RSVP users ✅
+   - skip anonymous RSVP subjects in v1 ✅
+   - wire `notification-planner` into `infrastructure/envs/dev` with an SQS
+     event source mapping and partial batch responses ✅
    - implement `notification-sender` to consume `notification-email` messages
    - resolve current recipient email at send time through Cognito
    - render user-facing participant email content through stable sender
      templates
    - send participant emails through SES
-   - wire planner and sender Lambdas into `infrastructure/envs/dev`
    - keep user-facing API responses independent from notification delivery
 
 21. CloudWatch observability and X-Ray tracing

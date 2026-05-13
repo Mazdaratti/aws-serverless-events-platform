@@ -2292,9 +2292,10 @@ Rules:
 - participant notifications use the two-queue/two-worker design
 - the existing `notification-dispatch` queue is the event-level planning queue
 - `notification-email` is the recipient-level user-facing email work queue
-  between the future planner and sender
-- the planner and sender have separate least-privilege IAM roles prepared in
-  the current infrastructure baseline
+  between the planner and future sender
+- `notification-planner` is implemented and deployed in the current
+  infrastructure baseline
+- the planner and sender have separate least-privilege IAM roles
 - SQS provides durable buffering, retry isolation, and rate/concurrency control
 - one event-level message can produce many recipient-level messages
 - each recipient-level message represents one authenticated RSVP user recipient
@@ -2306,8 +2307,10 @@ The planner produces safe recipient-level jobs, and the sender owns final
 presentation through stable templates. EventBridge does not send directly to
 `notification-email`.
 
-Worker Lambda code, event source mappings, SES permissions, SES resources, and
-sender templates are intentionally not implemented yet.
+The notification worker layer is only partially implemented. The
+`notification-planner` Lambda and its event source mapping are implemented;
+`notification-sender`, SES permissions, SES resources, Cognito email
+resolution, and sender templates remain future work.
 
 Participant notification emails should eventually include:
 
@@ -2349,13 +2352,14 @@ Locked rules:
 This avoids stale RSVP email data when a user changes email in Cognito and
 avoids spreading personal contact data into RSVP business rows.
 
-### `notification-planner` direction
+### `notification-planner`
 
-The future `notification-planner` Lambda consumes event-level messages from
-`notification-dispatch`.
+The `notification-planner` Lambda consumes event-level messages from
+`notification-dispatch` and enqueues recipient-level jobs to
+`notification-email`.
 
-The planner IAM role is already prepared to consume `notification-dispatch`,
-query RSVP records, and send recipient-level jobs to `notification-email`.
+The planner IAM role allows it to consume `notification-dispatch`, query RSVP
+records, and send recipient-level jobs to `notification-email`.
 
 Responsibilities:
 
@@ -2367,6 +2371,8 @@ Responsibilities:
 - skip anonymous RSVP subjects
 - enqueue one recipient-level message per authenticated RSVP user to
   `notification-email`
+- use partial batch responses so successful SQS records are not retried when
+  another record in the same batch fails
 
 Non-responsibilities:
 
@@ -2435,9 +2441,8 @@ The currently locked Lambda set and rollout status are:
 7. `rsvp` ✅
 8. `get-event-rsvps` ✅
 9. notification worker IAM layer ✅
-10. notification worker Lambda implementation ⏳
-   - `notification-planner`
-   - `notification-sender`
+10. notification planner Lambda implementation ✅
+11. notification sender Lambda implementation ⏳
 
 This sequence remains intentional:
 

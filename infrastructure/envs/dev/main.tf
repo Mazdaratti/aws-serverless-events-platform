@@ -303,8 +303,11 @@ module "lambda" {
           COGNITO_APP_CLIENT_ID    = module.cognito.user_pool_client_id
           COGNITO_ADMIN_GROUP_NAME = module.cognito.admin_group_name
         } : {},
-        contains(["rsvp", "get-event-rsvps"], function_key) ? {
+        contains(["rsvp", "get-event-rsvps", "notification-planner"], function_key) ? {
           RSVPS_TABLE_NAME = module.dynamodb_data_layer.rsvps_table_name
+        } : {},
+        function_key == "notification-planner" ? {
+          NOTIFICATION_EMAIL_QUEUE_URL = module.sqs.queue_urls["notification-email"]
         } : {}
       )
       log_retention_in_days = 14

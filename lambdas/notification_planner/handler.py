@@ -22,6 +22,13 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, list[dict[s
     """Plan recipient-level participant email jobs from SQS-dispatched event messages."""
     del context
 
+    # Keep the SQS batch flow partial-batch friendly:
+    #
+    # 1. validate the top-level SQS event shape
+    # 2. process each record independently
+    # 3. ignore unsupported EventBridge detail types successfully
+    # 4. collect only failed SQS message IDs
+    # 5. return the AWS Lambda partial batch response contract
     records = _resolve_sqs_records(event)
     dynamodb_client = _get_dynamodb_client()
     sqs_client = _get_sqs_client()
@@ -55,6 +62,8 @@ def _process_record(*, record: dict[str, Any], dynamodb_client: Any, sqs_client:
     eventbridge_event = _parse_eventbridge_event(record)
     detail_type = _resolve_detail_type(eventbridge_event)
 
+    # Unsupported messages should not poison-loop in SQS. Only malformed or
+    # failed supported messages should be reported as per-record failures.
     if detail_type not in SUPPORTED_DETAIL_TYPES:
         logger.info("notification-planner ignored unsupported detail-type %s", detail_type)
         return
@@ -84,6 +93,7 @@ def _process_record(*, record: dict[str, Any], dynamodb_client: Any, sqs_client:
 
 
 def _resolve_sqs_records(event: dict[str, Any]) -> list[dict[str, Any]]:
+    """Validate the Lambda SQS batch envelope and return its records."""
     if not isinstance(event, dict):
         raise NotificationPlannerError("SQS event must be a JSON object.")
 
@@ -101,6 +111,7 @@ def _resolve_sqs_records(event: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _resolve_message_id(record: dict[str, Any]) -> str:
+    """Return the SQS message ID used by Lambda partial batch responses."""
     message_id = record.get("messageId")
     if not isinstance(message_id, str) or not message_id.strip():
         raise NotificationPlannerError("SQS record messageId must be a non-empty string.")
@@ -108,6 +119,7 @@ def _resolve_message_id(record: dict[str, Any]) -> str:
 
 
 def _parse_eventbridge_event(record: dict[str, Any]) -> dict[str, Any]:
+    """Decode the EventBridge event envelope stored in one SQS message body."""
     body = record.get("body")
     if not isinstance(body, str) or not body.strip():
         raise NotificationPlannerError("SQS record body must be a non-empty JSON string.")
@@ -138,6 +150,7 @@ def _resolve_detail(eventbridge_event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _build_planner_message(*, detail_type: str, detail: dict[str, Any]) -> dict[str, Any]:
+    """Build the safe recipient-job base message shared by every recipient."""
     message: dict[str, Any] = {
         "notification_type": detail_type,
         "event_id": _required_detail_string(detail, "event_id"),
@@ -174,6 +187,7 @@ def _required_changed_fields(detail: dict[str, Any]) -> list[str]:
 
 
 def _query_authenticated_rsvp_user_ids(*, dynamodb_client: Any, event_id: str) -> list[str]:
+    """Read all authenticated RSVP user IDs for one event from the RSVP table."""
     rsvps_table_name = _get_required_env("RSVPS_TABLE_NAME")
     query_kwargs: dict[str, Any] = {
         "TableName": rsvps_table_name,
@@ -214,6 +228,7 @@ def _query_authenticated_rsvp_user_ids(*, dynamodb_client: Any, event_id: str) -
 
 
 def _extract_authenticated_rsvp_user_id(item: dict[str, Any]) -> str | None:
+    """Return the Cognito sub for USER RSVP records and skip anonymous records."""
     subject_type = _deserialize_optional_string(item.get("subject_type"), field_name="subject_type")
 
     if subject_type == "ANON":
@@ -251,6 +266,7 @@ def _deserialize_optional_string(value: Any, *, field_name: str) -> str | None:
 
 
 def _send_recipient_message(*, sqs_client: Any, message: dict[str, Any]) -> None:
+    """Enqueue one recipient-level email job without resolving or storing email."""
     queue_url = _get_required_env("NOTIFICATION_EMAIL_QUEUE_URL")
     try:
         sqs_client.send_message(

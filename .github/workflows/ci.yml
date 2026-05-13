@@ -64,6 +64,7 @@ jobs:
           lambdas/cancel_event
           lambdas/rsvp
           lambdas/get_event_rsvps
+          lambdas/notification_planner
           lambdas/rsvp_authorizer/handler.py
 
       - name: Run Lambda handler tests

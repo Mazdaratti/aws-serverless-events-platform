@@ -64,5 +64,9 @@ locals {
     get-event-rsvps = {
       description = "Reads one event's RSVP list for the creator or an admin using the canonical event-first authorization flow."
     }
+
+    notification-planner = {
+      description = "Consumes event-level participant notification planning messages and enqueues recipient-level email jobs."
+    }
   }
 }

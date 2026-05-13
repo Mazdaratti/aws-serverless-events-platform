@@ -89,7 +89,7 @@ Each function definition currently supports:
 - `environment_variables`
 - `log_retention_in_days`
 
-This keeps the module reusable for future workloads such as:
+This keeps the module reusable across current and future workloads such as:
 
 - `create-event`
 - `list-events`

@@ -520,18 +520,21 @@ SQS is used for participant notification durability and retry isolation:
 - `notification-dispatch`
   - event-level planning queue for `event.updated` and `event.cancelled`
 - `notification-email`
-  - recipient-level user-facing email work queue between the future planner and
-    sender
+  - recipient-level user-facing email work queue between the planner and the
+    future sender
 
 The notification worker layer is intentionally split:
 
 - `notification-planner`
-  - has a dedicated least-privilege IAM role prepared in `dev`
-  - will consume event-level participant notification work
+  - is implemented and deployed in `dev`
+  - consumes event-level participant notification work from
+    `notification-dispatch`
   - queries RSVP records by event
-  - will create one recipient-level email job per authenticated RSVP user
+  - creates one recipient-level email job per authenticated RSVP user in
+    `notification-email`
   - includes both attending and not-attending RSVP users
   - skips anonymous RSVP subjects in v1
+  - uses partial batch responses for SQS retry isolation
 - `notification-sender`
   - has a dedicated least-privilege IAM role prepared in `dev`
   - will consume recipient-level email jobs
@@ -544,9 +547,9 @@ This keeps EventBridge responsible for fanout, SQS responsible for durable
 participant work buffering, and SES responsible for direct participant email
 delivery when that layer is implemented.
 
-The planner and sender IAM roles are already prepared in `dev`, but worker
-Lambda code, event source mappings, SES permissions, and sender templates are
-not implemented yet.
+The planner Lambda and its SQS event source mapping are deployed in `dev`.
+The notification sender Lambda, Cognito email resolution, SES permissions,
+SES resources, and sender templates are not implemented yet.
 
 Participant emails are user-facing product emails, not admin/debug messages.
 The planner produces safe recipient-level jobs, and the sender owns final

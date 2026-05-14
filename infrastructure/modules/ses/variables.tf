@@ -1,4 +1,18 @@
 ############################################
+# Shared module inputs
+############################################
+
+variable "name_prefix" {
+  description = "Shared name prefix used to derive SES participant notification template names."
+  type        = string
+
+  validation {
+    condition     = length(trimspace(var.name_prefix)) > 0
+    error_message = "name_prefix must not be empty."
+  }
+}
+
+############################################
 # Sender identity configuration
 ############################################
 

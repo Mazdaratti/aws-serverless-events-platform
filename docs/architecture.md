@@ -551,6 +551,23 @@ The planner Lambda and its SQS event source mapping are deployed in `dev`.
 The notification sender Lambda, Cognito email resolution, SES permissions,
 SES resources, and sender templates are not implemented yet.
 
+Development SES strategy:
+
+- participant email delivery uses Amazon SES
+- `dev` starts with a Terraform-managed SES email identity
+- the development baseline uses a dedicated project inbox as the SES sender identity
+- the dedicated project inbox is the visible participant email `From` address
+- the sender email value comes from untracked `terraform.tfvars`
+- private personal email addresses must not be used as the project sender
+- private personal email addresses must not be hardcoded in committed code,
+  Terraform, or documentation
+- SES email identity verification is completed manually through the verification
+  email sent to the dedicated project inbox
+- SES sandbox assumptions remain explicit for `dev`
+- sandbox validation requires verified recipient email addresses
+- the SES identity baseline is provisioned separately from the
+  `notification-sender` Lambda implementation
+
 Participant emails are user-facing product emails, not admin/debug messages.
 The planner produces safe recipient-level jobs, and the sender owns final
 presentation through stable templates. EventBridge does not send directly to

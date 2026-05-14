@@ -537,19 +537,35 @@ The notification worker layer is intentionally split:
   - uses partial batch responses for SQS retry isolation
 - `notification-sender`
   - has a dedicated least-privilege IAM role prepared in `dev`
-  - will consume recipient-level email jobs
-  - will resolve the current recipient email through Cognito at send time using
+  - consumes recipient-level email jobs
+  - resolves the current recipient email through Cognito at send time using
     the canonical Cognito `sub`
-  - will render user-facing participant email content through stable templates
-  - will send participant email through SES
+  - builds safe template data for SES-managed participant email templates
+  - sends participant email through SES
 
 This keeps EventBridge responsible for fanout, SQS responsible for durable
-participant work buffering, and SES responsible for direct participant email
-delivery when that layer is implemented.
+participant work buffering, SES templates responsible for reusable user-facing
+email content, and SES delivery responsible for direct participant email.
 
-The planner Lambda and its SQS event source mapping are deployed in `dev`.
-The notification sender Lambda, Cognito email resolution, SES permissions,
-SES resources, and sender templates are not implemented yet.
+Development SES strategy:
+
+- participant email delivery uses Amazon SES
+- `dev` uses a Terraform-managed SES email identity and SES templates
+- the development baseline uses a dedicated project inbox as the SES sender identity
+- the dedicated project inbox is the visible participant email `From` address
+- the sender email value comes from untracked `terraform.tfvars`
+- private personal email addresses must not be used as the project sender
+- private personal email addresses must not be hardcoded in committed code,
+  Terraform, or documentation
+- SES email identity verification is completed manually through the verification
+  email sent to the dedicated project inbox
+- Terraform manages participant notification templates for:
+  - `event.updated`
+  - `event.cancelled`
+- SES templates contain the subject, plain-text body, and HTML body
+- `notification-sender` chooses the SES template and provides safe template data
+- SES sandbox assumptions remain explicit for `dev`
+- sandbox validation requires verified recipient email addresses
 
 Participant emails are user-facing product emails, not admin/debug messages.
 The planner produces safe recipient-level jobs, and the sender owns final

@@ -51,6 +51,10 @@ Then review and adjust:
 - `project_name`
 - `environment`
 - `aws_region`
+- `dynamodb_point_in_time_recovery_enabled`
+- `enable_waf`
+- `sns_admin_email_subscriptions`
+- `ses_sender_email`
 
 ### 2. Initialize Terraform
 
@@ -186,8 +190,8 @@ Important design notes:
 - EventBridge does not send directly to `notification-email`
 - `notification-planner` is implemented and consumes `notification-dispatch`
   through a Lambda event source mapping
-- `notification-sender`, SES permissions/resources, Cognito email resolution,
-  and sender templates remain future work
+- `notification-sender`, SES send permissions, Cognito email resolution, and
+  actual participant email sending remain future work
 - the primary RSVP business write remains synchronous through DynamoDB durable commit
 - the EventBridge-to-SQS queue policy is scoped to the concrete participant
   dispatch rule ARN and the current AWS account through `aws:SourceAccount`
@@ -375,6 +379,79 @@ Validation:
 - confirmed `event.updated` and `event.cancelled` still route to
   `notification-dispatch`
 - see evidence screenshots under `docs/assets/lambda_api/`
+
+---
+
+## SES Participant Email Baseline
+
+Creates the SES sender identity and participant notification template baseline
+for the platform.
+
+Implemented via:
+
+- `modules/ses`
+
+This environment currently wires in:
+
+- one SES email identity for the dedicated project sender inbox
+- one SES template for `event.updated` participant emails
+- one SES template for `event.cancelled` participant emails
+
+Why this module is wired now:
+
+- participant emails are user-facing product emails, not admin/debug messages
+- SES gives the platform an AWS-native email delivery baseline for the future
+  `notification-sender`
+- SES templates keep reusable subject, plain-text, and HTML email definitions
+  in AWS-managed template resources instead of Lambda code
+- wiring the identity and templates separately lets the sender inbox be verified
+  before any Lambda is allowed to send email
+
+Important design notes:
+
+- the sender email is configured through local untracked `terraform.tfvars`
+- the sender email must be a dedicated project inbox, not a private personal
+  email address
+- Terraform creates the SES email identity, but inbox verification is manual
+- the dedicated project inbox is the visible participant email `From` address
+- Terraform manages templates for:
+  - `event.updated`
+  - `event.cancelled`
+- SES templates contain:
+  - subject
+  - plain-text body
+  - HTML body
+- future sender code must choose the correct template and provide safe template
+  data
+- future sender code must validate and escape dynamic values before passing
+  template data to SES
+- SES sandbox assumptions remain explicit for `dev`
+- sandbox sending requires verified recipient email addresses
+- `notification-sender` Lambda deployment remains future work
+- SES send permissions remain future work
+- no participant emails are sent by the platform yet
+
+The environment should stay thin:
+
+- reusable AWS resource logic belongs in modules
+- `envs/dev` should focus on composition and environment-level identity and
+  placement inputs
+
+Validation:
+
+- validated via `terraform apply`, SES identity inspection, SES template
+  inspection, manual sender identity verification, and a clean post-apply
+  `terraform plan`
+- confirmed the SES sender identity exists
+- confirmed the SES sender identity is verified through the dedicated project
+  inbox
+- confirmed the `event.updated` SES template exists
+- confirmed the `event.cancelled` SES template exists
+- confirmed Terraform outputs expose the SES sender identity ARN and template
+  identifiers
+- confirmed `notification-sender` is not deployed yet
+- confirmed the notification sender IAM policy has no SES send actions
+- see evidence screenshots under `docs/assets/ses/`
 
 ---
 
@@ -920,8 +997,9 @@ Current business behavior validated in this environment:
   - unsupported event types are ignored successfully
   - malformed supported messages fail only the affected SQS record
   - no emails are sent
-  - `notification-sender`, SES permissions/resources, Cognito email resolution,
-    and sender templates remain future work
+  - SES sender identity and templates are wired in `dev`
+  - `notification-sender`, SES send permissions, Cognito email resolution, and
+    actual participant email sending remain future work
 
 Public event DTO behavior validated across the event read/update/cancel flows:
 
@@ -989,7 +1067,8 @@ Validation:
   recipient-level jobs in `notification-email`
 - confirmed anonymous RSVP records are skipped while authenticated attending
   and not-attending RSVP records are included
-- confirmed `notification-sender` is not deployed and SES identities are absent
+- confirmed `notification-sender` is not deployed and no participant emails are
+  sent by the platform yet
 - see evidence screenshots under `docs/assets/lambda/`
 - see create-event, update-event, and cancel-event EventBridge validation screenshots under
   `docs/assets/lambda_api/`
@@ -1225,7 +1304,7 @@ Validation:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.45.0 |
 
 ## Modules
 
@@ -1239,6 +1318,7 @@ Validation:
 | <a name="module_iam"></a> [iam](#module\_iam) | ../../modules/iam | n/a |
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
 | <a name="module_s3_frontend_bucket"></a> [s3\_frontend\_bucket](#module\_s3\_frontend\_bucket) | ../../modules/s3_frontend_bucket | n/a |
+| <a name="module_ses_participant_email"></a> [ses\_participant\_email](#module\_ses\_participant\_email) | ../../modules/ses | n/a |
 | <a name="module_sns_admin_notifications"></a> [sns\_admin\_notifications](#module\_sns\_admin\_notifications) | ../../modules/sns | n/a |
 | <a name="module_sqs"></a> [sqs](#module\_sqs) | ../../modules/sqs | n/a |
 | <a name="module_waf"></a> [waf](#module\_waf) | ../../modules/waf | n/a |
@@ -1267,6 +1347,7 @@ Validation:
 | <a name="input_enable_waf"></a> [enable\_waf](#input\_enable\_waf) | Whether to create and attach the CloudFront-scoped WAF Web ACL in this dev environment. | `bool` | `false` | no |
 | <a name="input_environment"></a> [environment](#input\_environment) | Deployment environment name. | `string` | n/a | yes |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Project name used for naming and tagging resources. | `string` | n/a | yes |
+| <a name="input_ses_sender_email"></a> [ses\_sender\_email](#input\_ses\_sender\_email) | Dedicated project inbox email address to verify as the SES sender identity for participant notifications in dev. | `string` | n/a | yes |
 | <a name="input_sns_admin_email_subscriptions"></a> [sns\_admin\_email\_subscriptions](#input\_sns\_admin\_email\_subscriptions) | Admin or developer email endpoints to subscribe to the SNS admin notification topic in dev. Email subscriptions require confirmation before receiving messages. | `set(string)` | `[]` | no |
 
 ## Outputs
@@ -1319,6 +1400,9 @@ Validation:
 | <a name="output_lambda_log_group_names"></a> [lambda\_log\_group\_names](#output\_lambda\_log\_group\_names) | Map of workload CloudWatch Logs log group names for the dev environment. |
 | <a name="output_rsvps_table_arn"></a> [rsvps\_table\_arn](#output\_rsvps\_table\_arn) | ARN of the DynamoDB RSVP table created for the dev environment. |
 | <a name="output_rsvps_table_name"></a> [rsvps\_table\_name](#output\_rsvps\_table\_name) | Name of the DynamoDB RSVP table created for the dev environment. |
+| <a name="output_ses_sender_identity_arn"></a> [ses\_sender\_identity\_arn](#output\_ses\_sender\_identity\_arn) | ARN of the SES sender email identity configured for participant notifications in dev. |
+| <a name="output_ses_template_arns"></a> [ses\_template\_arns](#output\_ses\_template\_arns) | Map of participant notification type to SES template ARN for dev. |
+| <a name="output_ses_template_names"></a> [ses\_template\_names](#output\_ses\_template\_names) | Map of participant notification type to SES template name for dev. |
 | <a name="output_sns_admin_email_subscription_arns"></a> [sns\_admin\_email\_subscription\_arns](#output\_sns\_admin\_email\_subscription\_arns) | Map of admin email endpoint to SNS subscription ARN for the dev environment. |
 | <a name="output_sns_admin_topic_arn"></a> [sns\_admin\_topic\_arn](#output\_sns\_admin\_topic\_arn) | ARN of the SNS admin notification topic created for the dev environment. |
 | <a name="output_sns_admin_topic_id"></a> [sns\_admin\_topic\_id](#output\_sns\_admin\_topic\_id) | ID of the SNS admin notification topic created for the dev environment. |

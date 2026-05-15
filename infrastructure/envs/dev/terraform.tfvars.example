@@ -35,3 +35,15 @@ enable_waf = false
 # Keep this empty in committed examples. Put real email addresses only in local
 # untracked terraform.tfvars.
 sns_admin_email_subscriptions = []
+
+############################################
+# Participant email sender identity
+############################################
+
+# Keep this as a placeholder in committed examples. Put the real dedicated
+# project inbox sender email only in local untracked terraform.tfvars.
+#
+# The configured inbox receives an SES verification email after the SES module
+# is applied. The inbox owner must confirm that verification before SES can
+# send participant notification emails from this address.
+ses_sender_email = "participant-notifications@example.com"

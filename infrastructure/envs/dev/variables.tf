@@ -77,3 +77,22 @@ variable "sns_admin_email_subscriptions" {
     error_message = "sns_admin_email_subscriptions values must not contain leading or trailing whitespace."
   }
 }
+
+############################################
+# Participant email sender identity
+############################################
+
+variable "ses_sender_email" {
+  description = "Dedicated project inbox email address to verify as the SES sender identity for participant notifications in dev."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$", var.ses_sender_email))
+    error_message = "ses_sender_email must be a valid email-like address."
+  }
+
+  validation {
+    condition     = trimspace(var.ses_sender_email) == var.ses_sender_email
+    error_message = "ses_sender_email must not contain leading or trailing whitespace."
+  }
+}

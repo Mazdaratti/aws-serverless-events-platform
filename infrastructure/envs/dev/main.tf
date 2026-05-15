@@ -198,6 +198,24 @@ module "sns_admin_notifications" {
 }
 
 ############################################
+# SES participant email sender baseline
+############################################
+
+# This environment wires in the reusable SES module for the participant
+# notification sender identity and user-facing email templates.
+#
+# The sender email comes from local untracked tfvars because it is a real
+# dedicated project inbox. Terraform creates the SES email identity, but
+# verification remains a manual inbox confirmation step before SES can send from
+# that address.
+module "ses_participant_email" {
+  source = "../../modules/ses"
+
+  name_prefix  = local.name_prefix
+  sender_email = var.ses_sender_email
+}
+
+############################################
 # Lambda execution IAM baseline
 ############################################
 

@@ -139,6 +139,8 @@ jobs:
           - infrastructure/modules/lambda/examples/basic_usage
           - infrastructure/modules/s3_frontend_bucket
           - infrastructure/modules/s3_frontend_bucket/examples/basic_usage
+          - infrastructure/modules/ses
+          - infrastructure/modules/ses/examples/basic_usage
           - infrastructure/modules/sns
           - infrastructure/modules/sns/examples/basic_usage
           - infrastructure/modules/sqs

@@ -27,7 +27,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Notification sender, SES strategy, and participant email delivery
+- Notification sender Lambda and participant email delivery
 
 ### Completed milestones
 
@@ -80,6 +80,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - `event.cancelled`
   - deployed `notification-planner` worker for participant notification planning
   - `notification-email` queue for recipient-level participant email jobs
+  - SES sender identity and participant email templates wired in `dev`
   - EventBridge-to-SNS and EventBridge-to-SQS policies hardened with source ARN
     and `aws:SourceAccount`
   - synchronous API outcomes remain independent from async notification delivery
@@ -106,7 +107,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Next milestones
 
-- Notification planner/sender workers and SES participant notifications
+- Notification sender Lambda and SES participant email sending
 - Observability baseline
 - Remote Terraform backend + GitHub OIDC
 - deployment workflow automation beyond Terraform validation
@@ -190,22 +191,25 @@ is published to **Amazon EventBridge**.
 topic. In the current direct-SNS baseline, EventBridge input transformers
 provide lightweight admin email formatting with the full CloudFront event URL.
 14. EventBridge routes participant-notification planning work to **Amazon SQS**.
-15. The participant notification path is planned as:
+15. The participant notification path is:
 
 `EventBridge -> notification-dispatch SQS -> notification-planner Lambda -> notification-email SQS -> notification-sender Lambda -> SES`
 
 16. The deployed `notification-planner` creates one recipient-level email job
 per authenticated RSVP user for event update and cancellation notifications.
-17. The planned `notification-sender` resolves the current recipient email
-through Cognito at send time using the canonical user identity and sends
-participant email through **Amazon SES**.
+17. The SES baseline provides the sender identity and reusable participant email
+templates for update and cancellation notifications.
+18. The planned `notification-sender` resolves the current recipient email
+through Cognito at send time, selects the SES template, and sends participant
+email through **Amazon SES**.
 
 The planner and sender execution roles are provisioned separately with
 least-privilege IAM.
 
 Participant emails are user-facing product emails, not admin/debug messages.
-The planner produces safe recipient-level jobs, and the sender owns final
-presentation through stable templates.
+The planner produces safe recipient-level jobs. SES owns reusable template
+definitions, and the sender owns template selection, safe template data, and
+delivery.
 
 The v1 event-management domain events are:
 
@@ -218,8 +222,8 @@ not change the original synchronous API result.
 
 ### Observability
 
-18. Logs and metrics are collected in **Amazon CloudWatch**.
-19. Distributed tracing is enabled with **AWS X-Ray** to analyze request performance and dependencies.
+19. Logs and metrics are collected in **Amazon CloudWatch**.
+20. Distributed tracing is enabled with **AWS X-Ray** to analyze request performance and dependencies.
 
 This design preserves immediate correctness for core business writes while still enabling scalable asynchronous processing where it adds real value.
 
@@ -338,6 +342,7 @@ aws-serverless-events-platform/
 |       |-- iam/
 |       |-- lambda/
 |       |-- s3_frontend_bucket/
+|       |-- ses/
 |       |-- sns/
 |       |-- sqs/
 |       `-- waf/
@@ -524,11 +529,16 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - skip anonymous RSVP subjects in v1 ✅
    - wire `notification-planner` into `infrastructure/envs/dev` with an SQS
      event source mapping and partial batch responses ✅
+   - add reusable SES sender identity and participant template module ✅
+   - add reusable SES module example and CI validation coverage ✅
+   - wire SES sender identity and templates into `infrastructure/envs/dev` ✅
+   - configure the dedicated project sender inbox through local untracked
+     tfvars ✅
+   - manually verify the dedicated project sender inbox in SES ✅
    - implement `notification-sender` to consume `notification-email` messages
    - resolve current recipient email at send time through Cognito
-   - render user-facing participant email content through stable sender
-     templates
-   - send participant emails through SES
+   - select SES templates and provide safe template data
+   - send templated participant emails through SES
    - keep user-facing API responses independent from notification delivery
 
 21. CloudWatch observability and X-Ray tracing

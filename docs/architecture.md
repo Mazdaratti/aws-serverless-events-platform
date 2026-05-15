@@ -484,7 +484,7 @@ The platform uses:
 - **AWS Lambda**
   - notification planner and sender workers
 - **Amazon SES**
-  - intended participant email delivery service
+  - participant email sender identity, templates, and delivery service
 
 After successful event-management writes, compact domain events are published to
 EventBridge. These events are emitted only after the primary DynamoDB business
@@ -521,7 +521,7 @@ SQS is used for participant notification durability and retry isolation:
   - event-level planning queue for `event.updated` and `event.cancelled`
 - `notification-email`
   - recipient-level user-facing email work queue between the planner and the
-    future sender
+    sender
 
 The notification worker layer is intentionally split:
 
@@ -550,7 +550,7 @@ email content, and SES delivery responsible for direct participant email.
 Development SES strategy:
 
 - participant email delivery uses Amazon SES
-- `dev` uses a Terraform-managed SES email identity and SES templates
+- `dev` wires a Terraform-managed SES email identity and SES templates
 - the development baseline uses a dedicated project inbox as the SES sender identity
 - the dedicated project inbox is the visible participant email `From` address
 - the sender email value comes from untracked `terraform.tfvars`
@@ -564,6 +564,8 @@ Development SES strategy:
   - `event.cancelled`
 - SES templates contain the subject, plain-text body, and HTML body
 - `notification-sender` chooses the SES template and provides safe template data
+- the SES identity/template baseline is separate from `notification-sender`
+  Lambda deployment and SES send permissions
 - SES sandbox assumptions remain explicit for `dev`
 - sandbox validation requires verified recipient email addresses
 

@@ -2292,10 +2292,12 @@ Rules:
 - participant notifications use the two-queue/two-worker design
 - the existing `notification-dispatch` queue is the event-level planning queue
 - `notification-email` is the recipient-level user-facing email work queue
-  between the planner and future sender
+  between the planner and sender
 - `notification-planner` is implemented and deployed in the current
   infrastructure baseline
 - the planner and sender have separate least-privilege IAM roles
+- the current infrastructure baseline includes a Terraform-managed SES sender
+  email identity and SES templates for participant notification emails
 - SQS provides durable buffering, retry isolation, and rate/concurrency control
 - one event-level message can produce many recipient-level messages
 - each recipient-level message represents one authenticated RSVP user recipient
@@ -2309,15 +2311,39 @@ presentation through stable templates. EventBridge does not send directly to
 
 The notification worker layer is only partially implemented. The
 `notification-planner` Lambda and its event source mapping are implemented;
-`notification-sender`, SES permissions, SES resources, Cognito email
-resolution, and sender templates remain future work.
+the SES sender identity and SES templates are provisioned; `notification-sender`,
+SES send permissions, Cognito email resolution, and actual participant email
+delivery remain future work.
 
-Participant notification emails should eventually include:
+Participant notification emails include template support for:
 
 - event title
 - event detail link
 - changed fields for `event.updated`
 - cancellation or update wording based on the event type
+
+### SES participant email baseline
+
+The current infrastructure baseline uses Amazon SES for participant email
+identity and template management.
+
+Rules:
+
+- the sender identity is a dedicated project inbox
+- the sender identity is configured through local untracked `terraform.tfvars`
+- private personal email addresses must not be used as the project sender
+- Terraform creates the SES email identity
+- SES sender identity verification is manual through the dedicated project
+  inbox
+- Terraform manages SES templates for:
+  - `event.updated`
+  - `event.cancelled`
+- SES templates contain the subject, plain-text body, and HTML body
+- SES sandbox assumptions remain explicit in `dev`
+- sandbox email delivery requires verified recipient email addresses
+
+This baseline does not grant SES send permissions and does not deploy
+`notification-sender`.
 
 ### Participant recipient rules
 
@@ -2396,9 +2422,9 @@ Responsibilities:
 
 - resolve the current recipient email address from Cognito at send time using
   the canonical `recipient_user_id`
-- render user-facing email content for the notification type through stable
-  templates
-- send email through SES
+- select the correct SES template for the notification type
+- build validated and HTML-safe template data for SES
+- send templated email through SES
 - use retry-friendly and partial-batch-friendly behavior when implemented
 
 Non-responsibilities:

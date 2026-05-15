@@ -149,6 +149,25 @@ output "sns_admin_email_subscription_arns" {
 }
 
 ############################################
+# SES participant email sender baseline outputs
+############################################
+
+output "ses_sender_identity_arn" {
+  description = "ARN of the SES sender email identity configured for participant notifications in dev."
+  value       = module.ses_participant_email.sender_identity_arn
+}
+
+output "ses_template_names" {
+  description = "Map of participant notification type to SES template name for dev."
+  value       = module.ses_participant_email.template_names
+}
+
+output "ses_template_arns" {
+  description = "Map of participant notification type to SES template ARN for dev."
+  value       = module.ses_participant_email.template_arns
+}
+
+############################################
 # Lambda execution IAM baseline outputs
 ############################################
 

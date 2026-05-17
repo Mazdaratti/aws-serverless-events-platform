@@ -17,6 +17,11 @@ locals {
   environment  = "example"
   name_prefix  = "${local.project_name}-${local.environment}"
 
+  # The notification sender permission is scoped to the SES sender identity ARN.
+  # This example uses a deterministic ARN so the IAM policies can be planned
+  # without sending a real SES verification email from the IAM example.
+  ses_sender_identity_arn = "arn:aws:ses:eu-central-1:123456789012:identity/participant-notifications@example.com"
+
   tags = {
     Project     = local.project_name
     Environment = local.environment
@@ -117,6 +122,7 @@ module "iam" {
   notification_dispatch_queue_arn   = aws_sqs_queue.notification_dispatch.arn
   notification_email_queue_arn      = aws_sqs_queue.notification_email.arn
   cognito_user_pool_arn             = aws_cognito_user_pool.users.arn
+  ses_sender_identity_arn           = local.ses_sender_identity_arn
   eventbridge_publish_event_bus_arn = aws_cloudwatch_event_bus.domain_events.arn
 
   workloads = {

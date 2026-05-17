@@ -64,9 +64,18 @@ locals {
     get-event-rsvps = {
       description = "Reads one event's RSVP list for the creator or an admin using the canonical event-first authorization flow."
     }
+  }
 
+  # Notification workers are deployed in a later Lambda module call so sender
+  # environment variables can use the CloudFront distribution domain without
+  # creating a Lambda -> API Gateway -> CloudFront -> Lambda dependency cycle.
+  notification_lambda_workloads = {
     notification-planner = {
       description = "Consumes event-level participant notification planning messages and enqueues recipient-level email jobs."
+    }
+
+    notification-sender = {
+      description = "Consumes recipient-level participant email jobs and sends templated emails through SES."
     }
   }
 }

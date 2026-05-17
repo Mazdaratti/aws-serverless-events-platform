@@ -154,8 +154,10 @@ def test_lambda_handler_sends_updated_email_with_safe_template_data(fake_clients
     ]
     assert decode_template_data(ses_client) == [
         {
-            "changed_fields": ["date", "location&lt;script&gt;"],
-            "event_title": "Platform &lt;Launch&gt; &amp; &quot;Demo&quot;",
+            "changed_fields_html": ["date", "location&lt;script&gt;"],
+            "changed_fields_text": ["date", "location<script>"],
+            "event_title_html": "Platform &lt;Launch&gt; &amp; &quot;Demo&quot;",
+            "event_title_text": 'Platform <Launch> & "Demo"',
             "event_url": f"https://d111111abcdef8.cloudfront.net/app/events/{EVENT_ID}",
         }
     ]
@@ -178,7 +180,8 @@ def test_lambda_handler_sends_cancelled_email_without_changed_fields(fake_client
     assert ses_client.send_calls[0]["Template"] == "platform-dev-event-cancelled"
     assert decode_template_data(ses_client) == [
         {
-            "event_title": "Platform Launch Event",
+            "event_title_html": "Platform Launch Event",
+            "event_title_text": "Platform Launch Event",
             "event_url": f"https://d111111abcdef8.cloudfront.net/app/events/{EVENT_ID}",
         }
     ]

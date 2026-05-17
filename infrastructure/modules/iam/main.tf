@@ -355,7 +355,10 @@ data "aws_iam_policy_document" "workload" {
 
       # The sender uses the verified project inbox identity as the SES Source
       # address and references Terraform-managed SES templates by name.
-      resources = [var.ses_sender_identity_arn]
+      resources = concat(
+        [var.ses_sender_identity_arn],
+        values(var.ses_template_arns)
+      )
     }
   }
 

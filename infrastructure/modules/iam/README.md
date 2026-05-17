@@ -290,8 +290,9 @@ It currently receives:
 - optional X-Ray write permissions
 - narrow SQS consumer permissions for `notification-email`
 - scoped `cognito-idp:ListUsers` access for the configured Cognito User Pool
-- scoped `ses:SendTemplatedEmail` access for the configured SES sender identity
-  and participant notification templates
+- scoped `ses:SendTemplatedEmail` access for SES identities in the current
+  account/region and the configured participant notification templates, with
+  `ses:FromAddress` constrained to the configured sender identity
 
 The sender uses `ListUsers` because participant recipient messages carry the
 canonical Cognito `sub` as `recipient_user_id`. The sender implementation uses
@@ -302,9 +303,12 @@ The sender uses SES templated sending so reusable participant email subject,
 plain-text, and HTML definitions stay in SES template resources while the
 Lambda supplies safe template data at send time.
 
-SES templated sending authorizes both the sender identity and the stored
-template resources, so this module requires the SES sender identity ARN and the
-participant notification template ARNs.
+SES templated sending authorizes identity resources involved in the request and
+the stored template resources. Recipient identities are resolved dynamically
+from Cognito and cannot be enumerated in Terraform, so this module allows SES
+identities in the current account/region for the send action and constrains the
+actual sender address with `ses:FromAddress`. The stored template resources
+remain scoped to the configured participant notification template ARNs.
 
 It intentionally does not receive:
 

@@ -39,6 +39,7 @@ This step is focused on the workload execution IAM that the platform clearly nee
 - workload-specific DynamoDB permissions
 - workload-specific SQS consumer and producer permissions
 - scoped Cognito user lookup permissions for notification sender
+- scoped SES templated-send permissions for notification sender
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
 - optional EventBridge `PutEvents` permissions for event-management write workloads
@@ -289,18 +290,21 @@ It currently receives:
 - optional X-Ray write permissions
 - narrow SQS consumer permissions for `notification-email`
 - scoped `cognito-idp:ListUsers` access for the configured Cognito User Pool
+- scoped `ses:SendTemplatedEmail` access for the configured SES sender identity
 
 The sender uses `ListUsers` because participant recipient messages carry the
-canonical Cognito `sub` as `recipient_user_id`. In this User Pool, `AdminGetUser`
-does not resolve users by `sub`, so the later sender implementation should use
-an exact server-side `sub = "<recipient_user_id>"` filter and require exactly
+canonical Cognito `sub` as `recipient_user_id`. The sender implementation uses
+an exact server-side `sub = "<recipient_user_id>"` filter and requires exactly
 one matching user.
+
+The sender uses SES templated sending so reusable participant email subject,
+plain-text, and HTML definitions stay in SES template resources while the
+Lambda supplies safe template data at send time.
 
 It intentionally does not receive:
 
 - RSVP table permissions
 - SQS permissions for `notification-dispatch`
-- SES permissions
 - EventBridge publish permissions
 
 ---
@@ -354,6 +358,7 @@ The input surface stays intentionally small:
 - `notification_dispatch_queue_arn`
 - `notification_email_queue_arn`
 - `cognito_user_pool_arn`
+- `ses_sender_identity_arn`
 - `eventbridge_publish_event_bus_arn`
 - `workloads`
 
@@ -385,6 +390,7 @@ The example shows how to:
 - build the shared `name_prefix`
 - define the baseline tag map
 - create minimal DynamoDB, SQS, and Cognito supporting resources
+- provide an SES sender identity ARN for scoped sender permissions
 - create a minimal custom EventBridge bus for scoped publish permissions
 - call the module with all currently supported workload roles, including the
   logs-only `rsvp-authorizer` workload and split notification planner/sender
@@ -405,7 +411,7 @@ The example shows how to:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.44.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.45.0 |
 
 ## Modules
 
@@ -435,6 +441,7 @@ No modules.
 | <a name="input_notification_dispatch_queue_arn"></a> [notification\_dispatch\_queue\_arn](#input\_notification\_dispatch\_queue\_arn) | ARN of the notification-dispatch SQS queue consumed by the notification planner. | `string` | n/a | yes |
 | <a name="input_notification_email_queue_arn"></a> [notification\_email\_queue\_arn](#input\_notification\_email\_queue\_arn) | ARN of the notification-email SQS queue written by the notification planner and consumed by the notification sender. | `string` | n/a | yes |
 | <a name="input_rsvps_table_arn"></a> [rsvps\_table\_arn](#input\_rsvps\_table\_arn) | ARN of the DynamoDB RSVP table used by workload-specific IAM policies. | `string` | n/a | yes |
+| <a name="input_ses_sender_identity_arn"></a> [ses\_sender\_identity\_arn](#input\_ses\_sender\_identity\_arn) | ARN of the SES sender identity used by the notification sender to send participant email through SES templates. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
 | <a name="input_workloads"></a> [workloads](#input\_workloads) | Map of Lambda workload role definitions keyed by logical workload name.<br/><br/>Supported workload keys in v1:<br/>- create-event<br/>- get-event<br/>- list-events<br/>- list-my-events<br/>- update-event<br/>- cancel-event<br/>- rsvp-authorizer<br/>- rsvp<br/>- get-event-rsvps<br/>- notification-planner<br/>- notification-sender | <pre>map(object({<br/>    access_profile = string<br/>    enable_logs    = optional(bool)<br/>    enable_xray    = optional(bool)<br/>  }))</pre> | n/a | yes |
 

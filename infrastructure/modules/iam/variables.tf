@@ -86,6 +86,24 @@ variable "ses_sender_identity_arn" {
   }
 }
 
+variable "ses_template_arns" {
+  description = "Map of SES participant notification template ARNs used by the notification sender."
+  type        = map(string)
+
+  validation {
+    condition     = length(var.ses_template_arns) > 0
+    error_message = "ses_template_arns must contain at least one template ARN."
+  }
+
+  validation {
+    condition = alltrue([
+      for arn in values(var.ses_template_arns) :
+      length(trimspace(arn)) > 0
+    ])
+    error_message = "ses_template_arns values must not be empty."
+  }
+}
+
 variable "eventbridge_publish_event_bus_arn" {
   description = "ARN of the EventBridge event bus write workloads may publish domain events to. When null, no EventBridge publish permissions are granted."
   type        = string

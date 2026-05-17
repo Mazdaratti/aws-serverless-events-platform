@@ -188,32 +188,47 @@ output "iam_role_arns" {
 # Lambda compute baseline outputs
 ############################################
 
-# These outputs re-export the workload-keyed Lambda maps from the Lambda module
-# so later environment-level consumers can integrate the deployed functions
-# without re-describing Lambda infrastructure internals here.
+# These outputs re-export workload-keyed Lambda maps from both Lambda module
+# calls so later environment-level consumers can integrate the deployed
+# functions without re-describing Lambda infrastructure internals here.
 output "lambda_function_names" {
   description = "Map of workload Lambda function names for the dev environment."
-  value       = module.lambda.function_names
+  value = merge(
+    module.lambda.function_names,
+    module.notification_lambdas.function_names,
+  )
 }
 
 output "lambda_function_arns" {
   description = "Map of workload Lambda function ARNs for the dev environment."
-  value       = module.lambda.function_arns
+  value = merge(
+    module.lambda.function_arns,
+    module.notification_lambdas.function_arns,
+  )
 }
 
 output "lambda_invoke_arns" {
   description = "Map of workload Lambda invoke ARNs for the dev environment."
-  value       = module.lambda.invoke_arns
+  value = merge(
+    module.lambda.invoke_arns,
+    module.notification_lambdas.invoke_arns,
+  )
 }
 
 output "lambda_log_group_names" {
   description = "Map of workload CloudWatch Logs log group names for the dev environment."
-  value       = module.lambda.log_group_names
+  value = merge(
+    module.lambda.log_group_names,
+    module.notification_lambdas.log_group_names,
+  )
 }
 
 output "lambda_log_group_arns" {
   description = "Map of workload CloudWatch Logs log group ARNs for the dev environment."
-  value       = module.lambda.log_group_arns
+  value = merge(
+    module.lambda.log_group_arns,
+    module.notification_lambdas.log_group_arns,
+  )
 }
 
 ############################################

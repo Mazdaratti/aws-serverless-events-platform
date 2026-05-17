@@ -354,11 +354,27 @@ data "aws_iam_policy_document" "workload" {
       actions = ["ses:SendTemplatedEmail"]
 
       # The sender uses the verified project inbox identity as the SES Source
-      # address and references Terraform-managed SES templates by name.
+      # address and references Terraform-managed SES templates by name. SES
+      # authorizes templated sends against identity resources involved in the
+      # request, so recipient identities cannot be enumerated here; instead,
+      # the Source address is constrained with ses:FromAddress below.
       resources = concat(
-        [var.ses_sender_identity_arn],
+        [
+          "arn:${data.aws_partition.current.partition}:ses:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:identity/*"
+        ],
         values(var.ses_template_arns)
       )
+
+      condition {
+        test     = "StringEquals"
+        variable = "ses:FromAddress"
+        values = [
+          trimprefix(
+            var.ses_sender_identity_arn,
+            "arn:${data.aws_partition.current.partition}:ses:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:identity/"
+          )
+        ]
+      }
     }
   }
 

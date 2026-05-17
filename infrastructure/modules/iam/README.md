@@ -291,6 +291,7 @@ It currently receives:
 - narrow SQS consumer permissions for `notification-email`
 - scoped `cognito-idp:ListUsers` access for the configured Cognito User Pool
 - scoped `ses:SendTemplatedEmail` access for the configured SES sender identity
+  and participant notification templates
 
 The sender uses `ListUsers` because participant recipient messages carry the
 canonical Cognito `sub` as `recipient_user_id`. The sender implementation uses
@@ -300,6 +301,10 @@ one matching user.
 The sender uses SES templated sending so reusable participant email subject,
 plain-text, and HTML definitions stay in SES template resources while the
 Lambda supplies safe template data at send time.
+
+SES templated sending authorizes both the sender identity and the stored
+template resources, so this module requires the SES sender identity ARN and the
+participant notification template ARNs.
 
 It intentionally does not receive:
 
@@ -359,6 +364,7 @@ The input surface stays intentionally small:
 - `notification_email_queue_arn`
 - `cognito_user_pool_arn`
 - `ses_sender_identity_arn`
+- `ses_template_arns`
 - `eventbridge_publish_event_bus_arn`
 - `workloads`
 
@@ -390,7 +396,8 @@ The example shows how to:
 - build the shared `name_prefix`
 - define the baseline tag map
 - create minimal DynamoDB, SQS, and Cognito supporting resources
-- provide an SES sender identity ARN for scoped sender permissions
+- provide an SES sender identity ARN and SES template ARNs for scoped sender
+  permissions
 - create a minimal custom EventBridge bus for scoped publish permissions
 - call the module with all currently supported workload roles, including the
   logs-only `rsvp-authorizer` workload and split notification planner/sender
@@ -442,6 +449,7 @@ No modules.
 | <a name="input_notification_email_queue_arn"></a> [notification\_email\_queue\_arn](#input\_notification\_email\_queue\_arn) | ARN of the notification-email SQS queue written by the notification planner and consumed by the notification sender. | `string` | n/a | yes |
 | <a name="input_rsvps_table_arn"></a> [rsvps\_table\_arn](#input\_rsvps\_table\_arn) | ARN of the DynamoDB RSVP table used by workload-specific IAM policies. | `string` | n/a | yes |
 | <a name="input_ses_sender_identity_arn"></a> [ses\_sender\_identity\_arn](#input\_ses\_sender\_identity\_arn) | ARN of the SES sender identity used by the notification sender to send participant email through SES templates. | `string` | n/a | yes |
+| <a name="input_ses_template_arns"></a> [ses\_template\_arns](#input\_ses\_template\_arns) | Map of SES participant notification template ARNs used by the notification sender. | `map(string)` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
 | <a name="input_workloads"></a> [workloads](#input\_workloads) | Map of Lambda workload role definitions keyed by logical workload name.<br/><br/>Supported workload keys in v1:<br/>- create-event<br/>- get-event<br/>- list-events<br/>- list-my-events<br/>- update-event<br/>- cancel-event<br/>- rsvp-authorizer<br/>- rsvp<br/>- get-event-rsvps<br/>- notification-planner<br/>- notification-sender | <pre>map(object({<br/>    access_profile = string<br/>    enable_logs    = optional(bool)<br/>    enable_xray    = optional(bool)<br/>  }))</pre> | n/a | yes |
 

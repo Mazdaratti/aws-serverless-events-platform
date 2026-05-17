@@ -22,6 +22,13 @@ locals {
   # without sending a real SES verification email from the IAM example.
   ses_sender_identity_arn = "arn:aws:ses:eu-central-1:123456789012:identity/participant-notifications@example.com"
 
+  # Templated email sending also authorizes access to the stored SES templates.
+  # These deterministic ARNs keep the example self-contained and plan-only.
+  ses_template_arns = {
+    event_updated   = "arn:aws:ses:eu-central-1:123456789012:template/aws-serverless-events-platform-example-event-updated"
+    event_cancelled = "arn:aws:ses:eu-central-1:123456789012:template/aws-serverless-events-platform-example-event-cancelled"
+  }
+
   tags = {
     Project     = local.project_name
     Environment = local.environment
@@ -123,6 +130,7 @@ module "iam" {
   notification_email_queue_arn      = aws_sqs_queue.notification_email.arn
   cognito_user_pool_arn             = aws_cognito_user_pool.users.arn
   ses_sender_identity_arn           = local.ses_sender_identity_arn
+  ses_template_arns                 = local.ses_template_arns
   eventbridge_publish_event_bus_arn = aws_cloudwatch_event_bus.domain_events.arn
 
   workloads = {

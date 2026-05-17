@@ -199,19 +199,22 @@ def _build_template_data(*, notification_type: str, message: dict[str, Any]) -> 
     event_title = _required_string(message, "event_title")
     event_detail_path = _required_event_detail_path(message)
 
-    # SES templates render the same data into text and HTML bodies. Values that
-    # appear as visible HTML text are escaped before handoff. The event URL is
+    # SES templates render the same notification data into subject, text, and
+    # HTML contexts. Text values stay readable for subjects and plain-text
+    # email, while HTML values are escaped before handoff. The event URL is
     # validated and composed separately because URL safety is a validation
     # concern, not a text-escaping concern.
     template_data: dict[str, Any] = {
-        "event_title": _escape_template_value(event_title),
+        "event_title_text": event_title,
+        "event_title_html": _escape_template_value(event_title),
         "event_url": _build_event_url(event_detail_path),
     }
 
     if notification_type == "event.updated":
-        template_data["changed_fields"] = [
-            _escape_template_value(changed_field)
-            for changed_field in _required_changed_fields(message)
+        changed_fields = _required_changed_fields(message)
+        template_data["changed_fields_text"] = changed_fields
+        template_data["changed_fields_html"] = [
+            _escape_template_value(changed_field) for changed_field in changed_fields
         ]
 
     return template_data

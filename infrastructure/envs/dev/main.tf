@@ -236,6 +236,7 @@ module "iam" {
   notification_email_queue_arn      = module.sqs.queue_arns["notification-email"]
   cognito_user_pool_arn             = module.cognito.user_pool_arn
   ses_sender_identity_arn           = module.ses_participant_email.sender_identity_arn
+  ses_template_arns                 = module.ses_participant_email.template_arns
   eventbridge_publish_event_bus_arn = local.eventbridge_event_bus_arn
 
   workloads = {

@@ -76,6 +76,16 @@ variable "cognito_user_pool_arn" {
   }
 }
 
+variable "ses_sender_identity_arn" {
+  description = "ARN of the SES sender identity used by the notification sender to send participant email through SES templates."
+  type        = string
+
+  validation {
+    condition     = length(trimspace(var.ses_sender_identity_arn)) > 0
+    error_message = "ses_sender_identity_arn must not be empty."
+  }
+}
+
 variable "eventbridge_publish_event_bus_arn" {
   description = "ARN of the EventBridge event bus write workloads may publish domain events to. When null, no EventBridge publish permissions are granted."
   type        = string

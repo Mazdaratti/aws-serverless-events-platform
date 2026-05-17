@@ -321,11 +321,8 @@ module "lambda" {
           COGNITO_APP_CLIENT_ID    = module.cognito.user_pool_client_id
           COGNITO_ADMIN_GROUP_NAME = module.cognito.admin_group_name
         } : {},
-        contains(["rsvp", "get-event-rsvps", "notification-planner"], function_key) ? {
+        contains(["rsvp", "get-event-rsvps"], function_key) ? {
           RSVPS_TABLE_NAME = module.dynamodb_data_layer.rsvps_table_name
-        } : {},
-        function_key == "notification-planner" ? {
-          NOTIFICATION_EMAIL_QUEUE_URL = module.sqs.queue_urls["notification-email"]
         } : {}
       )
       log_retention_in_days = 14
@@ -578,4 +575,45 @@ module "cloudfront" {
   price_class         = "PriceClass_100"
   enabled             = true
   default_root_object = "index.html"
+}
+
+############################################
+# Notification worker Lambda compute
+############################################
+
+# Notification workers are deployed after CloudFront so the email sender can
+# compose user-facing event links from the managed distribution domain without
+# adding a dependency edge from the routed API Lambdas back to CloudFront.
+module "notification_lambdas" {
+  source = "../../modules/lambda"
+
+  name_prefix = local.name_prefix
+  tags        = local.tags
+
+  functions = {
+    for function_key, function in local.notification_lambda_workloads :
+    function_key => {
+      description  = function.description
+      role_arn     = module.iam.role_arns[function_key]
+      runtime      = "python3.13"
+      handler      = "handler.lambda_handler"
+      package_path = abspath("${path.module}/../../../artifacts/lambda/${function_key}.zip")
+      memory_size  = 256
+      timeout      = 10
+      environment_variables = merge(
+        function_key == "notification-planner" ? {
+          RSVPS_TABLE_NAME             = module.dynamodb_data_layer.rsvps_table_name
+          NOTIFICATION_EMAIL_QUEUE_URL = module.sqs.queue_urls["notification-email"]
+        } : {},
+        function_key == "notification-sender" ? {
+          COGNITO_USER_POOL_ID         = module.cognito.user_pool_id
+          SES_SOURCE_EMAIL             = var.ses_sender_email
+          SES_TEMPLATE_EVENT_UPDATED   = module.ses_participant_email.template_names["event_updated"]
+          SES_TEMPLATE_EVENT_CANCELLED = module.ses_participant_email.template_names["event_cancelled"]
+          FRONTEND_BASE_URL            = "https://${module.cloudfront.distribution_domain_name}"
+        } : {}
+      )
+      log_retention_in_days = 14
+    }
+  }
 }

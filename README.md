@@ -27,7 +27,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Notification sender Lambda and participant email delivery
+- Observability baseline
 
 ### Completed milestones
 
@@ -43,7 +43,9 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     - `notification-dispatch`
     - `notification-email`
   - least-privilege IAM roles for deployed Lambda workloads
-  - split IAM roles prepared for `notification-planner` and `notification-sender`
+  - split least-privilege IAM roles for `notification-planner` and
+    `notification-sender`
+  - separate notification Lambda composition for planner/sender workers
   - ZIP-packaged Lambda deployment baseline
   - Cognito User Pool, app client, and admin group
   - routed API Gateway HTTP API baseline
@@ -81,6 +83,10 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - deployed `notification-planner` worker for participant notification planning
   - `notification-email` queue for recipient-level participant email jobs
   - SES sender identity and participant email templates wired in `dev`
+  - deployed `notification-sender` worker for SES templated participant email
+    delivery
+  - `notification-email` event source mapping with partial batch responses
+  - Cognito `sub` lookup at send time for current recipient email resolution
   - EventBridge-to-SNS and EventBridge-to-SQS policies hardened with source ARN
     and `aws:SourceAccount`
   - synchronous API outcomes remain independent from async notification delivery
@@ -107,7 +113,6 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Next milestones
 
-- Notification sender Lambda and SES participant email sending
 - Observability baseline
 - Remote Terraform backend + GitHub OIDC
 - deployment workflow automation beyond Terraform validation
@@ -199,9 +204,10 @@ provide lightweight admin email formatting with the full CloudFront event URL.
 per authenticated RSVP user for event update and cancellation notifications.
 17. The SES baseline provides the sender identity and reusable participant email
 templates for update and cancellation notifications.
-18. The planned `notification-sender` resolves the current recipient email
-through Cognito at send time, selects the SES template, and sends participant
-email through **Amazon SES**.
+18. The deployed `notification-sender` consumes recipient-level jobs from
+`notification-email`, resolves the current recipient email through Cognito at
+send time, selects the SES template, provides safe template data, and sends
+participant email through **Amazon SES**.
 
 The planner and sender execution roles are provisioned separately with
 least-privilege IAM.
@@ -210,6 +216,11 @@ Participant emails are user-facing product emails, not admin/debug messages.
 The planner produces safe recipient-level jobs. SES owns reusable template
 definitions, and the sender owns template selection, safe template data, and
 delivery.
+
+In `dev`, SES uses a verified project sender inbox and sandbox-verified
+recipient addresses. Production-shaped deliverability improvements such as a
+custom domain identity, DKIM, SPF, DMARC, and MAIL FROM configuration remain
+future email-deliverability work.
 
 The v1 event-management domain events are:
 
@@ -535,11 +546,19 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - configure the dedicated project sender inbox through local untracked
      tfvars ✅
    - manually verify the dedicated project sender inbox in SES ✅
-   - implement `notification-sender` to consume `notification-email` messages
-   - resolve current recipient email at send time through Cognito
-   - select SES templates and provide safe template data
-   - send templated participant emails through SES
-   - keep user-facing API responses independent from notification delivery
+   - split notification Lambda deployment composition so sender can use the
+     CloudFront distribution domain without introducing a dependency cycle ✅
+   - implement `notification-sender` to consume `notification-email` messages ✅
+   - wire `notification-sender` into `infrastructure/envs/dev` with an SQS
+     event source mapping and partial batch responses ✅
+   - resolve current recipient email at send time through Cognito `ListUsers`
+     by canonical `sub` ✅
+   - select SES templates and provide safe text/HTML template data ✅
+   - scope sender IAM to `notification-email`, Cognito user lookup, and SES
+     templated sending from the project sender identity ✅
+   - send templated participant emails through SES ✅
+   - add notification sender unit tests and CI compile coverage ✅
+   - keep user-facing API responses independent from notification delivery ✅
 
 21. CloudWatch observability and X-Ray tracing
    - add production-oriented logs, metrics, tracing, and validation evidence

@@ -5,8 +5,8 @@ serverless events platform.
 
 It is intentionally platform-specific. The goal is not to provide a generic SES
 factory or broad email-delivery abstraction. Instead, this module defines the
-sender identity and reusable participant notification templates that the later
-notification sender worker will compose around.
+sender identity and reusable participant notification templates that the
+notification sender worker composes around.
 
 This module manages SES identity and template infrastructure only.
 
@@ -66,13 +66,24 @@ Each template includes:
 - plain-text body
 - HTML body
 
-The later notification sender worker should choose the template and provide safe
-template data. It should not send raw EventBridge payloads or DynamoDB storage
-fields to participants.
+The notification sender worker chooses the template and provides safe template
+data. It does not send raw EventBridge payloads or DynamoDB storage fields to
+participants.
 
 SES template rendering does not make dynamic HTML-safe content safe by itself.
 Any dynamic values provided by the sender must be validated and escaped before
 being passed to SES.
+
+The templates use separate text and HTML placeholders for dynamic participant
+content:
+
+- `event_title_text` for subjects and plain-text bodies
+- `event_title_html` for HTML bodies
+- `changed_fields_text` for plain-text update details
+- `changed_fields_html` for HTML update details
+
+The sender keeps text placeholders readable and escapes HTML placeholders before
+calling SES.
 
 ---
 
@@ -104,8 +115,8 @@ This module does not create:
 - MAIL FROM configuration
 - actual email sending behavior
 
-Those concerns belong to later environment wiring or notification sender
-implementation steps.
+Those concerns belong to environment wiring and notification sender
+implementation outside this module.
 
 ---
 

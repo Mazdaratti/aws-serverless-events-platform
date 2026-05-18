@@ -43,9 +43,9 @@ This keeps small worker artifacts focused on the code they actually execute.
 
 Notification planner/sender worker packaging commands:
 
-The deployed `notification-planner` currently uses this no-shared packaging
-model. The future `notification-sender` should use the same model if it remains
-independent from `lambdas/shared`.
+The `notification-planner` and `notification-sender` workers use this
+no-shared packaging model because they remain independent from
+`lambdas/shared`.
 
 ```powershell
 python scripts/package_lambda.py `

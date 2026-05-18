@@ -526,7 +526,6 @@ SQS is used for participant notification durability and retry isolation:
 The notification worker layer is intentionally split:
 
 - `notification-planner`
-  - is implemented and deployed in `dev`
   - consumes event-level participant notification work from
     `notification-dispatch`
   - queries RSVP records by event
@@ -536,12 +535,11 @@ The notification worker layer is intentionally split:
   - skips anonymous RSVP subjects in v1
   - uses partial batch responses for SQS retry isolation
 - `notification-sender`
-  - has a dedicated least-privilege IAM role prepared in `dev`
   - consumes recipient-level email jobs
   - resolves the current recipient email through Cognito at send time using
     the canonical Cognito `sub`
   - builds safe template data for SES-managed participant email templates
-  - sends participant email through SES
+  - sends participant email through SES `SendTemplatedEmail`
 
 This keeps EventBridge responsible for fanout, SQS responsible for durable
 participant work buffering, SES templates responsible for reusable user-facing
@@ -564,10 +562,12 @@ Development SES strategy:
   - `event.cancelled`
 - SES templates contain the subject, plain-text body, and HTML body
 - `notification-sender` chooses the SES template and provides safe template data
-- the SES identity/template baseline is separate from `notification-sender`
-  Lambda deployment and SES send permissions
+- sender SES permissions cover the configured sender address, participant
+  templates, and SES identity scope required by sandbox validation
 - SES sandbox assumptions remain explicit for `dev`
 - sandbox validation requires verified recipient email addresses
+- no SES production access request, domain identity, DKIM, SPF, DMARC, or
+  custom MAIL FROM configuration is part of the current architecture baseline
 
 Participant emails are user-facing product emails, not admin/debug messages.
 The planner produces safe recipient-level jobs, and the sender owns final

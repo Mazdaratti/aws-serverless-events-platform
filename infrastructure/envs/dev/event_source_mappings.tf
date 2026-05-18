@@ -8,7 +8,22 @@
 # records from being retried when another record in the same batch fails.
 resource "aws_lambda_event_source_mapping" "notification_planner_dispatch" {
   event_source_arn = module.sqs.queue_arns["notification-dispatch"]
-  function_name    = module.lambda.function_names["notification-planner"]
+  function_name    = module.notification_lambdas.function_names["notification-planner"]
+
+  batch_size                         = 10
+  maximum_batching_window_in_seconds = 0
+  function_response_types            = ["ReportBatchItemFailures"]
+
+  depends_on = [module.iam]
+}
+
+# The notification sender consumes recipient-level participant email jobs from
+# notification-email and sends user-facing templated email through SES. Partial
+# batch responses keep successfully sent SQS records from being retried when
+# another record in the same batch fails.
+resource "aws_lambda_event_source_mapping" "notification_sender_email" {
+  event_source_arn = module.sqs.queue_arns["notification-email"]
+  function_name    = module.notification_lambdas.function_names["notification-sender"]
 
   batch_size                         = 10
   maximum_batching_window_in_seconds = 0

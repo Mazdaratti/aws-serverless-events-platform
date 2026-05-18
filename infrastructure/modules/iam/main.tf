@@ -339,9 +339,42 @@ data "aws_iam_policy_document" "workload" {
       actions = ["cognito-idp:ListUsers"]
 
       # The sender will later resolve the current email address by applying an
-      # exact server-side Cognito filter on the canonical Cognito sub. SES
-      # permissions remain intentionally deferred.
+      # exact server-side Cognito filter on the canonical Cognito sub.
       resources = [var.cognito_user_pool_arn]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = each.value.access_profile == "notification_sender" ? [1] : []
+
+    content {
+      sid    = "NotificationSenderSendTemplatedEmail"
+      effect = "Allow"
+
+      actions = ["ses:SendTemplatedEmail"]
+
+      # The sender uses the verified project inbox identity as the SES Source
+      # address and references Terraform-managed SES templates by name. SES
+      # authorizes templated sends against identity resources involved in the
+      # request, so recipient identities cannot be enumerated here; instead,
+      # the Source address is constrained with ses:FromAddress below.
+      resources = concat(
+        [
+          "arn:${data.aws_partition.current.partition}:ses:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:identity/*"
+        ],
+        values(var.ses_template_arns)
+      )
+
+      condition {
+        test     = "StringEquals"
+        variable = "ses:FromAddress"
+        values = [
+          trimprefix(
+            var.ses_sender_identity_arn,
+            "arn:${data.aws_partition.current.partition}:ses:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:identity/"
+          )
+        ]
+      }
     }
   }
 

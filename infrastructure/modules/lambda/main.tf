@@ -44,6 +44,12 @@ resource "aws_lambda_function" "function" {
     }
   }
 
+  # Keep tracing explicit per function. The module defaults to PassThrough so
+  # existing callers do not start emitting X-Ray traces unless they opt in.
+  tracing_config {
+    mode = each.value.tracing_mode
+  }
+
   tags = merge(var.tags, {
     Name = each.value.function_name
   })

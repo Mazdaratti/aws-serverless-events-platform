@@ -101,6 +101,7 @@ module "lambda" {
       package_path = data.archive_file.create_event_package.output_path
       memory_size  = 256
       timeout      = 10
+      tracing_mode = "Active"
       environment_variables = {
         EVENTS_TABLE_NAME = "${local.name_prefix}-events"
       }

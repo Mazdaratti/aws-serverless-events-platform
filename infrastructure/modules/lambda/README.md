@@ -19,6 +19,7 @@ For each logical function definition, it creates:
 
 It also applies:
 
+- optional X-Ray tracing mode
 - the supplied execution role ARN
 - runtime and handler settings
 - memory and timeout settings
@@ -75,6 +76,18 @@ That is intentional:
 
 ---
 
+## Why Tracing Mode Is Explicit
+
+This module exposes Lambda X-Ray tracing through a per-function `tracing_mode`
+setting.
+
+The default is `PassThrough` so existing callers keep the lowest-cost behavior
+unless an environment explicitly opts into active tracing. Environments that
+enable `Active` tracing must also ensure the function execution role can write
+trace segments and telemetry records to X-Ray.
+
+---
+
 ## Current V1 Deployment Shape
 
 Each function definition currently supports:
@@ -88,6 +101,7 @@ Each function definition currently supports:
 - `timeout`
 - `environment_variables`
 - `log_retention_in_days`
+- `tracing_mode`
 
 This keeps the module reusable across current and future workloads such as:
 
@@ -114,6 +128,7 @@ The example shows how to:
 - prepare a small ZIP artifact outside the module
 - provide an existing Lambda execution role ARN
 - call the module with one function definition
+- enable active tracing on the example function
 - inspect the resulting function and log group outputs
 
 ---
@@ -130,7 +145,7 @@ The example shows how to:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.38.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.45.0 |
 
 ## Modules
 
@@ -147,7 +162,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_functions"></a> [functions](#input\_functions) | Map of Lambda function definitions keyed by logical workload name.<br/><br/>The module stays infrastructure-focused in v1:<br/>- package\_path points to a ready ZIP artifact<br/>- IAM roles are consumed through role\_arn<br/>- environment variables are passed through as simple key/value pairs | <pre>map(object({<br/>    description           = string<br/>    role_arn              = string<br/>    runtime               = string<br/>    handler               = string<br/>    package_path          = string<br/>    memory_size           = optional(number)<br/>    timeout               = optional(number)<br/>    environment_variables = optional(map(string))<br/>    log_retention_in_days = optional(number)<br/>  }))</pre> | n/a | yes |
+| <a name="input_functions"></a> [functions](#input\_functions) | Map of Lambda function definitions keyed by logical workload name.<br/><br/>The module stays infrastructure-focused in v1:<br/>- package\_path points to a ready ZIP artifact<br/>- IAM roles are consumed through role\_arn<br/>- environment variables are passed through as simple key/value pairs | <pre>map(object({<br/>    description           = string<br/>    role_arn              = string<br/>    runtime               = string<br/>    handler               = string<br/>    package_path          = string<br/>    memory_size           = optional(number)<br/>    timeout               = optional(number)<br/>    environment_variables = optional(map(string))<br/>    log_retention_in_days = optional(number)<br/>    tracing_mode          = optional(string, "PassThrough")<br/>  }))</pre> | n/a | yes |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Shared environment naming prefix used to derive Lambda function and log group names. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
 

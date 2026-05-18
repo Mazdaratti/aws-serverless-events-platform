@@ -46,6 +46,7 @@ variable "functions" {
     timeout               = optional(number)
     environment_variables = optional(map(string))
     log_retention_in_days = optional(number)
+    tracing_mode          = optional(string, "PassThrough")
   }))
 
   validation {
@@ -125,5 +126,13 @@ variable "functions" {
       contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], try(function.log_retention_in_days, 14))
     ])
     error_message = "Each function log_retention_in_days must use a supported CloudWatch Logs retention value."
+  }
+
+  validation {
+    condition = alltrue([
+      for function in values(var.functions) :
+      contains(["PassThrough", "Active"], function.tracing_mode)
+    ])
+    error_message = "Each function tracing_mode must be either \"PassThrough\" or \"Active\"."
   }
 }

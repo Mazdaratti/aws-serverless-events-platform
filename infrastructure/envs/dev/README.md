@@ -174,7 +174,7 @@ Why this module is wired now:
 - the platform already reserves SQS for asynchronous work after durable state changes
 - notification dispatch is the clearest first async side effect to separate from API response time
 - the email queue establishes the recipient-level user-facing email work buffer
-  between the participant notification planner and future sender
+  between the participant notification planner and sender
 - the queues and DLQs establish concrete messaging extension points without
   changing the synchronous RSVP write path
 
@@ -190,8 +190,11 @@ Important design notes:
 - EventBridge does not send directly to `notification-email`
 - `notification-planner` is implemented and consumes `notification-dispatch`
   through a Lambda event source mapping
-- `notification-sender`, SES send permissions, Cognito email resolution, and
-  actual participant email sending remain future work
+- `notification-sender` is implemented and consumes `notification-email`
+  through a Lambda event source mapping
+- both notification event source mappings use `ReportBatchItemFailures`
+- `notification-sender` resolves the current recipient email from Cognito by
+  canonical `sub` and sends SES templated participant emails
 - the primary RSVP business write remains synchronous through DynamoDB durable commit
 - the EventBridge-to-SQS queue policy is scoped to the concrete participant
   dispatch rule ARN and the current AWS account through `aws:SourceAccount`
@@ -400,8 +403,8 @@ This environment currently wires in:
 Why this module is wired now:
 
 - participant emails are user-facing product emails, not admin/debug messages
-- SES gives the platform an AWS-native email delivery baseline for the future
-  `notification-sender`
+- SES gives the deployed `notification-sender` an AWS-native templated email
+  delivery baseline
 - SES templates keep reusable subject, plain-text, and HTML email definitions
   in AWS-managed template resources instead of Lambda code
 - wiring the identity and templates separately lets the sender inbox be verified
@@ -421,15 +424,17 @@ Important design notes:
   - subject
   - plain-text body
   - HTML body
-- future sender code must choose the correct template and provide safe template
-  data
-- future sender code must validate and escape dynamic values before passing
-  template data to SES
+- `notification-sender` chooses the correct Terraform-managed SES template and
+  provides safe template data
+- `notification-sender` validates URL inputs and uses separate text-safe and
+  HTML-safe template data fields before passing dynamic values to SES
 - SES sandbox assumptions remain explicit for `dev`
 - sandbox sending requires verified recipient email addresses
-- `notification-sender` Lambda deployment remains future work
-- SES send permissions remain future work
-- no participant emails are sent by the platform yet
+- participant emails are sent from the verified project sender identity through
+  SES templated email delivery
+- no SES production access request has been made yet
+- domain identity, DKIM, SPF, DMARC, and custom MAIL FROM remain future
+  deliverability hardening work
 
 The environment should stay thin:
 
@@ -449,8 +454,11 @@ Validation:
 - confirmed the `event.cancelled` SES template exists
 - confirmed Terraform outputs expose the SES sender identity ARN and template
   identifiers
-- confirmed `notification-sender` is not deployed yet
-- confirmed the notification sender IAM policy has no SES send actions
+- confirmed `notification-sender` sends templated SES email for controlled
+  `event.updated` and `event.cancelled` recipient jobs
+- confirmed SES sandbox validation uses verified recipient addresses
+- confirmed the rendered participant emails do not expose internal platform
+  fields
 - see evidence screenshots under `docs/assets/ses/`
 
 ---
@@ -486,47 +494,42 @@ Why this module is wired now:
 
 Important design notes:
 
-- each workload gets its own least-privilege execution role and customer-managed policy
-- `create-event` receives write access for creating canonical event records in
-  the `events` table and scoped EventBridge publish access to the custom event bus
-- `get-event` receives only direct `GetItem` access for the `events` table
-- `list-events` currently receives temporary `Scan` access for the `events` table as a short-term access-pattern accommodation
-- `list-my-events` receives `Query` access for the `creator-events` GSI
-- `update-event` and `cancel-event` receive narrow `GetItem` + `UpdateItem`
-  access for the `events` table and scoped EventBridge publish access to the
-  custom event bus
-- `rsvp` is the transactional workload role and spans both business tables so it can:
-  - read the current event state
-  - read the current RSVP state
-  - perform the transactional write across `events` and `rsvps`
-- `get-event-rsvps` is the read-only RSVP visibility role and receives:
-  - `GetItem` on `events`
-  - `Query` on `rsvps`
+- each workload gets its own least-privilege execution role and
+  customer-managed policy
+- API/business workload permissions are scoped by access pattern:
+  - `create-event` can create canonical event records in `events`
+  - `get-event` can read one event directly with `GetItem`
+  - `list-events` currently has temporary `Scan` access as a short-term
+    access-pattern accommodation
+  - `list-my-events` can query the `creator-events` GSI
+  - `update-event` and `cancel-event` can read and update canonical event
+    records with narrow `GetItem` and `UpdateItem` access
+- RSVP workload permissions are scoped separately:
+  - `rsvp` can read current event and RSVP state and perform the transactional
+    write across `events` and `rsvps`
+  - `get-event-rsvps` can read the event with `GetItem` and query RSVP records
+    from `rsvps`
 - `rsvp-authorizer` uses a logs-only execution profile because Cognito token
   validation and JWKS retrieval happen without direct Cognito IAM access
-- `notification-planner` is the participant notification planning role and receives:
-  - SQS consumer permissions for `notification-dispatch`
-  - `Query` access for the RSVP table
-  - `sqs:SendMessage` access for `notification-email`
-- `notification-sender` is the participant notification email role and receives:
-  - SQS consumer permissions for `notification-email`
-  - `cognito-idp:ListUsers` access scoped to the dev user pool for resolving a
-    recipient's current email address from the canonical Cognito `sub`
-- `notification-sender` does not receive SES permissions yet
-- `notification-planner` now has Lambda code and an event source mapping from
-  `notification-dispatch`
-- `notification-sender` does not have Lambda code or an event source mapping yet
-- only `create-event`, `update-event`, and `cancel-event` receive
-  `events:PutEvents`
-- EventBridge publish access is scoped to the custom dev event bus ARN
-- the matching write Lambda environment variable is wired in the Lambda module
-  composition
-- `cancel-event` uses this permission to publish `event.cancelled` after
-  durable cancellation
-- `create-event` uses this permission to publish `event.created` after durable
-  creation
-- `update-event` uses this permission to publish `event.updated` after durable
-  updates
+- EventBridge publishing is limited to write workloads:
+  - only `create-event`, `update-event`, and `cancel-event` receive
+    `events:PutEvents`
+  - publish access is scoped to the custom dev event bus ARN
+  - the matching `EVENTBRIDGE_EVENT_BUS_NAME` environment variable is wired in
+    the Lambda module composition
+  - `create-event` publishes `event.created` after durable creation
+  - `update-event` publishes `event.updated` after durable updates
+  - `cancel-event` publishes `event.cancelled` after durable cancellation
+- notification worker permissions are split by queue responsibility:
+  - `notification-planner` can consume `notification-dispatch`, query RSVP
+    records, and send recipient-level jobs to `notification-email`
+  - `notification-sender` can consume `notification-email`, resolve recipient
+    email addresses with Cognito `ListUsers`, and send templated participant
+    emails through SES
+- `notification-sender` SES access is constrained to the resources required for
+  templated sending, with the configured sender `From` address constrained by
+  IAM condition
+- `notification-sender` does not receive DynamoDB or EventBridge permissions
 
 The environment should stay thin:
 
@@ -560,9 +563,10 @@ Validation:
 - confirmed `notification-sender` has SQS consumer permissions for
   `notification-email`
 - confirmed `notification-sender` can list users in the dev Cognito user pool
-- confirmed `notification-sender` has no SES permissions
-- confirmed the old generic `notification-worker` role is no longer part of the
-  active dev IAM composition
+- confirmed `notification-sender` can call `ses:SendTemplatedEmail` for the
+  configured sender address, participant notification templates, and verified
+  sandbox recipient identity scope required by SES authorization
+- confirmed `notification-sender` has no DynamoDB or EventBridge permissions
 - confirmed Terraform outputs match the created IAM role identities
 - see evidence screenshots under `docs/assets/iam/`
 
@@ -816,6 +820,9 @@ Defines the current Lambda compute baseline for the platform.
 Implemented via:
 
 - `modules/lambda`
+- two environment module calls:
+  - `module.lambda` for API/business workloads
+  - `module.notification_lambdas` for asynchronous notification workers
 
 ### Lambda workloads
 
@@ -831,6 +838,7 @@ This environment currently wires in these deployed Lambda workloads:
 - `list-my-events`
 - `rsvp-authorizer`
 - `notification-planner`
+- `notification-sender`
 
 Why this module is wired now:
 
@@ -839,40 +847,36 @@ Why this module is wired now:
   - workload IAM roles
 - the platform can now validate synchronous write paths and both public and authenticated read paths end to end in AWS
 - packaging stays outside Terraform, while deployment stays inside the reusable Lambda module
+- notification workers are deployed through a separate Lambda module call after
+  CloudFront so `notification-sender` can receive the CloudFront frontend base
+  URL without creating a Lambda/API Gateway/CloudFront dependency cycle
 
 Important design notes:
 
-- the Lambda module remains infrastructure-focused and consumes a prepared ZIP artifact
-- `envs/dev` stays thin and composition-only
+- the Lambda module remains infrastructure-focused and consumes prepared ZIP
+  artifacts
+- packaging is prepared before Terraform; Terraform deploys the already-built
+  artifacts
+- `envs/dev` stays thin and composition-only while reusable Lambda resource
+  logic stays in `modules/lambda`
 - each deployed function uses its matching least-privilege IAM role
-- each deployed function receives only the environment variables it actually needs:
+- environment variables are workload-specific:
   - event API workloads receive `EVENTS_TABLE_NAME`
-  - `rsvp` and `get-event-rsvps` also receive `RSVPS_TABLE_NAME`
-  - `create-event`, `update-event`, and `cancel-event` also receive
-    `EVENTBRIDGE_EVENT_BUS_NAME`
-- `EVENTBRIDGE_EVENT_BUS_NAME` gives write Lambdas the custom bus identity for
-  domain-event publishing
-- `cancel-event` now uses `EVENTBRIDGE_EVENT_BUS_NAME` to publish
-  `event.cancelled` after durable cancellation
-- `create-event` now uses `EVENTBRIDGE_EVENT_BUS_NAME` to publish
-  `event.created` after durable creation
-- `update-event` now uses `EVENTBRIDGE_EVENT_BUS_NAME` to publish
-  `event.updated` after durable updates
-- `rsvp-authorizer` receives only the Cognito/JWT verification environment it actually needs:
-  - `COGNITO_ISSUER`
-  - `COGNITO_APP_CLIENT_ID`
-  - `COGNITO_ADMIN_GROUP_NAME`
-- `notification-planner` receives `RSVPS_TABLE_NAME` and
-  `NOTIFICATION_EMAIL_QUEUE_URL` for participant notification planning work
-- `notification-sender` is not deployed yet
-- all deployed functions return an API Gateway-style wrapped response even before API Gateway is wired
-- `create-event` publishes `event.created` to EventBridge after durable
-  creation
-- `cancel-event` publishes `event.cancelled` to EventBridge after durable
-  cancellation
-- `update-event` publishes `event.updated` to EventBridge after durable updates
-- reusable AWS resource logic belongs in modules
-- packaging is prepared before Terraform
+  - RSVP workloads also receive `RSVPS_TABLE_NAME`
+  - write workloads receive `EVENTBRIDGE_EVENT_BUS_NAME` for post-commit
+    domain-event publishing
+  - `rsvp-authorizer` receives only Cognito/JWT verification settings:
+    `COGNITO_ISSUER`, `COGNITO_APP_CLIENT_ID`, and
+    `COGNITO_ADMIN_GROUP_NAME`
+  - `notification-planner` receives `RSVPS_TABLE_NAME` and
+    `NOTIFICATION_EMAIL_QUEUE_URL`
+  - `notification-sender` receives Cognito, SES sender/template, and
+    CloudFront frontend URL settings
+- `create-event`, `update-event`, and `cancel-event` publish compact
+  EventBridge domain events only after durable DynamoDB writes
+- notification workers are not API Gateway integrations; they are triggered by
+  SQS event source mappings
+- API-facing deployed functions return API Gateway-style wrapped responses
 
 Current business behavior validated in this environment:
 
@@ -996,10 +1000,25 @@ Current business behavior validated in this environment:
   - recipient-level jobs do not expose anonymous tokens or internal DynamoDB keys
   - unsupported event types are ignored successfully
   - malformed supported messages fail only the affected SQS record
-  - no emails are sent
-  - SES sender identity and templates are wired in `dev`
-  - `notification-sender`, SES send permissions, Cognito email resolution, and
-    actual participant email sending remain future work
+- `notification-sender`
+  - consumes recipient-level jobs from `notification-email`
+  - uses a Lambda event source mapping with `ReportBatchItemFailures`
+  - resolves the current recipient email through Cognito `ListUsers` using the
+    canonical Cognito `sub`
+  - ignores any email value in the SQS message body
+  - requires exactly one matching Cognito user with an email address
+  - selects the SES template by `notification_type`
+  - sends `event.updated` and `event.cancelled` participant emails through
+    `ses:SendTemplatedEmail`
+  - uses the Terraform-managed SES templates and verified project sender
+    identity
+  - validates event detail paths and frontend URL construction before using
+    links in template data
+  - provides separate text-safe and HTML-safe template data fields
+  - malformed or unsendable messages fail only the affected SQS record
+  - does not query DynamoDB, call EventBridge, or inspect RSVP records
+- notification preferences, anonymous email collection, and RSVP-created
+  participant notifications remain outside the current environment behavior
 
 Public event DTO behavior validated across the event read/update/cancel flows:
 
@@ -1060,6 +1079,7 @@ Validation:
   - `get-event-rsvps`
   - `rsvp-authorizer`
   - `notification-planner`
+- `notification-sender`
 - confirmed Terraform outputs match the created Lambda and log group identities
 - confirmed `notification-planner` has an enabled event source mapping from
   `notification-dispatch` with `ReportBatchItemFailures`
@@ -1067,8 +1087,16 @@ Validation:
   recipient-level jobs in `notification-email`
 - confirmed anonymous RSVP records are skipped while authenticated attending
   and not-attending RSVP records are included
-- confirmed `notification-sender` is not deployed and no participant emails are
-  sent by the platform yet
+- confirmed `notification-sender` has an enabled event source mapping from
+  `notification-email` with `ReportBatchItemFailures`
+- confirmed controlled `event.updated` and `event.cancelled` recipient jobs are
+  consumed from `notification-email`
+- confirmed controlled `event.updated` and `event.cancelled` recipient jobs
+  produce templated SES emails for a verified sandbox recipient
+- confirmed successful sender invocations drain the SQS message and complete
+  with zero failed records
+- confirmed participant emails do not expose raw EventBridge, SQS, DynamoDB, or
+  internal identity fields
 - see evidence screenshots under `docs/assets/lambda/`
 - see create-event, update-event, and cancel-event EventBridge validation screenshots under
   `docs/assets/lambda_api/`
@@ -1317,6 +1345,7 @@ Validation:
 | <a name="module_eventbridge"></a> [eventbridge](#module\_eventbridge) | ../../modules/eventbridge | n/a |
 | <a name="module_iam"></a> [iam](#module\_iam) | ../../modules/iam | n/a |
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
+| <a name="module_notification_lambdas"></a> [notification\_lambdas](#module\_notification\_lambdas) | ../../modules/lambda | n/a |
 | <a name="module_s3_frontend_bucket"></a> [s3\_frontend\_bucket](#module\_s3\_frontend\_bucket) | ../../modules/s3_frontend_bucket | n/a |
 | <a name="module_ses_participant_email"></a> [ses\_participant\_email](#module\_ses\_participant\_email) | ../../modules/ses | n/a |
 | <a name="module_sns_admin_notifications"></a> [sns\_admin\_notifications](#module\_sns\_admin\_notifications) | ../../modules/sns | n/a |
@@ -1329,6 +1358,7 @@ Validation:
 |------|------|
 | [aws_cloudwatch_log_group.api_gateway_access](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
 | [aws_lambda_event_source_mapping.notification_planner_dispatch](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_event_source_mapping) | resource |
+| [aws_lambda_event_source_mapping.notification_sender_email](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_event_source_mapping) | resource |
 | [aws_s3_bucket_policy.frontend_origin](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_policy) | resource |
 | [aws_sns_topic_policy.admin_notifications](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_policy) | resource |
 | [aws_sqs_queue_policy.notification_dispatch_eventbridge](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sqs_queue_policy) | resource |
@@ -1343,11 +1373,11 @@ Validation:
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region where resources will be deployed. | `string` | n/a | yes |
-| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
-| <a name="input_enable_waf"></a> [enable\_waf](#input\_enable\_waf) | Whether to create and attach the CloudFront-scoped WAF Web ACL in this dev environment. | `bool` | `false` | no |
 | <a name="input_environment"></a> [environment](#input\_environment) | Deployment environment name. | `string` | n/a | yes |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Project name used for naming and tagging resources. | `string` | n/a | yes |
 | <a name="input_ses_sender_email"></a> [ses\_sender\_email](#input\_ses\_sender\_email) | Dedicated project inbox email address to verify as the SES sender identity for participant notifications in dev. | `string` | n/a | yes |
+| <a name="input_dynamodb_point_in_time_recovery_enabled"></a> [dynamodb\_point\_in\_time\_recovery\_enabled](#input\_dynamodb\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery for DynamoDB tables in this environment. | `bool` | `false` | no |
+| <a name="input_enable_waf"></a> [enable\_waf](#input\_enable\_waf) | Whether to create and attach the CloudFront-scoped WAF Web ACL in this dev environment. | `bool` | `false` | no |
 | <a name="input_sns_admin_email_subscriptions"></a> [sns\_admin\_email\_subscriptions](#input\_sns\_admin\_email\_subscriptions) | Admin or developer email endpoints to subscribe to the SNS admin notification topic in dev. Email subscriptions require confirmation before receiving messages. | `set(string)` | `[]` | no |
 
 ## Outputs

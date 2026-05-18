@@ -26,6 +26,7 @@ locals {
       timeout               = coalesce(function.timeout, local.function_defaults.timeout)
       environment_variables = coalesce(function.environment_variables, local.function_defaults.environment_variables)
       log_retention_in_days = coalesce(function.log_retention_in_days, local.function_defaults.log_retention_in_days)
+      tracing_mode          = function.tracing_mode
     }
   }
 

@@ -2295,9 +2295,12 @@ Rules:
   between the planner and sender
 - `notification-planner` is implemented and deployed in the current
   infrastructure baseline
-- the planner and sender have separate least-privilege IAM roles
-- the current infrastructure baseline includes a Terraform-managed SES sender
-  email identity and SES templates for participant notification emails
+- `notification-sender` is implemented and deployed in the current
+  infrastructure baseline
+- the planner and sender have separate least-privilege IAM roles and SQS event
+  source mappings with partial batch responses
+- participant email delivery uses a Terraform-managed SES sender identity and
+  SES templates
 - SQS provides durable buffering, retry isolation, and rate/concurrency control
 - one event-level message can produce many recipient-level messages
 - each recipient-level message represents one authenticated RSVP user recipient
@@ -2309,11 +2312,10 @@ The planner produces safe recipient-level jobs, and the sender owns final
 presentation through stable templates. EventBridge does not send directly to
 `notification-email`.
 
-The notification worker layer is only partially implemented. The
-`notification-planner` Lambda and its event source mapping are implemented;
-the SES sender identity and SES templates are provisioned; `notification-sender`,
-SES send permissions, Cognito email resolution, and actual participant email
-delivery remain future work.
+The notification worker layer is implemented for update and cancellation
+participant emails. The planner creates recipient-level jobs, and the sender
+resolves the current recipient email through Cognito before sending a
+Terraform-managed SES template.
 
 Participant notification emails include template support for:
 
@@ -2339,11 +2341,15 @@ Rules:
   - `event.updated`
   - `event.cancelled`
 - SES templates contain the subject, plain-text body, and HTML body
+- `notification-sender` uses `ses:SendTemplatedEmail`
+- sender IAM allows SES templated sending for the configured sender identity,
+  participant templates, and SES recipient identity scope required by sandbox
+  validation
 - SES sandbox assumptions remain explicit in `dev`
 - sandbox email delivery requires verified recipient email addresses
 
-This baseline does not grant SES send permissions and does not deploy
-`notification-sender`.
+This baseline does not request SES production access and does not configure a
+domain identity, DKIM, SPF, DMARC, or custom MAIL FROM.
 
 ### Participant recipient rules
 
@@ -2407,14 +2413,15 @@ Non-responsibilities:
 - do not resolve recipient email addresses
 - do not require email stored in RSVP records
 
-### `notification-sender` direction
+### `notification-sender`
 
-The future `notification-sender` Lambda consumes recipient-level messages from
-`notification-email`.
+The `notification-sender` Lambda consumes recipient-level messages from
+`notification-email` and sends participant emails through SES.
 
-The sender IAM role is already prepared to consume `notification-email` and
-call `cognito-idp:ListUsers` against the configured Cognito user pool. The
-current Cognito lookup direction is a constrained `ListUsers` lookup by
+The sender IAM role allows it to consume `notification-email`, call
+`cognito-idp:ListUsers` against the configured Cognito user pool, and call
+`ses:SendTemplatedEmail` for the configured sender address and participant
+templates. The Cognito lookup uses a constrained `ListUsers` lookup by
 canonical `sub`, because participant recipient messages carry
 `recipient_user_id` as the Cognito `sub`.
 
@@ -2423,15 +2430,18 @@ Responsibilities:
 - resolve the current recipient email address from Cognito at send time using
   the canonical `recipient_user_id`
 - select the correct SES template for the notification type
-- build validated and HTML-safe template data for SES
-- send templated email through SES
-- use retry-friendly and partial-batch-friendly behavior when implemented
+- build validated template data with separate text-safe and HTML-safe fields
+  for SES
+- send templated email through SES `SendTemplatedEmail`
+- use partial batch responses so successful SQS records are not retried when
+  another record in the same batch fails
 
 Non-responsibilities:
 
 - do not query the RSVP table
+- do not call EventBridge
 - do not depend on RSVP-stored email addresses
-- do not send raw EventBridge or DynamoDB payloads to participants
+- do not send raw EventBridge, SQS, or DynamoDB payloads to participants
 - do not treat stale copied email data as the source of truth
 
 ### Intentionally deferred notification scope
@@ -2444,6 +2454,8 @@ The following are intentionally deferred:
 - subscribe-to-event-notifications feature
 - notification preferences
 - anonymous RSVP email collection
+- SES production access request
+- domain identity, DKIM, SPF, DMARC, or custom MAIL FROM
 - Step Functions
 - EventBridge Pipes
 - deployed AWS notification tests in CI
@@ -2451,33 +2463,6 @@ The following are intentionally deferred:
 
 These features should be introduced only when their behavior is explicitly
 locked in a future implementation step.
-
----
-
-## Lambda Implementation Status
-
-The currently locked Lambda set and rollout status are:
-
-1. `create-event` ✅
-2. `list-events` ✅
-3. `list-my-events` ✅
-4. `get-event` ✅
-5. `update-event` ✅
-6. `cancel-event` ✅
-7. `rsvp` ✅
-8. `get-event-rsvps` ✅
-9. notification worker IAM layer ✅
-10. notification planner Lambda implementation ✅
-11. notification sender Lambda implementation ⏳
-
-This sequence remains intentional:
-
-- first create and read basics
-- then split broad and creator-scoped event listing clearly
-- then ownership-based event management
-- then transactional RSVP complexity
-- then RSVP read/reporting
-- then asynchronous notification side effects
 
 ---
 

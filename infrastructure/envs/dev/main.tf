@@ -242,46 +242,57 @@ module "iam" {
   workloads = {
     create-event = {
       access_profile = "create_event"
+      enable_xray    = true
     }
 
     get-event = {
       access_profile = "get_event"
+      enable_xray    = true
     }
 
     list-events = {
       access_profile = "list_events"
+      enable_xray    = true
     }
 
     list-my-events = {
       access_profile = "list_my_events"
+      enable_xray    = true
     }
 
     update-event = {
       access_profile = "update_event"
+      enable_xray    = true
     }
 
     cancel-event = {
       access_profile = "cancel_event"
+      enable_xray    = true
     }
 
     rsvp-authorizer = {
       access_profile = "authorizer_logs_only"
+      enable_xray    = true
     }
 
     rsvp = {
       access_profile = "rsvp_transaction"
+      enable_xray    = true
     }
 
     get-event-rsvps = {
       access_profile = "get_event_rsvps"
+      enable_xray    = true
     }
 
     notification-planner = {
       access_profile = "notification_planner"
+      enable_xray    = true
     }
 
     notification-sender = {
       access_profile = "notification_sender"
+      enable_xray    = true
     }
   }
 }
@@ -328,6 +339,7 @@ module "lambda" {
         } : {}
       )
       log_retention_in_days = 14
+      tracing_mode          = "Active"
     }
   }
 }
@@ -616,6 +628,7 @@ module "notification_lambdas" {
         } : {}
       )
       log_retention_in_days = 14
+      tracing_mode          = "Active"
     }
   }
 }

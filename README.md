@@ -27,7 +27,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Observability baseline
+- Observability baseline: Lambda X-Ray tracing first, followed by CloudWatch
+  alarms and a compact operational dashboard.
 
 ### Completed milestones
 
@@ -111,9 +112,13 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - deterministic Lambda ZIP packaging helper
   - terraform-docs documentation workflow
 
+- Observability baseline
+  - Lambda X-Ray active tracing enabled for all deployed `dev` Lambda workloads
+  - minimal X-Ray write permissions added to Lambda execution policies
+  - representative trace generation validated in AWS X-Ray
+
 ### Next milestones
 
-- Observability baseline
 - Remote Terraform backend + GitHub OIDC
 - deployment workflow automation beyond Terraform validation
 
@@ -234,7 +239,11 @@ not change the original synchronous API result.
 ### Observability
 
 19. Logs and metrics are collected in **Amazon CloudWatch**.
-20. Distributed tracing is enabled with **AWS X-Ray** to analyze request performance and dependencies.
+20. **AWS X-Ray** active tracing is enabled for deployed Lambda workloads in
+`dev` to analyze request performance and dependencies.
+
+API Gateway active tracing is not enabled because the platform uses API Gateway
+HTTP API, while API Gateway active tracing applies to REST APIs.
 
 This design preserves immediate correctness for core business writes while still enabling scalable asynchronous processing where it adds real value.
 
@@ -561,7 +570,24 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - keep user-facing API responses independent from notification delivery ✅
 
 21. CloudWatch observability and X-Ray tracing
-   - add production-oriented logs, metrics, tracing, and validation evidence
+   - Lambda X-Ray active tracing baseline ✅
+     - add optional Lambda `tracing_mode` support in the reusable Lambda module ✅
+     - enable `tracing_mode = "Active"` for all deployed `dev` Lambda workloads ✅
+     - add minimal X-Ray write permissions to Lambda execution policies ✅
+     - validate representative trace generation in AWS X-Ray ✅
+   - CloudWatch alarm baseline
+     - add reusable observability module
+     - add high-signal Lambda errors and throttles alarms
+     - add SQS source queue depth, DLQ depth, and oldest-message-age alarms
+     - add API Gateway 5xx and conservative latency alarms
+     - add EventBridge failed-invocation alarms
+     - include SES metrics only when supported cleanly by native CloudWatch metrics
+   - compact CloudWatch dashboard
+     - include Lambda, API Gateway, SQS, EventBridge, and supported SES panels
+   - alert delivery and advanced telemetry deferred
+     - no SNS alert topic creation in the first alarm baseline
+     - no log metric filters unless a concrete structured-log need appears
+     - no ADOT/OpenTelemetry or Powertools tracing instrumentation yet
 
 22. Remote Terraform backend and GitHub OIDC
    - introduce remote Terraform state
@@ -675,7 +701,7 @@ See:
 ## Future Improvements
 
 - Custom domain and TLS configuration
-- Monitoring dashboards and alerting
+- Production alert delivery and escalation routing
 - Automated frontend deployment
 - Multi-environment promotion strategy
 - Advanced security hardening

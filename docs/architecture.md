@@ -628,16 +628,21 @@ Those access patterns intentionally support the current Lambda rollout order:
 
 ## Observability
 
-System monitoring includes:
+System monitoring and tracing use AWS-native services:
 
-- **Amazon CloudWatch** for logs and metrics
-- **AWS X-Ray** for distributed request tracing
+- **Amazon CloudWatch** for service logs and metrics
+- **AWS X-Ray** for Lambda request tracing
 
-These services provide:
+The current observability baseline includes:
 
-- performance visibility
-- operational debugging capability
-- production readiness foundations
+- Terraform-managed Lambda log groups with retention
+- API Gateway HTTP API access logs in a dedicated CloudWatch Logs log group
+- Lambda X-Ray active tracing for deployed API/business, authorizer, and
+  notification-worker Lambdas in `dev`
+- minimal X-Ray write permissions on Lambda execution policies
+
+API Gateway active tracing is not enabled because the platform uses API Gateway
+HTTP API, while API Gateway active tracing applies to REST APIs.
 
 ---
 

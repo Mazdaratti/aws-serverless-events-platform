@@ -530,6 +530,10 @@ Important design notes:
   templated sending, with the configured sender `From` address constrained by
   IAM condition
 - `notification-sender` does not receive DynamoDB or EventBridge permissions
+- all current Lambda workload roles include the minimal X-Ray write
+  permissions required for active Lambda tracing:
+  - `xray:PutTraceSegments`
+  - `xray:PutTelemetryRecords`
 
 The environment should stay thin:
 
@@ -567,8 +571,15 @@ Validation:
   configured sender address, participant notification templates, and verified
   sandbox recipient identity scope required by SES authorization
 - confirmed `notification-sender` has no DynamoDB or EventBridge permissions
+- confirmed the Lambda X-Ray baseline updates IAM policies in place without
+  replacing roles or changing workload-specific permissions
+- confirmed a representative workload policy includes only the minimal
+  `XRayWrite` actions:
+  - `xray:PutTraceSegments`
+  - `xray:PutTelemetryRecords`
 - confirmed Terraform outputs match the created IAM role identities
 - see evidence screenshots under `docs/assets/iam/`
+- see Lambda X-Ray validation screenshots under `docs/assets/observability/`
 
 ---
 
@@ -704,6 +715,8 @@ Important design notes:
   - `PATCH /events/{event_id}`
   - `POST /events/{event_id}/cancel`
   - `POST /events/{event_id}/rsvp`
+- API Gateway X-Ray tracing is not enabled in `dev` because this platform uses
+  HTTP API, while API Gateway active tracing applies to REST APIs
 - CORS remains intentionally disabled in `dev` because normal browser traffic
   is expected to enter through the same-origin CloudFront path
 - `GET /events` is intentionally a public route with `authorization_type = NONE`
@@ -874,6 +887,8 @@ Important design notes:
     CloudFront frontend URL settings
 - `create-event`, `update-event`, and `cancel-event` publish compact
   EventBridge domain events only after durable DynamoDB writes
+- all currently deployed Lambda workloads use active X-Ray tracing in `dev`
+  through the Lambda module's per-function `tracing_mode = "Active"` setting
 - notification workers are not API Gateway integrations; they are triggered by
   SQS event source mappings
 - API-facing deployed functions return API Gateway-style wrapped responses
@@ -1097,9 +1112,16 @@ Validation:
   with zero failed records
 - confirmed participant emails do not expose raw EventBridge, SQS, DynamoDB, or
   internal identity fields
+- confirmed the Lambda X-Ray baseline updates all current Lambda functions in
+  place from `PassThrough` to `Active`
+- confirmed representative functions from both Lambda module calls report
+  `TracingConfig.Mode = Active`
+- confirmed a lightweight `list-events` invocation produces an X-Ray trace
+  summary without faults or errors
 - see evidence screenshots under `docs/assets/lambda/`
 - see create-event, update-event, and cancel-event EventBridge validation screenshots under
   `docs/assets/lambda_api/`
+- see Lambda X-Ray validation screenshots under `docs/assets/observability/`
 
 ---
 

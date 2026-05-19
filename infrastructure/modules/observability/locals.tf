@@ -167,7 +167,7 @@ locals {
 
 locals {
   dashboard_name   = "${var.name_prefix}-observability"
-  dashboard_region = data.aws_region.current.name
+  dashboard_region = data.aws_region.current.region
 
   lambda_invocation_metrics = [
     for function_key, function_name in var.lambda_functions :

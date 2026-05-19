@@ -32,3 +32,24 @@ resource "aws_cloudwatch_metric_alarm" "metric" {
     Name = each.value.alarm_name
   })
 }
+
+############################################
+# CloudWatch dashboard
+############################################
+
+# The dashboard is optional because some callers may want alarms only. When it
+# is enabled, at least one dashboard-supported service input must be provided so
+# Terraform does not create an empty dashboard.
+resource "aws_cloudwatch_dashboard" "this" {
+  count = var.dashboard_enabled ? 1 : 0
+
+  dashboard_name = local.dashboard_name
+  dashboard_body = jsonencode(local.dashboard_body)
+
+  lifecycle {
+    precondition {
+      condition     = length(local.dashboard_widgets) > 0
+      error_message = "dashboard_enabled requires at least one dashboard-supported metric input."
+    }
+  }
+}

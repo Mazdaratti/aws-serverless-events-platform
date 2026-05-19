@@ -160,3 +160,272 @@ locals {
     local.eventbridge_failed_invocation_alarms
   )
 }
+
+############################################
+# Dashboard metric definitions
+############################################
+
+locals {
+  dashboard_name   = "${var.name_prefix}-observability"
+  dashboard_region = data.aws_region.current.name
+
+  lambda_invocation_metrics = [
+    for function_key, function_name in var.lambda_functions :
+    ["AWS/Lambda", "Invocations", "FunctionName", function_name, { label = "Lambda ${replace(function_key, "_", "-")} invocations" }]
+  ]
+
+  lambda_error_and_throttle_metrics = concat(
+    [
+      for function_key, function_name in var.lambda_functions :
+      ["AWS/Lambda", "Errors", "FunctionName", function_name, { label = "Lambda ${replace(function_key, "_", "-")} errors" }]
+    ],
+    [
+      for function_key, function_name in var.lambda_functions :
+      ["AWS/Lambda", "Throttles", "FunctionName", function_name, { label = "Lambda ${replace(function_key, "_", "-")} throttles" }]
+    ]
+  )
+
+  lambda_duration_metrics = [
+    for function_key, function_name in var.lambda_functions :
+    ["AWS/Lambda", "Duration", "FunctionName", function_name, { label = "Lambda ${replace(function_key, "_", "-")} p95" }]
+  ]
+
+  api_gateway_traffic_metrics = var.api_gateway_api_id == null ? [] : [
+    ["AWS/ApiGateway", "Count", "ApiId", var.api_gateway_api_id, "Stage", var.api_gateway_stage_name, { label = "API Gateway requests" }],
+    ["AWS/ApiGateway", "4xx", "ApiId", var.api_gateway_api_id, "Stage", var.api_gateway_stage_name, { label = "API Gateway 4xx" }],
+    ["AWS/ApiGateway", "5xx", "ApiId", var.api_gateway_api_id, "Stage", var.api_gateway_stage_name, { label = "API Gateway 5xx" }]
+  ]
+
+  api_gateway_latency_metrics = var.api_gateway_api_id == null ? [] : [
+    ["AWS/ApiGateway", "Latency", "ApiId", var.api_gateway_api_id, "Stage", var.api_gateway_stage_name, { label = "API Gateway latency" }]
+  ]
+
+  sqs_visible_message_metrics = concat(
+    [
+      for queue_key, queue_name in var.sqs_queue_names :
+      ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", queue_name, { label = "SQS ${replace(queue_key, "_", "-")} visible" }]
+    ],
+    [
+      for queue_key, queue_name in var.sqs_dlq_names :
+      ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", queue_name, { label = "SQS ${replace(queue_key, "_", "-")} DLQ visible" }]
+    ]
+  )
+
+  sqs_oldest_message_age_metrics = [
+    for queue_key, queue_name in var.sqs_queue_names :
+    ["AWS/SQS", "ApproximateAgeOfOldestMessage", "QueueName", queue_name, { label = "SQS ${replace(queue_key, "_", "-")} oldest age" }]
+  ]
+
+  eventbridge_invocation_metrics = concat(
+    [
+      for rule_key, rule_name in var.eventbridge_rule_names :
+      ["AWS/Events", "Invocations", "EventBusName", var.eventbridge_bus_name, "RuleName", rule_name, { label = "EventBridge ${replace(rule_key, "_", "-")} invocations" }]
+    ],
+    [
+      for rule_key, rule_name in var.eventbridge_rule_names :
+      ["AWS/Events", "FailedInvocations", "EventBusName", var.eventbridge_bus_name, "RuleName", rule_name, { label = "EventBridge ${replace(rule_key, "_", "-")} failed" }]
+    ]
+  )
+}
+
+############################################
+# Dashboard widgets
+############################################
+
+locals {
+  # The dashboard stays compact and service-oriented. Widgets are added only
+  # when the corresponding service inputs are present, so partial module use
+  # does not create empty charts.
+  dashboard_widgets = concat(
+    length(local.lambda_invocation_metrics) == 0 ? [] : [
+      {
+        type   = "metric"
+        x      = 0
+        y      = 0
+        width  = 12
+        height = 6
+
+        properties = {
+          title    = "Lambda invocations"
+          region   = local.dashboard_region
+          period   = 60
+          stat     = "Sum"
+          view     = "timeSeries"
+          stacked  = false
+          liveData = false
+          metrics  = local.lambda_invocation_metrics
+          legend = {
+            position = "right"
+          }
+        }
+      }
+    ],
+    length(local.lambda_error_and_throttle_metrics) == 0 ? [] : [
+      {
+        type   = "metric"
+        x      = 12
+        y      = 0
+        width  = 12
+        height = 6
+
+        properties = {
+          title    = "Lambda errors and throttles"
+          region   = local.dashboard_region
+          period   = 60
+          stat     = "Sum"
+          view     = "timeSeries"
+          stacked  = false
+          liveData = false
+          metrics  = local.lambda_error_and_throttle_metrics
+          legend = {
+            position = "right"
+          }
+        }
+      }
+    ],
+    length(local.lambda_duration_metrics) == 0 ? [] : [
+      {
+        type   = "metric"
+        x      = 0
+        y      = 6
+        width  = 12
+        height = 6
+
+        properties = {
+          title    = "Lambda duration p95"
+          region   = local.dashboard_region
+          period   = 60
+          stat     = "p95"
+          view     = "timeSeries"
+          stacked  = false
+          liveData = false
+          metrics  = local.lambda_duration_metrics
+          legend = {
+            position = "right"
+          }
+        }
+      }
+    ],
+    length(local.api_gateway_traffic_metrics) == 0 ? [] : [
+      {
+        type   = "metric"
+        x      = 12
+        y      = 6
+        width  = 12
+        height = 6
+
+        properties = {
+          title    = "API Gateway traffic and errors"
+          region   = local.dashboard_region
+          period   = 60
+          stat     = "Sum"
+          view     = "timeSeries"
+          stacked  = false
+          liveData = false
+          metrics  = local.api_gateway_traffic_metrics
+          legend = {
+            position = "right"
+          }
+        }
+      }
+    ],
+    length(local.api_gateway_latency_metrics) == 0 ? [] : [
+      {
+        type   = "metric"
+        x      = 0
+        y      = 12
+        width  = 12
+        height = 6
+
+        properties = {
+          title    = "API Gateway latency"
+          region   = local.dashboard_region
+          period   = 60
+          stat     = "Average"
+          view     = "timeSeries"
+          stacked  = false
+          liveData = false
+          metrics  = local.api_gateway_latency_metrics
+          legend = {
+            position = "right"
+          }
+        }
+      }
+    ],
+    length(local.sqs_visible_message_metrics) == 0 ? [] : [
+      {
+        type   = "metric"
+        x      = 12
+        y      = 12
+        width  = 12
+        height = 6
+
+        properties = {
+          title    = "SQS visible messages"
+          region   = local.dashboard_region
+          period   = 60
+          stat     = "Maximum"
+          view     = "timeSeries"
+          stacked  = false
+          liveData = false
+          metrics  = local.sqs_visible_message_metrics
+          legend = {
+            position = "right"
+          }
+        }
+      }
+    ],
+    length(local.sqs_oldest_message_age_metrics) == 0 ? [] : [
+      {
+        type   = "metric"
+        x      = 0
+        y      = 18
+        width  = 12
+        height = 6
+
+        properties = {
+          title    = "SQS oldest message age"
+          region   = local.dashboard_region
+          period   = 60
+          stat     = "Maximum"
+          view     = "timeSeries"
+          stacked  = false
+          liveData = false
+          metrics  = local.sqs_oldest_message_age_metrics
+          legend = {
+            position = "right"
+          }
+        }
+      }
+    ],
+    length(local.eventbridge_invocation_metrics) == 0 ? [] : [
+      {
+        type   = "metric"
+        x      = 12
+        y      = 18
+        width  = 12
+        height = 6
+
+        properties = {
+          title    = "EventBridge invocations"
+          region   = local.dashboard_region
+          period   = 60
+          stat     = "Sum"
+          view     = "timeSeries"
+          stacked  = false
+          liveData = false
+          metrics  = local.eventbridge_invocation_metrics
+          legend = {
+            position = "right"
+          }
+        }
+      }
+    ]
+  )
+
+  dashboard_body = {
+    start          = "-PT6H"
+    periodOverride = "inherit"
+    widgets        = local.dashboard_widgets
+  }
+}

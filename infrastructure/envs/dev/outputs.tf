@@ -415,3 +415,30 @@ output "api_gateway_route_keys" {
   description = "Map of logical route name to route key for the dev environment routed backend baseline."
   value       = module.api_gateway.route_keys
 }
+
+############################################
+# CloudWatch observability baseline outputs
+############################################
+
+# These outputs expose the CloudWatch alarm and dashboard identities created
+# for the dev observability baseline, without coupling callers to the reusable
+# observability module internals.
+output "observability_alarm_names" {
+  description = "Map of logical observability alarm key to CloudWatch alarm name for the dev environment."
+  value       = module.observability.alarm_names
+}
+
+output "observability_alarm_arns" {
+  description = "Map of logical observability alarm key to CloudWatch alarm ARN for the dev environment."
+  value       = module.observability.alarm_arns
+}
+
+output "observability_dashboard_name" {
+  description = "Name of the CloudWatch dashboard created for the dev observability baseline."
+  value       = module.observability.dashboard_name
+}
+
+output "observability_dashboard_arn" {
+  description = "ARN of the CloudWatch dashboard created for the dev observability baseline."
+  value       = module.observability.dashboard_arn
+}

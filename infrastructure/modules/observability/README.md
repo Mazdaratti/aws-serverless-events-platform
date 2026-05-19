@@ -1,14 +1,16 @@
-# Observability Alarm Baseline
+# Observability Baseline
 
-This module creates the reusable CloudWatch alarm baseline for the serverless
-events platform.
+This module creates the reusable CloudWatch observability baseline for the
+serverless events platform.
 
 It is intentionally focused on native AWS service metrics. The goal is not to
 create a full monitoring product or alert-routing layer. Instead, this module
-defines the first high-signal alarms that environment roots can compose around
-already deployed Lambda, API Gateway, SQS, and EventBridge resources.
+defines the first high-signal alarms and a compact dashboard that environment
+roots can compose around already deployed Lambda, API Gateway, SQS, and
+EventBridge resources.
 
-This module manages CloudWatch metric alarms only.
+This module manages CloudWatch metric alarms and one optional CloudWatch
+dashboard.
 
 ---
 
@@ -24,10 +26,23 @@ This module currently creates CloudWatch metric alarms for:
 - SQS dead-letter queue visible messages
 - EventBridge failed invocations
 
+It can also create one compact CloudWatch dashboard named:
+
+- `<name_prefix>-observability`
+
+The dashboard includes panels for:
+
+- Lambda invocations, errors, throttles, and duration p95
+- API Gateway request count, 4xx, 5xx, and latency
+- SQS source queue depth, DLQ depth, and oldest message age
+- EventBridge invocations and failed invocations
+
 It also exposes the core outputs later platform layers need, including:
 
 - alarm names
 - alarm ARNs
+- dashboard name
+- dashboard ARN
 
 This keeps the first observability implementation small, reviewable, and
 aligned with the existing serverless architecture.
@@ -49,6 +64,26 @@ other alert delivery channels.
 
 Alert routing belongs to environment composition or a later alerting module, not
 to this first alarm baseline.
+
+---
+
+## Dashboard
+
+Dashboard creation is optional and controlled by:
+
+- `dashboard_enabled`
+
+The dashboard is enabled by default. When enabled, the module requires at least
+one dashboard-supported metric input so Terraform does not create an empty
+dashboard.
+
+The dashboard uses the active AWS provider region for its metric widgets. This
+keeps the module interface small and avoids asking callers to pass a duplicate
+dashboard-specific region.
+
+Dashboard widgets are intentionally compact and grouped by platform layer. The
+dashboard is for visual inspection and tuning; it does not replace alarms or
+create alert delivery.
 
 ---
 
@@ -81,7 +116,6 @@ This module does not create:
 - EventBridge buses or rules
 - SNS topics
 - alert subscriptions
-- CloudWatch dashboards
 - CloudWatch log metric filters
 - CloudFront or WAF alarms
 - SES configuration sets
@@ -99,14 +133,14 @@ This module includes a runnable example:
 
 - `examples/basic_usage`
 
-The example creates CloudWatch metric alarms only. It uses
-documentation-safe example metric dimensions instead of creating a full
+The example creates CloudWatch metric alarms and the optional dashboard. It
+uses documentation-safe example metric dimensions instead of creating a full
 Lambda/API/SQS/EventBridge stack, because this module owns observability
 resources rather than runtime workloads.
 
-The example can be planned and applied as-is, but the alarms only receive live
-metric data if matching workloads exist and emit the corresponding AWS service
-metrics.
+The example can be planned and applied as-is, but the alarms and dashboard only
+receive live metric data if matching workloads exist and emit the corresponding
+AWS service metrics.
 
 ---
 
@@ -122,7 +156,7 @@ metrics.
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.45.0 |
 
 
 
@@ -130,7 +164,9 @@ metrics.
 
 | Name | Type |
 |------|------|
+| [aws_cloudwatch_dashboard.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_dashboard) | resource |
 | [aws_cloudwatch_metric_alarm.metric](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_metric_alarm) | resource |
+| [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
 
 ## Inputs
 
@@ -142,6 +178,7 @@ metrics.
 | <a name="input_api_gateway_5xx_threshold"></a> [api\_gateway\_5xx\_threshold](#input\_api\_gateway\_5xx\_threshold) | Number of API Gateway HTTP API 5xx responses in one period that causes the API alarm to enter ALARM state. | `number` | `1` | no |
 | <a name="input_api_gateway_api_id"></a> [api\_gateway\_api\_id](#input\_api\_gateway\_api\_id) | Optional API Gateway HTTP API ID used for API-level CloudWatch alarms. | `string` | `null` | no |
 | <a name="input_api_gateway_stage_name"></a> [api\_gateway\_stage\_name](#input\_api\_gateway\_stage\_name) | Optional API Gateway HTTP API stage name used with api\_gateway\_api\_id for stage-level CloudWatch alarms. | `string` | `null` | no |
+| <a name="input_dashboard_enabled"></a> [dashboard\_enabled](#input\_dashboard\_enabled) | Whether to create the CloudWatch dashboard baseline. | `bool` | `true` | no |
 | <a name="input_eventbridge_bus_name"></a> [eventbridge\_bus\_name](#input\_eventbridge\_bus\_name) | Optional custom EventBridge bus name used with eventbridge\_rule\_names for custom-bus rule alarms. | `string` | `null` | no |
 | <a name="input_eventbridge_failed_invocations_threshold"></a> [eventbridge\_failed\_invocations\_threshold](#input\_eventbridge\_failed\_invocations\_threshold) | Number of EventBridge failed invocations in one period that causes a rule alarm to enter ALARM state. | `number` | `1` | no |
 | <a name="input_eventbridge_rule_names"></a> [eventbridge\_rule\_names](#input\_eventbridge\_rule\_names) | Map of logical EventBridge rule key to deployed EventBridge rule name. | `map(string)` | `{}` | no |
@@ -161,4 +198,6 @@ metrics.
 |------|-------------|
 | <a name="output_alarm_arns"></a> [alarm\_arns](#output\_alarm\_arns) | Map of logical alarm key to CloudWatch alarm ARN. |
 | <a name="output_alarm_names"></a> [alarm\_names](#output\_alarm\_names) | Map of logical alarm key to CloudWatch alarm name. |
+| <a name="output_dashboard_arn"></a> [dashboard\_arn](#output\_dashboard\_arn) | ARN of the CloudWatch dashboard created by the module, or null when dashboard creation is disabled. |
+| <a name="output_dashboard_name"></a> [dashboard\_name](#output\_dashboard\_name) | Name of the CloudWatch dashboard created by the module, or null when dashboard creation is disabled. |
 <!-- END_TF_DOCS -->

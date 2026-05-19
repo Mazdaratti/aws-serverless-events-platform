@@ -45,6 +45,8 @@ module "observability" {
   alarm_actions = []
   ok_actions    = []
 
+  dashboard_enabled = true
+
   lambda_functions = {
     create_event        = "${local.name_prefix}-create-event"
     notification_sender = "${local.name_prefix}-notification-sender"

@@ -55,6 +55,16 @@ variable "ok_actions" {
 }
 
 ############################################
+# Dashboard configuration
+############################################
+
+variable "dashboard_enabled" {
+  description = "Whether to create the CloudWatch dashboard baseline."
+  type        = bool
+  default     = true
+}
+
+############################################
 # Lambda alarm inputs
 ############################################
 

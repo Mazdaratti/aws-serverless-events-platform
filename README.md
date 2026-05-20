@@ -635,6 +635,32 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - keep IAM, environment variables, log groups, and API wiring in Terraform
    - add versions/aliases only after the basic split is validated
 
+26. Account lifecycle and Cognito account-management UX
+   - docs-first account lifecycle contract
+     - lock self-service account lifecycle semantics before implementation
+     - decide how account deletion affects owned events, RSVP records,
+       notifications, and future audit/history behavior
+     - decide whether v1 should support deletion, disablement, anonymization,
+       or a staged workflow
+     - keep Cognito as the identity provider while platform-specific data
+       cleanup remains an application responsibility
+   - Cognito self-service account UI
+     - add or harden frontend account-management screens
+     - support user-facing Cognito flows such as password reset, password
+       change, email verification, and session cleanup where appropriate
+     - keep frontend identity behavior aligned with Cognito and the existing
+       sessionStorage token rule
+   - platform-controlled account deletion workflow
+     - add backend API support only after the account lifecycle contract is
+       locked
+     - handle app-owned data consistently according to the chosen retention and
+       cleanup policy
+     - avoid treating Cognito user deletion as the whole product workflow
+   - admin account-management workflow
+     - defer admin user-management UI until backend admin account APIs exist
+     - keep Cognito group membership as the source of admin capability
+     - avoid frontend-only admin account management without backend authority
+
 
 The repository now also includes Terraform validation coverage for the currently
 implemented modules, examples, and `envs/dev` root, focused Python validation

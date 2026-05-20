@@ -375,6 +375,7 @@ aws-serverless-events-platform/
 |       |-- iam/
 |       |-- lambda/
 |       |-- observability/
+|       |-- remote_backend/
 |       |-- s3_frontend_bucket/
 |       |-- ses/
 |       |-- sns/
@@ -608,6 +609,7 @@ Infrastructure is implemented using modular Terraform design with environment-sp
      - no ADOT/OpenTelemetry or Powertools tracing instrumentation yet ✅
 
 22. Remote Terraform backend and GitHub OIDC
+   - add reusable remote Terraform backend module baseline ✅
    - introduce remote Terraform state
    - add GitHub Actions AWS authentication through OIDC
    - keep this separate from application deployment workflows

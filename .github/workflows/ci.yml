@@ -140,6 +140,9 @@ jobs:
           - infrastructure/modules/lambda/examples/basic_usage
           - infrastructure/modules/observability
           - infrastructure/modules/observability/examples/basic_usage
+          - infrastructure/modules/remote_backend
+          - infrastructure/modules/remote_backend/examples/basic_usage
+          - infrastructure/modules/remote_backend/examples/custom_bucket_name
           - infrastructure/modules/s3_frontend_bucket
           - infrastructure/modules/s3_frontend_bucket/examples/basic_usage
           - infrastructure/modules/ses

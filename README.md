@@ -27,8 +27,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Observability baseline: Lambda X-Ray tracing first, followed by CloudWatch
-  alarms and a compact operational dashboard.
+- Remote Terraform backend and GitHub OIDC.
 
 ### Completed milestones
 
@@ -116,6 +115,12 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - Lambda X-Ray active tracing enabled for all deployed `dev` Lambda workloads
   - minimal X-Ray write permissions added to Lambda execution policies
   - representative trace generation validated in AWS X-Ray
+  - reusable CloudWatch observability module added for alarms and dashboard
+  - CloudWatch metric alarms wired into `dev` for Lambda, API Gateway, SQS, and
+    EventBridge
+  - compact CloudWatch dashboard wired into `dev`
+  - alert delivery intentionally disabled with empty alarm and OK actions
+  - CloudWatch observability validation completed in AWS
 
 ### Next milestones
 
@@ -241,9 +246,17 @@ not change the original synchronous API result.
 19. Logs and metrics are collected in **Amazon CloudWatch**.
 20. **AWS X-Ray** active tracing is enabled for deployed Lambda workloads in
 `dev` to analyze request performance and dependencies.
+21. CloudWatch metric alarms are deployed for Lambda errors/throttles, API
+Gateway 5xx responses, SQS queue depth/age/DLQ depth, and EventBridge failed
+invocations.
+22. A compact CloudWatch dashboard is deployed for Lambda, API Gateway, SQS,
+and EventBridge runtime visibility.
 
 API Gateway active tracing is not enabled because the platform uses API Gateway
 HTTP API, while API Gateway active tracing applies to REST APIs.
+
+CloudWatch alarm actions are intentionally empty in `dev`; alert routing is
+kept separate from the first metric coverage baseline.
 
 This design preserves immediate correctness for core business writes while still enabling scalable asynchronous processing where it adds real value.
 
@@ -361,6 +374,7 @@ aws-serverless-events-platform/
 |       |-- eventbridge/
 |       |-- iam/
 |       |-- lambda/
+|       |-- observability/
 |       |-- s3_frontend_bucket/
 |       |-- ses/
 |       |-- sns/
@@ -575,19 +589,23 @@ Infrastructure is implemented using modular Terraform design with environment-sp
      - enable `tracing_mode = "Active"` for all deployed `dev` Lambda workloads ✅
      - add minimal X-Ray write permissions to Lambda execution policies ✅
      - validate representative trace generation in AWS X-Ray ✅
-   - CloudWatch alarm baseline
-     - add reusable observability module
-     - add high-signal Lambda errors and throttles alarms
-     - add SQS source queue depth, DLQ depth, and oldest-message-age alarms
-     - add API Gateway 5xx and conservative latency alarms
-     - add EventBridge failed-invocation alarms
-     - include SES metrics only when supported cleanly by native CloudWatch metrics
-   - compact CloudWatch dashboard
-     - include Lambda, API Gateway, SQS, EventBridge, and supported SES panels
-   - alert delivery and advanced telemetry deferred
-     - no SNS alert topic creation in the first alarm baseline
-     - no log metric filters unless a concrete structured-log need appears
-     - no ADOT/OpenTelemetry or Powertools tracing instrumentation yet
+   - CloudWatch alarm baseline ✅
+     - add reusable observability module ✅
+     - add high-signal Lambda errors and throttles alarms ✅
+     - add SQS source queue depth, DLQ depth, and oldest-message-age alarms ✅
+     - add API Gateway 5xx alarm ✅
+     - add EventBridge failed-invocation alarms ✅
+     - wire alarms into `infrastructure/envs/dev` with alert actions disabled ✅
+     - validate 32 deployed CloudWatch metric alarms in AWS ✅
+   - compact CloudWatch dashboard ✅
+     - include Lambda, API Gateway, SQS, and EventBridge panels ✅
+     - wire the dashboard into `infrastructure/envs/dev` ✅
+     - validate the deployed dashboard in AWS ✅
+   - alert delivery and advanced telemetry deferred ✅
+     - no SNS alert topic creation in the first alarm baseline ✅
+     - no log metric filters in the first alarm baseline ✅
+     - no SES, CloudFront, WAF, cost, or X-Ray dashboard widgets in this slice ✅
+     - no ADOT/OpenTelemetry or Powertools tracing instrumentation yet ✅
 
 22. Remote Terraform backend and GitHub OIDC
    - introduce remote Terraform state

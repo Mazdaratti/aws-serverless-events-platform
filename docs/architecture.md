@@ -631,15 +631,37 @@ Those access patterns intentionally support the current Lambda rollout order:
 System monitoring and tracing use AWS-native services:
 
 - **Amazon CloudWatch** for service logs and metrics
+- **Amazon CloudWatch Alarms** for native service-metric alert conditions
+- **Amazon CloudWatch Dashboards** for a compact operational view
 - **AWS X-Ray** for Lambda request tracing
 
-The current observability baseline includes:
+The observability baseline includes:
 
 - Terraform-managed Lambda log groups with retention
 - API Gateway HTTP API access logs in a dedicated CloudWatch Logs log group
 - Lambda X-Ray active tracing for deployed API/business, authorizer, and
   notification-worker Lambdas in `dev`
 - minimal X-Ray write permissions on Lambda execution policies
+- CloudWatch metric alarms for:
+  - Lambda errors
+  - Lambda throttles
+  - API Gateway 5xx responses
+  - SQS source queue visible messages
+  - SQS source queue oldest message age
+  - SQS DLQ visible messages
+  - EventBridge failed target invocations
+- one CloudWatch dashboard covering:
+  - Lambda invocations, errors, throttles, and duration p95
+  - API Gateway request count, 4xx, 5xx, and latency
+  - SQS visible messages, DLQ visible messages, and oldest message age
+  - EventBridge invocations and failed invocations
+
+Alert delivery is not configured in the baseline. CloudWatch alarms are created
+with empty alarm and OK action lists so notification routing remains separate
+from metric coverage.
+
+The baseline uses native AWS service metrics. It does not create CloudWatch log
+metric filters or custom application metrics.
 
 API Gateway active tracing is not enabled because the platform uses API Gateway
 HTTP API, while API Gateway active tracing applies to REST APIs.

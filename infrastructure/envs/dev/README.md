@@ -1342,6 +1342,100 @@ Validation:
 
 ---
 
+## CloudWatch Observability Baseline
+
+Creates the dev CloudWatch observability baseline for the platform's core
+runtime surfaces.
+
+Implemented via:
+
+- `modules/observability`
+
+This environment currently wires in:
+
+- CloudWatch metric alarms for all current Lambda workloads:
+  - errors
+  - throttles
+- CloudWatch metric alarms for the HTTP API:
+  - API Gateway 5xx responses
+- CloudWatch metric alarms for the notification SQS queues:
+  - source queue visible messages
+  - source queue oldest message age
+  - DLQ visible messages
+- CloudWatch metric alarms for the custom EventBridge rules:
+  - failed target invocations
+- one compact CloudWatch dashboard:
+  - `aws-serverless-events-platform-dev-observability`
+
+Why this module is wired now:
+
+- the platform now has enough deployed runtime surfaces to benefit from a
+  shared operational baseline
+- the alarms cover high-signal service-level failure indicators without adding
+  custom application log parsing
+- the dashboard gives one compact CloudWatch view across Lambda, API Gateway,
+  SQS, and EventBridge
+- alert delivery can be added later without redesigning the module interface
+
+Important design notes:
+
+- alert actions are intentionally disabled in `dev`:
+  - `alarm_actions = []`
+  - `ok_actions = []`
+- alarms are based on native AWS service metrics only
+- no CloudWatch log metric filters are created
+- no SNS alert topic, subscription, or production routing is created
+- no CloudFront, WAF, SES, cost, or X-Ray dashboard widgets are created by
+  this baseline
+- Lambda duration is included on the dashboard for visibility, but no duration
+  alarm is created in this baseline
+- API Gateway 4xx responses are included on the dashboard, but no 4xx alarm is
+  created because normal authentication and authorization behavior can produce
+  expected 401 and 403 responses
+- reusable CloudWatch alarm and dashboard design belongs in
+  `modules/observability`
+- `envs/dev` stays composition-oriented and passes deployed resource names and
+  identifiers into the module
+
+Validation:
+
+- validated via `terraform apply tfplan`, AWS CLI inspection, CloudWatch
+  dashboard inspection, and a clean post-apply `terraform plan`
+- confirmed Terraform created:
+  - 32 CloudWatch metric alarms
+  - 1 CloudWatch dashboard
+- confirmed the apply created only observability resources:
+  - no Lambda changes
+  - no IAM changes
+  - no API Gateway route or stage changes
+  - no SQS queue changes
+  - no EventBridge rule or target changes
+  - no SES, Cognito, CloudFront, or WAF changes
+- confirmed representative Lambda, API Gateway, SQS, and EventBridge alarms
+  exist with:
+  - `EvaluationPeriods = 2`
+  - `DatapointsToAlarm = 1`
+  - `TreatMissingData = notBreaching`
+  - `ActionsEnabled = False`
+- confirmed the dashboard contains 8 widgets covering:
+  - Lambda invocations
+  - Lambda errors and throttles
+  - Lambda duration p95
+  - API Gateway traffic and errors
+  - API Gateway latency
+  - SQS visible messages
+  - SQS oldest message age
+  - EventBridge invocations
+- confirmed Terraform outputs expose:
+  - `observability_alarm_names`
+  - `observability_alarm_arns`
+  - `observability_dashboard_name`
+  - `observability_dashboard_arn`
+- see CloudWatch observability validation screenshots under
+  `docs/assets/observability/`
+
+---
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -1368,6 +1462,7 @@ Validation:
 | <a name="module_iam"></a> [iam](#module\_iam) | ../../modules/iam | n/a |
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | ../../modules/lambda | n/a |
 | <a name="module_notification_lambdas"></a> [notification\_lambdas](#module\_notification\_lambdas) | ../../modules/lambda | n/a |
+| <a name="module_observability"></a> [observability](#module\_observability) | ../../modules/observability | n/a |
 | <a name="module_s3_frontend_bucket"></a> [s3\_frontend\_bucket](#module\_s3\_frontend\_bucket) | ../../modules/s3_frontend_bucket | n/a |
 | <a name="module_ses_participant_email"></a> [ses\_participant\_email](#module\_ses\_participant\_email) | ../../modules/ses | n/a |
 | <a name="module_sns_admin_notifications"></a> [sns\_admin\_notifications](#module\_sns\_admin\_notifications) | ../../modules/sns | n/a |
@@ -1450,6 +1545,10 @@ Validation:
 | <a name="output_lambda_invoke_arns"></a> [lambda\_invoke\_arns](#output\_lambda\_invoke\_arns) | Map of workload Lambda invoke ARNs for the dev environment. |
 | <a name="output_lambda_log_group_arns"></a> [lambda\_log\_group\_arns](#output\_lambda\_log\_group\_arns) | Map of workload CloudWatch Logs log group ARNs for the dev environment. |
 | <a name="output_lambda_log_group_names"></a> [lambda\_log\_group\_names](#output\_lambda\_log\_group\_names) | Map of workload CloudWatch Logs log group names for the dev environment. |
+| <a name="output_observability_alarm_arns"></a> [observability\_alarm\_arns](#output\_observability\_alarm\_arns) | Map of logical observability alarm key to CloudWatch alarm ARN for the dev environment. |
+| <a name="output_observability_alarm_names"></a> [observability\_alarm\_names](#output\_observability\_alarm\_names) | Map of logical observability alarm key to CloudWatch alarm name for the dev environment. |
+| <a name="output_observability_dashboard_arn"></a> [observability\_dashboard\_arn](#output\_observability\_dashboard\_arn) | ARN of the CloudWatch dashboard created for the dev observability baseline. |
+| <a name="output_observability_dashboard_name"></a> [observability\_dashboard\_name](#output\_observability\_dashboard\_name) | Name of the CloudWatch dashboard created for the dev observability baseline. |
 | <a name="output_rsvps_table_arn"></a> [rsvps\_table\_arn](#output\_rsvps\_table\_arn) | ARN of the DynamoDB RSVP table created for the dev environment. |
 | <a name="output_rsvps_table_name"></a> [rsvps\_table\_name](#output\_rsvps\_table\_name) | Name of the DynamoDB RSVP table created for the dev environment. |
 | <a name="output_ses_sender_identity_arn"></a> [ses\_sender\_identity\_arn](#output\_ses\_sender\_identity\_arn) | ARN of the SES sender email identity configured for participant notifications in dev. |

@@ -632,3 +632,35 @@ module "notification_lambdas" {
     }
   }
 }
+
+############################################
+# CloudWatch observability baseline
+############################################
+
+# This environment wires in the reusable observability module for the current
+# dev runtime surfaces. The module creates native CloudWatch metric alarms and
+# one compact dashboard, while alert delivery remains intentionally disabled.
+module "observability" {
+  source = "../../modules/observability"
+
+  name_prefix = local.name_prefix
+  tags        = local.tags
+
+  alarm_actions     = []
+  ok_actions        = []
+  dashboard_enabled = true
+
+  lambda_functions = merge(
+    module.lambda.function_names,
+    module.notification_lambdas.function_names,
+  )
+
+  api_gateway_api_id     = module.api_gateway.api_id
+  api_gateway_stage_name = module.api_gateway.stage_name
+
+  sqs_queue_names = module.sqs.queue_names
+  sqs_dlq_names   = module.sqs.dlq_names
+
+  eventbridge_rule_names = module.eventbridge.rule_names
+  eventbridge_bus_name   = module.eventbridge.event_bus_name
+}

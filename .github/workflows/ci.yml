@@ -124,6 +124,7 @@ jobs:
         directory:
           # Keep CI focused on the Terraform roots that currently exist
           # and are relevant for this stage of the repository.
+          - infrastructure/bootstrap/dev
           - infrastructure/modules/api_gateway
           - infrastructure/modules/api_gateway/examples/basic_usage
           - infrastructure/modules/cloudfront

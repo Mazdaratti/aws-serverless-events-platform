@@ -1,9 +1,10 @@
 ############################################
-# GitHub Actions infrastructure deploy policy
+# GitHub Actions infrastructure deploy policies
 ############################################
 #
-# This policy is the default Terraform deployment permission set for the
-# current serverless dev environment.
+# These policies are the default Terraform deployment permission set for the
+# current serverless dev environment. They are split across multiple managed
+# policies so each policy stays within the IAM managed policy size limit.
 #
 # Design boundaries:
 # - Terraform state access stays separate in policy_state.tf.
@@ -13,7 +14,7 @@
 # - This is not an application artifact deployment policy.
 ############################################
 
-data "aws_iam_policy_document" "github_actions_deploy_permissions" {
+data "aws_iam_policy_document" "github_actions_deploy_core_permissions" {
   ##########################################
   # AWS provider/account discovery
   ##########################################
@@ -181,6 +182,9 @@ data "aws_iam_policy_document" "github_actions_deploy_permissions" {
 
     resources = ["*"]
   }
+}
+
+data "aws_iam_policy_document" "github_actions_deploy_compute_observability_permissions" {
 
   ##########################################
   # Lambda functions, permissions, and SQS mappings
@@ -276,6 +280,9 @@ data "aws_iam_policy_document" "github_actions_deploy_permissions" {
 
     resources = ["*"]
   }
+}
+
+data "aws_iam_policy_document" "github_actions_deploy_edge_storage_permissions" {
 
   ##########################################
   # S3 frontend origin bucket and bucket policy
@@ -376,6 +383,9 @@ data "aws_iam_policy_document" "github_actions_deploy_permissions" {
 
     resources = ["*"]
   }
+}
+
+data "aws_iam_policy_document" "github_actions_deploy_iam_permissions" {
 
   ##########################################
   # Runtime IAM roles and policies managed by envs/dev
@@ -456,8 +466,8 @@ data "aws_iam_policy_document" "github_actions_deploy_permissions" {
 
 resource "aws_iam_policy" "github_actions_deploy" {
   name        = "gh-oidc-${local.name_prefix}-deploy"
-  description = "Scoped infrastructure deployment permissions for the dev serverless platform."
-  policy      = data.aws_iam_policy_document.github_actions_deploy_permissions.json
+  description = "Core infrastructure deployment permissions for the dev serverless platform."
+  policy      = data.aws_iam_policy_document.github_actions_deploy_core_permissions.json
 
   tags = {
     Name = "gh-oidc-${local.name_prefix}-deploy"
@@ -467,4 +477,49 @@ resource "aws_iam_policy" "github_actions_deploy" {
 resource "aws_iam_role_policy_attachment" "github_actions_deploy" {
   role       = aws_iam_role.github_actions.name
   policy_arn = aws_iam_policy.github_actions_deploy.arn
+}
+
+resource "aws_iam_policy" "github_actions_deploy_compute_observability" {
+  name        = "gh-oidc-${local.name_prefix}-deploy-compute-observability"
+  description = "Lambda, API Gateway, CloudWatch Logs, and CloudWatch observability deployment permissions for the dev serverless platform."
+  policy      = data.aws_iam_policy_document.github_actions_deploy_compute_observability_permissions.json
+
+  tags = {
+    Name = "gh-oidc-${local.name_prefix}-deploy-compute-observability"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_deploy_compute_observability" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_deploy_compute_observability.arn
+}
+
+resource "aws_iam_policy" "github_actions_deploy_edge_storage" {
+  name        = "gh-oidc-${local.name_prefix}-deploy-edge-storage"
+  description = "S3, CloudFront, and WAF deployment permissions for the dev serverless platform."
+  policy      = data.aws_iam_policy_document.github_actions_deploy_edge_storage_permissions.json
+
+  tags = {
+    Name = "gh-oidc-${local.name_prefix}-deploy-edge-storage"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_deploy_edge_storage" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_deploy_edge_storage.arn
+}
+
+resource "aws_iam_policy" "github_actions_deploy_iam" {
+  name        = "gh-oidc-${local.name_prefix}-deploy-iam"
+  description = "Runtime IAM deployment permissions for the dev serverless platform."
+  policy      = data.aws_iam_policy_document.github_actions_deploy_iam_permissions.json
+
+  tags = {
+    Name = "gh-oidc-${local.name_prefix}-deploy-iam"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_deploy_iam" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_deploy_iam.arn
 }

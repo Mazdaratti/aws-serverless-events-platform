@@ -34,8 +34,18 @@ output "github_actions_state_policy_arn" {
 }
 
 output "github_actions_deploy_policy_arn" {
-  description = "ARN of the IAM policy granting GitHub Actions scoped Terraform deployment permissions for dev."
+  description = "ARN of the primary IAM policy granting GitHub Actions core Terraform deployment permissions for dev."
   value       = aws_iam_policy.github_actions_deploy.arn
+}
+
+output "github_actions_deploy_policy_arns" {
+  description = "ARNs of the IAM policies granting GitHub Actions scoped Terraform deployment permissions for dev."
+  value = {
+    core                  = aws_iam_policy.github_actions_deploy.arn
+    compute_observability = aws_iam_policy.github_actions_deploy_compute_observability.arn
+    edge_storage          = aws_iam_policy.github_actions_deploy_edge_storage.arn
+    iam                   = aws_iam_policy.github_actions_deploy_iam.arn
+  }
 }
 
 output "github_actions_permissions_boundary_policy_arn" {

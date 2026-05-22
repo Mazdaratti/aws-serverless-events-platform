@@ -1,0 +1,37 @@
+############################################
+# Core bootstrap identity
+############################################
+
+project_name = "aws-serverless-events-platform"
+environment  = "dev"
+
+############################################
+# AWS configuration
+############################################
+
+aws_region = "eu-central-1"
+
+############################################
+# GitHub OIDC trust configuration
+############################################
+
+# Set these to the GitHub owner and repository that should be allowed to assume
+# the bootstrap-created GitHub Actions OIDC role.
+github_org  = "YOUR_GITHUB_ORG_OR_USERNAME"
+github_repo = "aws-serverless-events-platform"
+
+# The initial trust policy is branch-scoped. GitHub Environment subject support
+# can be added later if a workflow uses environment: dev.
+github_branch = "main"
+
+############################################
+# Optional overrides
+############################################
+
+additional_tags = {
+  Team = "Platform"
+}
+
+# state_bucket_name = "your-globally-unique-dev-terraform-state-bucket"
+
+# create_permissions_boundary = true

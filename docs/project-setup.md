@@ -1,15 +1,68 @@
-# Local Setup
+# Project Setup
 
-This document records the current local developer tooling expected for working
-in this repository.
+This document explains how to set up this repository from a fresh clone and
+provision the `dev` environment.
 
-It is intentionally practical and lightweight. The root `README.md` stays
-focused on platform scope, architecture, and roadmap, while this file captures
-the tools needed to run validation and build steps locally.
+It covers:
+
+- required local tools
+- AWS credential setup
+- Terraform bootstrap
+- remote state migration
+- `dev` environment provisioning
+- frontend deployment
+- validation commands
+
+> Current repository stage: `infrastructure/bootstrap/dev` can create the
+> backend bucket, generated backend config, and GitHub OIDC role. Remote backend
+> initialization for `infrastructure/envs/dev`, CI artifact generation, and CI
+> deployment workflows are currently in implementation.
+
+---
+
+## Setup Sequence
+
+Use this order when setting up the project from a fresh clone.
+
+1. Clone the repository.
+2. Install the required local tools listed in this document.
+3. Configure AWS CLI credentials for the target AWS account.
+4. Copy and edit bootstrap variables:
+   - `infrastructure/bootstrap/dev/terraform.tfvars.example`
+   - `infrastructure/bootstrap/dev/terraform.tfvars`
+5. Apply the bootstrap root:
+   - `infrastructure/bootstrap/dev`
+6. Confirm the generated backend config exists:
+   - `infrastructure/envs/dev/backend.tf`
+7. Initialize `infrastructure/envs/dev` with the generated remote backend.
+   If this repository is still in the local-state-to-remote-state transition,
+   follow the migration notes for the current PR before treating `envs/dev` as
+   remote-state backed.
+8. Copy and edit environment variables for `dev`:
+   - `infrastructure/envs/dev/terraform.tfvars.example`
+   - `infrastructure/envs/dev/terraform.tfvars`
+9. Package Lambda artifacts before provisioning Lambda-backed infrastructure.
+   Use the repository packaging scripts under `scripts/` so Terraform can deploy
+   the expected ZIP artifacts.
+   CI-based artifact generation is currently in implementation.
+10. Provision or update the `dev` environment:
+    - `infrastructure/envs/dev`
+11. Verify AWS resources and confirm a clean Terraform plan.
+12. Build and deploy the frontend with:
+    - `scripts/deploy_frontend.py`
+   CI-based frontend build and deployment is currently in implementation.
+13. Validate the CloudFront frontend and `/events` API routes.
+
+GitHub Actions uses the OIDC role created by `infrastructure/bootstrap/dev`.
+Before relying on workflows, verify that the role ARN is configured in the
+repository workflow settings or variables used by the GitHub Actions
+configuration.
+
+---
 
 ## Current Tooling Baseline
 
-The current local workflow expects these tools to be available:
+The project workflow expects these tools to be available:
 
 - Python
 - Docker

@@ -75,9 +75,15 @@ That split is intentional:
 - backend config generation belongs to bootstrap
 - state migration is an operator action that should be validated separately
 
-For this project, the `dev` environment will use a later
-`infrastructure/bootstrap/dev` root to create the teardown-friendly dev backend
-and generate the environment backend configuration.
+For this project, the `dev` environment uses `infrastructure/bootstrap/dev` to
+create a teardown-friendly backend bucket directly and generate the environment
+backend configuration.
+
+Persistent environment bootstrap roots should use this module instead. For
+example, a production bootstrap root such as `infrastructure/bootstrap/prod`
+could compose `infrastructure/modules/remote_backend` for the state bucket, then
+own production-specific backend config generation, state migration instructions,
+and GitHub OIDC deployment permissions separately.
 
 ---
 

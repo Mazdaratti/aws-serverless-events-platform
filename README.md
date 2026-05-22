@@ -27,7 +27,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Remote Terraform backend and GitHub OIDC.
+- Remote Terraform state migration and GitHub Actions workflow authentication.
 
 ### Completed milestones
 
@@ -122,9 +122,24 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - alert delivery intentionally disabled with empty alarm and OK actions
   - CloudWatch observability validation completed in AWS
 
+- Remote backend and GitHub OIDC bootstrap
+  - reusable persistent remote backend module baseline
+  - teardown-friendly `dev` bootstrap root
+  - generated Git-ignored `infrastructure/envs/dev/backend.tf`
+  - S3 backend bucket with versioning, SSE-S3 encryption, public access block,
+    and `BucketOwnerEnforced`
+  - S3 native lockfile backend configuration
+  - GitHub Actions OIDC provider
+  - branch-scoped GitHub Actions IAM role for `main`
+  - separate Terraform state access policy
+  - split serverless deploy policies for the current platform surface
+  - repo-aligned permissions boundary
+  - AWS bootstrap validation completed for `dev`
+
 ### Next milestones
 
-- Remote Terraform backend + GitHub OIDC
+- migrate `infrastructure/envs/dev` state to the generated S3 backend
+- add GitHub Actions OIDC workflow smoke validation
 - deployment workflow automation beyond Terraform validation
 
 ---
@@ -352,6 +367,19 @@ aws-serverless-events-platform/
 |-- infrastructure/
 |   |-- bootstrap/
 |   |   `-- dev/
+|   |       |-- README.md
+|   |       |-- artifacts.tf
+|   |       |-- github_oidc.tf
+|   |       |-- locals.tf
+|   |       |-- outputs.tf
+|   |       |-- policy_boundary.tf
+|   |       |-- policy_deploy.tf
+|   |       |-- policy_state.tf
+|   |       |-- providers.tf
+|   |       |-- remote_backend.tf
+|   |       |-- terraform.tfvars.example
+|   |       |-- variables.tf
+|   |       `-- versions.tf
 |   |
 |   |-- envs/
 |   |   `-- dev/
@@ -610,9 +638,19 @@ Infrastructure is implemented using modular Terraform design with environment-sp
 
 22. Remote Terraform backend and GitHub OIDC
    - add reusable remote Terraform backend module baseline ✅
-   - introduce remote Terraform state
-   - add GitHub Actions AWS authentication through OIDC
-   - keep this separate from application deployment workflows
+   - add teardown-friendly `infrastructure/bootstrap/dev` root ✅
+   - generate ignored `infrastructure/envs/dev/backend.tf` for the S3 backend ✅
+   - configure S3 native lockfile state locking with `use_lockfile = true` ✅
+   - create the dev backend bucket with versioning, SSE-S3 encryption, public
+     access block, and `BucketOwnerEnforced` ✅
+   - create GitHub Actions OIDC provider and branch-scoped IAM role ✅
+   - attach separate state access and split deploy policies to the OIDC role ✅
+   - add a repo-aligned permissions boundary for the OIDC role ✅
+   - validate the bootstrap resources in AWS ✅
+   - migrate `infrastructure/envs/dev` to remote state
+   - add GitHub Actions OIDC workflow smoke validation
+   - keep application deployment workflows separate from this infrastructure
+     bootstrap
 
 23. CI validation workflow hardening
    - keep CI read-only and validation-focused

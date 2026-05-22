@@ -342,7 +342,7 @@ aws-serverless-events-platform/
 |-- docs/
 |   |-- assets/
 |   |-- architecture.md
-|   |-- local-setup.md
+|   |-- project-setup.md
 |   `-- platform-behavior.md
 |
 |-- frontend/
@@ -750,7 +750,7 @@ Detailed architecture description:
 
 - `docs/architecture.md`
 - `docs/platform-behavior.md`
-- `docs/local-setup.md`
+- `docs/project-setup.md`
 - `infrastructure/envs/dev/README.md`
 - each module also contains its own `README.md` in the module root directory
 
@@ -778,7 +778,7 @@ The frontend implementation uses:
 
 See:
 
-- `docs/local-setup.md`
+- `docs/project-setup.md`
 
 ---
 

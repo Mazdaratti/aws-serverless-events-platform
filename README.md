@@ -27,7 +27,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Remote Terraform state migration and GitHub Actions workflow authentication.
+- GitHub Actions OIDC workflow smoke validation.
 
 ### Completed milestones
 
@@ -135,10 +135,11 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - split serverless deploy policies for the current platform surface
   - repo-aligned permissions boundary
   - AWS bootstrap validation completed for `dev`
+  - `infrastructure/envs/dev` migrated to the generated S3 backend
+  - remote-backed `dev` Terraform plan validated clean
 
 ### Next milestones
 
-- migrate `infrastructure/envs/dev` state to the generated S3 backend
 - add GitHub Actions OIDC workflow smoke validation
 - deployment workflow automation beyond Terraform validation
 
@@ -307,8 +308,13 @@ Simplifies networking and keeps costs low while still supporting production-grad
 
 **Local Terraform State First**
 
-Infrastructure is initially developed using local state for rapid iteration.  
-Remote backend and deployment automation will be introduced later.
+Infrastructure started with local Terraform state for rapid iteration while
+the platform shape was still changing quickly.
+
+The `dev` environment uses an S3 remote backend created by the bootstrap root.
+Its backend configuration is generated into `infrastructure/envs/dev/backend.tf`.
+Terraform state uses S3 native lockfile support enabled through
+`use_lockfile = true`, while deployment automation remains separate from infrastructure state management. 
 
 **Modular Terraform Design**
 
@@ -647,7 +653,8 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - attach separate state access and split deploy policies to the OIDC role ✅
    - add a repo-aligned permissions boundary for the OIDC role ✅
    - validate the bootstrap resources in AWS ✅
-   - migrate `infrastructure/envs/dev` to remote state
+   - migrate `infrastructure/envs/dev` to remote state ✅
+   - validate a clean remote-backed `dev` Terraform plan ✅
    - add GitHub Actions OIDC workflow smoke validation
    - keep application deployment workflows separate from this infrastructure
      bootstrap

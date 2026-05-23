@@ -8,15 +8,15 @@ It covers:
 - required local tools
 - AWS credential setup
 - Terraform bootstrap
-- remote state migration
+- remote state initialization
 - `dev` environment provisioning
 - frontend deployment
 - validation commands
 
 > Current repository stage: `infrastructure/bootstrap/dev` can create the
-> backend bucket, generated backend config, and GitHub OIDC role. Remote backend
-> initialization for `infrastructure/envs/dev`, CI artifact generation, and CI
-> deployment workflows are currently in implementation.
+> backend bucket, generated backend config, and GitHub OIDC role. The
+> `infrastructure/envs/dev` root uses the generated S3 backend. CI artifact 
+> generation and CI deployment workflows remain separate from the current manual setup flow.
 
 ---
 
@@ -35,9 +35,6 @@ Use this order when setting up the project from a fresh clone.
 6. Confirm the generated backend config exists:
    - `infrastructure/envs/dev/backend.tf`
 7. Initialize `infrastructure/envs/dev` with the generated remote backend.
-   If this repository is still in the local-state-to-remote-state transition,
-   follow the migration notes for the current PR before treating `envs/dev` as
-   remote-state backed.
 8. Copy and edit environment variables for `dev`:
    - `infrastructure/envs/dev/terraform.tfvars.example`
    - `infrastructure/envs/dev/terraform.tfvars`

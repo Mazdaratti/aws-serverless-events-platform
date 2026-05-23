@@ -16,7 +16,7 @@ It covers:
 > Current repository stage: `infrastructure/bootstrap/dev` can create the
 > backend bucket, generated backend config, and GitHub OIDC role. The
 > `infrastructure/envs/dev` root uses the generated S3 backend. CI artifact 
->generation and CI deployment workflows remain separate from the current manual setup flow.
+> generation and CI deployment workflows remain separate from the current manual setup flow.
 
 ---
 

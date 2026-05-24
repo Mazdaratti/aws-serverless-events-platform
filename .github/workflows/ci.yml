@@ -10,10 +10,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   terraform-fmt:
     name: Terraform Fmt Check
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
       - name: Checkout repository
@@ -33,6 +38,7 @@ jobs:
   lambda-python-validate:
     name: Validate Python Lambda Handlers
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     env:
       PYTHONPATH: .:lambdas
@@ -68,12 +74,16 @@ jobs:
           lambdas/notification_sender
           lambdas/rsvp_authorizer/handler.py
 
+      - name: Compile helper scripts
+        run: python -m compileall -q scripts
+
       - name: Run Lambda handler tests
         run: python -m pytest tests/lambdas
 
   frontend-validate:
     name: Validate Frontend
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     defaults:
       run:
@@ -117,6 +127,7 @@ jobs:
   terraform-validate-and-lint:
     name: Validate ${{ matrix.directory }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     strategy:
       fail-fast: false

@@ -109,6 +109,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - frontend CI validation for install, typecheck, build, component tests, and
     browser smoke tests
   - deterministic Lambda ZIP packaging helper
+  - CI concurrency and job timeouts for stale-run and stuck-job protection
+  - CI syntax compilation for repository helper scripts
   - terraform-docs documentation workflow
 
 - Observability baseline
@@ -667,13 +669,20 @@ Infrastructure is implemented using modular Terraform design with environment-sp
      bootstrap
 
 23. CI validation workflow hardening
-   - keep CI read-only and validation-focused
+   - keep CI read-only and validation-focused ✅
    - add frontend validation to CI:
-     - `npm ci`
-     - `npm run typecheck`
-     - `npm run build`
-   - keep Terraform validation detached from real AWS state
-   - do not deploy from CI validation jobs
+     - `npm ci` ✅
+     - `npm run typecheck` ✅
+     - `npm run build` ✅
+     - `npm run test` ✅
+     - `npm run test:e2e` ✅
+   - add workflow concurrency to cancel stale branch and PR runs ✅
+   - add job timeouts for Terraform, Lambda, frontend, and Terraform matrix
+     validation ✅
+   - compile repository helper scripts in CI ✅
+   - keep Terraform validation detached from real AWS state ✅
+   - do not deploy from CI validation jobs ✅
+   - validate hardened CI workflow successfully ✅
 
 24. CI/CD deployment workflows
    - add separate provisioning and deployment workflows after OIDC exists

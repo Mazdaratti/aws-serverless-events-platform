@@ -13,6 +13,11 @@ output "state_backend_key" {
   value       = local.tf_backend_key
 }
 
+output "aws_region" {
+  description = "AWS region used by the dev bootstrap root and generated backend configuration."
+  value       = var.aws_region
+}
+
 output "github_oidc_provider_arn" {
   description = "ARN of the GitHub Actions OIDC provider."
   value       = aws_iam_openid_connect_provider.github.arn

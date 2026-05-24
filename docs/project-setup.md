@@ -15,8 +15,10 @@ It covers:
 
 > Current repository stage: `infrastructure/bootstrap/dev` can create the
 > backend bucket, generated backend config, and GitHub OIDC role. The
-> `infrastructure/envs/dev` root uses the generated S3 backend. CI artifact 
-> generation and CI deployment workflows remain separate from the current manual setup flow.
+> `infrastructure/envs/dev` root uses the generated S3 backend. GitHub
+> repository variables can be synced from bootstrap outputs for the manual AWS
+> OIDC smoke workflow. CI artifact generation and CI deployment workflows remain
+> separate from the current setup flow.
 
 ---
 
@@ -32,28 +34,63 @@ Use this order when setting up the project from a fresh clone.
    - `infrastructure/bootstrap/dev/terraform.tfvars`
 5. Apply the bootstrap root:
    - `infrastructure/bootstrap/dev`
-6. Confirm the generated backend config exists:
+6. Sync GitHub repository variables for GitHub Actions from bootstrap outputs.
+7. Confirm the generated backend config exists:
    - `infrastructure/envs/dev/backend.tf`
-7. Initialize `infrastructure/envs/dev` with the generated remote backend.
-8. Copy and edit environment variables for `dev`:
+8. Initialize `infrastructure/envs/dev` with the generated remote backend.
+9. Run the manual AWS OIDC smoke workflow from `main` after the repository
+   variables have been synced and the workflow file has been merged.
+10. Copy and edit environment variables for `dev`:
    - `infrastructure/envs/dev/terraform.tfvars.example`
    - `infrastructure/envs/dev/terraform.tfvars`
-9. Package Lambda artifacts before provisioning Lambda-backed infrastructure.
+11. Package Lambda artifacts before provisioning Lambda-backed infrastructure.
    Use the repository packaging scripts under `scripts/` so Terraform can deploy
    the expected ZIP artifacts.
-   CI-based artifact generation is currently in implementation.
-10. Provision or update the `dev` environment:
+   CI-based artifact generation remains separate from the current manual setup flow.
+12. Provision or update the `dev` environment:
     - `infrastructure/envs/dev`
-11. Verify AWS resources and confirm a clean Terraform plan.
-12. Build and deploy the frontend with:
+13. Verify AWS resources and confirm a clean Terraform plan.
+14. Build and deploy the frontend with:
     - `scripts/deploy_frontend.py`
-   CI-based frontend build and deployment is currently in implementation.
-13. Validate the CloudFront frontend and `/events` API routes.
+   CI-based frontend build and deployment remains separate from the current manual setup flow.
+15. Validate the CloudFront frontend and `/events` API routes.
 
 GitHub Actions uses the OIDC role created by `infrastructure/bootstrap/dev`.
-Before relying on workflows, verify that the role ARN is configured in the
-repository workflow settings or variables used by the GitHub Actions
-configuration.
+The current OIDC trust is branch-scoped to `main`, so the smoke workflow uses
+repository variables and does not use a GitHub Environment.
+
+Sync the required repository variables from the bootstrap outputs:
+
+```powershell
+python scripts/sync_github_actions_vars.py --dry-run
+python scripts/sync_github_actions_vars.py
+```
+
+The helper sets these repository variables:
+
+- `AWS_ROLE_TO_ASSUME`
+- `AWS_REGION`
+- `TF_BACKEND_BUCKET`
+- `TF_BACKEND_KEY`
+
+Verify the repository variables with:
+
+```powershell
+gh variable list --repo Mazdaratti/aws-serverless-events-platform
+```
+
+The manual `AWS OIDC Smoke` workflow validates:
+
+- GitHub Actions can request an OIDC token
+- AWS accepts the token for the branch-scoped role
+- the assumed role can read the S3 remote state object
+- Terraform can initialize against the generated S3 backend settings
+- Terraform can validate `infrastructure/envs/dev`
+- Terraform can read `envs/dev` outputs from remote state
+
+The smoke workflow intentionally does not run `terraform plan`, `terraform apply`,
+Lambda artifact generation, or frontend deployment. Those flows require a
+separate CI desired-state and artifact strategy.
 
 ---
 

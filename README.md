@@ -1,6 +1,6 @@
 # AWS Serverless Events Platform
 
-[![Terraform Validation](https://github.com/Mazdaratti/tf-template-stack/actions/workflows/terraform-validation.yml/badge.svg)](https://github.com/Mazdaratti/tf-template-stack/actions/workflows/terraform-validation.yml)
+[![CI Validation](https://github.com/Mazdaratti/aws-serverless-events-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Mazdaratti/aws-serverless-events-platform/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 A production-style, fully AWS-native serverless web application for managing events and RSVP workflows.
@@ -27,7 +27,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- GitHub Actions OIDC workflow smoke validation.
+- GitHub Actions OIDC smoke workflow validation from `main`.
 
 ### Completed milestones
 
@@ -137,10 +137,13 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - AWS bootstrap validation completed for `dev`
   - `infrastructure/envs/dev` migrated to the generated S3 backend
   - remote-backed `dev` Terraform plan validated clean
+  - repository variable sync helper added for GitHub Actions OIDC wiring
+  - GitHub repository variables synced from bootstrap outputs
+  - manual AWS OIDC smoke workflow added for branch-scoped role validation
 
 ### Next milestones
 
-- add GitHub Actions OIDC workflow smoke validation
+- validate GitHub Actions OIDC smoke workflow from `main`
 - deployment workflow automation beyond Terraform validation
 
 ---
@@ -343,6 +346,7 @@ aws-serverless-events-platform/
 |
 |-- .github/
 |   `-- workflows/
+|       |-- aws-oidc-smoke.yml
 |       `-- ci.yml
 |
 |-- docs/
@@ -655,7 +659,10 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - validate the bootstrap resources in AWS ✅
    - migrate `infrastructure/envs/dev` to remote state ✅
    - validate a clean remote-backed `dev` Terraform plan ✅
-   - add GitHub Actions OIDC workflow smoke validation
+   - add repository variable sync helper for GitHub Actions OIDC wiring ✅
+   - sync GitHub repository variables from bootstrap outputs ✅
+   - add manual GitHub Actions OIDC smoke workflow ✅
+   - validate GitHub Actions OIDC smoke workflow from `main`
    - keep application deployment workflows separate from this infrastructure
      bootstrap
 

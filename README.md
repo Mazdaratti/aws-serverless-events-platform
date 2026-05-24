@@ -27,7 +27,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- GitHub Actions OIDC smoke workflow validation from `main`.
+- Deployment workflow automation beyond Terraform validation.
 
 ### Completed milestones
 
@@ -140,10 +140,10 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - repository variable sync helper added for GitHub Actions OIDC wiring
   - GitHub repository variables synced from bootstrap outputs
   - manual AWS OIDC smoke workflow added for branch-scoped role validation
+  - GitHub Actions OIDC smoke workflow validated successfully from `main`
 
 ### Next milestones
 
-- validate GitHub Actions OIDC smoke workflow from `main`
 - deployment workflow automation beyond Terraform validation
 
 ---
@@ -662,7 +662,7 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - add repository variable sync helper for GitHub Actions OIDC wiring ✅
    - sync GitHub repository variables from bootstrap outputs ✅
    - add manual GitHub Actions OIDC smoke workflow ✅
-   - validate GitHub Actions OIDC smoke workflow from `main`
+   - validate GitHub Actions OIDC smoke workflow from `main` ✅
    - keep application deployment workflows separate from this infrastructure
      bootstrap
 

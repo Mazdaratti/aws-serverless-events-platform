@@ -320,6 +320,26 @@ Run a safe dry-run first from the repository root:
 python scripts/deploy_frontend.py --dry-run
 ```
 
+The same dry-run path is also available as a manual GitHub Actions workflow:
+
+- `Frontend Deployment Dry Run`
+- `.github/workflows/frontend-deploy-dry-run.yml`
+
+Run it from `main` with:
+
+```powershell
+gh workflow run frontend-deploy-dry-run.yml --ref main
+```
+
+That workflow has been validated from `main`. It uses GitHub OIDC, generates
+the dev backend configuration from repository variables, initializes the remote
+Terraform backend, checks the required frontend deployment outputs, and then
+runs:
+
+```bash
+python scripts/deploy_frontend.py --dry-run
+```
+
 Dry-run mode:
 
 - reads `terraform output -json`
@@ -334,6 +354,10 @@ Dry-run mode:
 - does not upload files
 - does not invalidate CloudFront
 
+The GitHub Actions dry-run workflow follows the same safety boundary: it builds
+and previews deployment only. It does not upload frontend assets and does not
+create a CloudFront invalidation.
+
 For a real frontend deployment, run:
 
 ```bash
@@ -345,6 +369,9 @@ Apply mode performs the same validation and S3 dry-run first, then:
 - syncs `frontend/dist/` to the private frontend S3 bucket with `--delete`
 - creates a CloudFront invalidation for `/*`
 - prints the CloudFront frontend URLs to validate
+
+Real frontend deployment still uses the local `--apply` helper until a separate
+manual apply workflow is added.
 
 The helper writes only these public browser build values:
 

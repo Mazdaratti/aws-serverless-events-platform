@@ -27,7 +27,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Deployment workflow automation beyond Terraform validation.
+- Backend/provisioning deployment workflow automation beyond Terraform
+  validation.
 
 ### Completed milestones
 
@@ -58,6 +59,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - optional CloudFront-scoped WAF baseline
   - local frontend deployment helper for S3 sync and CloudFront invalidation
   - manual GitHub Actions frontend deployment dry-run workflow validated from
+    `main`
+  - manual GitHub Actions frontend deployment apply workflow validated from
     `main`
 
 - Routed backend workloads
@@ -352,6 +355,7 @@ aws-serverless-events-platform/
 |   `-- workflows/
 |       |-- aws-oidc-smoke.yml
 |       |-- frontend-deploy-dry-run.yml
+|       |-- frontend-deploy-apply.yml
 |       `-- ci.yml
 |
 |-- docs/
@@ -694,7 +698,8 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - add manual frontend deployment dry-run workflow ✅
    - validate frontend deployment dry-run workflow from `main` ✅
    - add frontend deployment apply workflow for S3 sync and CloudFront
-     invalidation
+     invalidation ✅
+   - validate frontend deployment apply workflow from `main` ✅
    - keep Lambda deployment Terraform-managed initially
 
 25. Optional Lambda code deployment separation
@@ -815,6 +820,6 @@ See:
 
 - Custom domain and TLS configuration
 - Production alert delivery and escalation routing
-- Automated frontend deployment
+- Backend and Lambda deployment automation
 - Multi-environment promotion strategy
 - Advanced security hardening

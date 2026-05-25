@@ -292,10 +292,12 @@ data "aws_iam_policy_document" "github_actions_deploy_edge_storage_permissions" 
     effect = "Allow"
 
     actions = [
+      "s3:AbortMultipartUpload",
       "s3:CreateBucket",
       "s3:DeleteBucket",
       "s3:DeleteBucketEncryption",
       "s3:DeleteBucketOwnershipControls",
+      "s3:DeleteObject",
       "s3:DeleteBucketPolicy",
       "s3:DeleteBucketPublicAccessBlock",
       "s3:DeleteBucketTagging",
@@ -309,6 +311,7 @@ data "aws_iam_policy_document" "github_actions_deploy_edge_storage_permissions" 
       "s3:GetBucketTagging",
       "s3:GetBucketVersioning",
       "s3:GetEncryptionConfiguration",
+      "s3:GetObject",
       "s3:ListAllMyBuckets",
       "s3:ListBucket",
       "s3:PutBucketOwnershipControls",
@@ -316,7 +319,8 @@ data "aws_iam_policy_document" "github_actions_deploy_edge_storage_permissions" 
       "s3:PutBucketPublicAccessBlock",
       "s3:PutBucketTagging",
       "s3:PutBucketVersioning",
-      "s3:PutEncryptionConfiguration"
+      "s3:PutEncryptionConfiguration",
+      "s3:PutObject"
     ]
 
     resources = ["*"]
@@ -331,6 +335,7 @@ data "aws_iam_policy_document" "github_actions_deploy_edge_storage_permissions" 
 
     actions = [
       "cloudfront:CreateDistribution",
+      "cloudfront:CreateInvalidation",
       "cloudfront:CreateFunction",
       "cloudfront:CreateOriginAccessControl",
       "cloudfront:DeleteDistribution",

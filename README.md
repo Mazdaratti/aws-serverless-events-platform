@@ -57,6 +57,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - API forwarding for `/events` and `/events/*`
   - optional CloudFront-scoped WAF baseline
   - local frontend deployment helper for S3 sync and CloudFront invalidation
+  - manual GitHub Actions frontend deployment dry-run workflow validated from
+    `main`
 
 - Routed backend workloads
   - `create-event`
@@ -349,6 +351,7 @@ aws-serverless-events-platform/
 |-- .github/
 |   `-- workflows/
 |       |-- aws-oidc-smoke.yml
+|       |-- frontend-deploy-dry-run.yml
 |       `-- ci.yml
 |
 |-- docs/
@@ -688,7 +691,10 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - add separate provisioning and deployment workflows after OIDC exists
    - keep provisioning responsible for Terraform infrastructure changes
    - keep deployment responsible for application artifacts
-   - add frontend deployment workflow for S3 sync and CloudFront invalidation
+   - add manual frontend deployment dry-run workflow ✅
+   - validate frontend deployment dry-run workflow from `main` ✅
+   - add frontend deployment apply workflow for S3 sync and CloudFront
+     invalidation
    - keep Lambda deployment Terraform-managed initially
 
 25. Optional Lambda code deployment separation

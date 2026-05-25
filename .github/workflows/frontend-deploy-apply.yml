@@ -1,0 +1,145 @@
+name: Frontend Deployment Apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_deploy:
+        description: Type deploy-dev to upload frontend assets and invalidate CloudFront.
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-frontend:
+    name: Deploy frontend assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      TF_BACKEND_BUCKET: ${{ vars.TF_BACKEND_BUCKET }}
+      TF_BACKEND_KEY: ${{ vars.TF_BACKEND_KEY }}
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Require main branch
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "Frontend deployment apply is only allowed from main."
+            exit 1
+          fi
+
+      - name: Validate deployment confirmation
+        env:
+          CONFIRM_DEPLOY: ${{ github.event.inputs.confirm_deploy }}
+        run: |
+          if [ "${CONFIRM_DEPLOY}" != "deploy-dev" ]; then
+            echo "Deployment confirmation failed. Type deploy-dev to continue."
+            exit 1
+          fi
+
+      - name: Validate required repository variables
+        run: |
+          for name in AWS_REGION AWS_ROLE_TO_ASSUME TF_BACKEND_BUCKET TF_BACKEND_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required repository variable: ${name}"
+              exit 1
+            fi
+          done
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.14.3
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: Show AWS caller identity
+        run: aws sts get-caller-identity --output table
+
+      - name: Generate dev backend configuration
+        working-directory: infrastructure/envs/dev
+        run: |
+          printf '%s\n' \
+            'terraform {' \
+            '  backend "s3" {' \
+            "    bucket       = \"${TF_BACKEND_BUCKET}\"" \
+            "    key          = \"${TF_BACKEND_KEY}\"" \
+            "    region       = \"${AWS_REGION}\"" \
+            '    encrypt      = true' \
+            '    use_lockfile = true' \
+            '  }' \
+            '}' > backend.tf
+
+      - name: Terraform init
+        working-directory: infrastructure/envs/dev
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        working-directory: infrastructure/envs/dev
+        run: terraform validate -no-color
+
+      - name: Read Terraform region output
+        working-directory: infrastructure/envs/dev
+        run: terraform output aws_region
+
+      - name: Capture Terraform outputs
+        working-directory: infrastructure/envs/dev
+        run: terraform output -json > /tmp/tf-outputs.json
+
+      - name: Validate required frontend deployment outputs
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          outputs = json.loads(Path("/tmp/tf-outputs.json").read_text())
+          required = [
+              "aws_region",
+              "frontend_bucket_name",
+              "cloudfront_distribution_id",
+              "cloudfront_distribution_domain_name",
+              "cognito_user_pool_id",
+              "cognito_user_pool_client_id",
+          ]
+
+          missing = [name for name in required if not outputs.get(name, {}).get("value")]
+          if missing:
+              raise SystemExit(f"Missing required Terraform outputs: {', '.join(missing)}")
+
+          print("Required frontend deployment outputs are present.")
+          PY
+
+      - name: Deploy frontend assets
+        run: python scripts/deploy_frontend.py --apply

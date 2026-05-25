@@ -1,0 +1,132 @@
+name: Frontend Deployment Dry Run
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend-deploy-dry-run:
+    name: Validate frontend deployment dry run
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      TF_BACKEND_BUCKET: ${{ vars.TF_BACKEND_BUCKET }}
+      TF_BACKEND_KEY: ${{ vars.TF_BACKEND_KEY }}
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check branch-scoped OIDC context
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "This workflow must run from refs/heads/main because the AWS OIDC role trust is branch-scoped."
+            echo "Current ref: ${GITHUB_REF}"
+            exit 1
+          fi
+
+      - name: Validate required repository variables
+        run: |
+          for name in AWS_REGION AWS_ROLE_TO_ASSUME TF_BACKEND_BUCKET TF_BACKEND_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required repository variable: ${name}"
+              exit 1
+            fi
+          done
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.14.3
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          mask-aws-account-id: true
+
+      - name: Verify AWS caller identity
+        run: aws sts get-caller-identity
+
+      - name: Generate dev backend configuration
+        working-directory: infrastructure/envs/dev
+        run: |
+          printf '%s\n' \
+            'terraform {' \
+            '  backend "s3" {' \
+            "    bucket       = \"${TF_BACKEND_BUCKET}\"" \
+            "    key          = \"${TF_BACKEND_KEY}\"" \
+            "    region       = \"${AWS_REGION}\"" \
+            '    encrypt      = true' \
+            '    use_lockfile = true' \
+            '  }' \
+            '}' \
+            > backend.tf
+
+      - name: Terraform init
+        working-directory: infrastructure/envs/dev
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        working-directory: infrastructure/envs/dev
+        run: terraform validate -no-color
+
+      - name: Read remote-backed AWS region output
+        working-directory: infrastructure/envs/dev
+        run: terraform output aws_region
+
+      - name: Capture remote-backed Terraform outputs
+        working-directory: infrastructure/envs/dev
+        run: terraform output -json > /tmp/tf-outputs.json
+
+      - name: Validate captured Terraform outputs
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("/tmp/tf-outputs.json").read_text())
+          required_outputs = {
+              "aws_region",
+              "frontend_bucket_name",
+              "cloudfront_distribution_id",
+              "cloudfront_distribution_domain_name",
+              "cognito_user_pool_id",
+              "cognito_user_pool_client_id",
+          }
+          missing = sorted(required_outputs - set(payload))
+          if missing:
+              raise SystemExit(f"Missing required Terraform outputs: {', '.join(missing)}")
+          print("Required frontend deployment Terraform outputs are present.")
+          PY
+
+      - name: Run frontend deployment dry run
+        run: python scripts/deploy_frontend.py --dry-run

@@ -12,10 +12,11 @@ artifact differences when the inputs have not changed.
 
 Packaging and deployment are separate responsibilities.
 
-This directory documents how Lambda ZIP artifacts are built. Deployment
-automation will later map packaged workloads to Terraform output function names
-and update function code with `aws lambda update-function-code`. Terraform
-ownership rules are documented in the infrastructure and setup docs.
+This directory documents how Lambda ZIP artifacts are built. Provisioning
+automation will build these artifacts before Terraform plan/apply. Lambda code
+deployment automation will map packaged workloads to Terraform output function
+names and update function code with `aws lambda update-function-code`.
+Terraform ownership rules are documented in the infrastructure and setup docs.
 
 ## Standard Packaging Model
 

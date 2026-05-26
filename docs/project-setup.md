@@ -177,9 +177,10 @@ Lambda artifact generation, or frontend deployment. Frontend deployment is
 handled by the dedicated frontend workflows. Terraform provisioning and Lambda
 artifact generation remain separate.
 
-## Lambda Code Deployment Boundary
+## Lambda Provisioning and Code Deployment Boundary
 
-Step 25 separates Lambda infrastructure ownership from Lambda code deployment.
+Step 25 separates Lambda infrastructure ownership from Lambda code deployment,
+while keeping Lambda artifact generation available to both automation lanes.
 
 Current transitional state:
 
@@ -192,10 +193,13 @@ Target Step 25 state:
 
 - Terraform continues to own Lambda infrastructure, configuration, and service
   wiring.
-- Lambda deployment automation owns ZIP packaging, workload-to-function mapping,
-  and function-code updates through `aws lambda update-function-code`.
-- Lambda deployment workflows may read Terraform outputs, but they must not run
-  `terraform apply`.
+- Provisioning automation builds Lambda ZIP artifacts before Terraform
+  plan/apply so Terraform can create Lambda functions when needed.
+- Lambda code deployment automation builds Lambda ZIP artifacts, maps workloads
+  to existing function names from Terraform outputs, and updates code through
+  `aws lambda update-function-code`.
+- Lambda code deployment workflows may read Terraform outputs, but they must
+  not run `terraform apply`.
 - After the Lambda module adjustment, external code-only updates should not
   cause Terraform to plan a code reversion.
 

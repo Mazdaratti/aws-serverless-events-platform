@@ -19,7 +19,7 @@ It covers:
 > repository variables are synced from bootstrap outputs for the manual AWS OIDC
 > smoke workflow and frontend deployment workflows. Frontend deployment supports
 > both manual dry-run and manual apply workflows. Terraform provisioning and
-> Lambda artifact generation remain separate from frontend deployment.
+> Lambda code deployment remain separate from frontend deployment.
 
 ---
 
@@ -93,8 +93,10 @@ deploy frontend assets.
    addresses and other local deployment inputs that are intentionally not
    committed.
 11. Package Lambda artifacts before provisioning Lambda-backed infrastructure.
-   Use the packaging instructions in `lambdas/README.md` so Terraform can deploy
-   the expected ZIP artifacts for the current Lambda artifact layout.
+   In the current transitional state, before the Lambda module adjustment,
+   Terraform still owns Lambda code through ZIP artifact and source-code hash
+   inputs. Fresh provisioning still depends on the existing packaging path
+   documented in `lambdas/README.md`.
 12. Provision the `dev` environment:
    ```powershell
    terraform -chdir=infrastructure/envs/dev plan -out=tfplan
@@ -174,6 +176,35 @@ The smoke workflow intentionally does not run `terraform plan`, `terraform apply
 Lambda artifact generation, or frontend deployment. Frontend deployment is
 handled by the dedicated frontend workflows. Terraform provisioning and Lambda
 artifact generation remain separate.
+
+## Lambda Provisioning and Code Deployment Boundary
+
+Step 25 separates Lambda infrastructure ownership from Lambda code deployment,
+while keeping Lambda artifact generation available to both automation lanes.
+
+Current transitional state:
+
+- Terraform still owns Lambda code through ZIP artifact and source-code hash
+  inputs in the Lambda module.
+- Fresh provisioning still requires the existing Lambda packaging path so the
+  expected ZIP artifacts are available.
+
+Target Step 25 state:
+
+- Terraform continues to own Lambda infrastructure, configuration, and service
+  wiring.
+- Provisioning automation builds Lambda ZIP artifacts before Terraform
+  plan/apply so Terraform can create Lambda functions when needed.
+- Lambda code deployment automation builds Lambda ZIP artifacts, maps workloads
+  to existing function names from Terraform outputs, and updates code through
+  `aws lambda update-function-code`.
+- Lambda code deployment workflows may read Terraform outputs, but they must
+  not run `terraform apply`.
+- After the Lambda module adjustment, external code-only updates should not
+  cause Terraform to plan a code reversion.
+
+Config drift such as environment variables, timeout, memory, tracing, IAM,
+event source mappings, and API Gateway wiring must remain visible to Terraform.
 
 ---
 
@@ -330,7 +361,12 @@ Local frontend validation should run from that directory:
 Use `npm ci` for PR validation because `frontend/package-lock.json` is now
 committed and represents the reproducible dependency install plan.
 
-The current frontend automated testing baseline uses:
+### Frontend Automated Testing
+
+Frontend automated testing is a validation-only baseline for the React/Vite
+frontend.
+
+The current testing baseline uses:
 
 - Vitest
 - React Testing Library
@@ -343,6 +379,16 @@ The current frontend automated testing baseline uses:
 These tests run locally without AWS, Cognito, CloudFront, or backend
 dependencies and should be included in frontend validation for component,
 interaction, and browser smoke changes.
+
+The current baseline is split into:
+
+- Vitest and React Testing Library for component and page-level tests in
+  Node/jsdom
+- Playwright for browser-level Chromium smoke tests against the local Vite dev
+  server
+
+Frontend automated tests do not deploy infrastructure, mutate AWS resources, or
+replace the CloudFront deployment helper.
 
 For local browser testing, copy the example environment file and provide the
 public Cognito values for the active environment:
@@ -374,6 +420,29 @@ server and covers:
 - app-shell rendering under `/app`
 - public events route shell rendering
 - protected-route prompt rendering for `/app/my-events`
+
+### Frontend Deployment Model
+
+Frontend deployment follows this flow:
+
+1. read required public frontend configuration from Terraform outputs
+2. provide those values to the frontend build as `VITE_*` environment variables
+3. build frontend assets
+4. upload build artifacts into the private frontend bucket
+5. create a CloudFront invalidation when applying a real deployment
+6. serve the new frontend version through CloudFront
+
+This keeps frontend deployment separate from backend Lambda code deployment
+while still presenting one public product entry point.
+
+The frontend build must not receive:
+
+- raw API Gateway invoke URLs
+- API Gateway stage URLs
+- server-side secrets
+
+API calls remain same-origin relative requests through CloudFront, using paths
+such as `/events`.
 
 ### Frontend Deployment Helper
 

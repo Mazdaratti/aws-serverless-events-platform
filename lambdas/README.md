@@ -10,6 +10,14 @@ Lambda deployment artifacts in this repository are ZIP files built with:
 The script keeps packaging deterministic so repeated builds do not create noisy
 artifact differences when the inputs have not changed.
 
+Packaging and deployment are separate responsibilities.
+
+This directory documents how Lambda ZIP artifacts are built. Provisioning
+automation will build these artifacts before Terraform plan/apply. Lambda code
+deployment automation will map packaged workloads to Terraform output function
+names and update function code with `aws lambda update-function-code`.
+Terraform ownership rules are documented in the infrastructure and setup docs.
+
 ## Standard Packaging Model
 
 For ordinary Lambda workloads, the packaging flow is:

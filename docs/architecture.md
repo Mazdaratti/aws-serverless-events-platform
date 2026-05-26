@@ -175,46 +175,6 @@ Because of that, API Gateway CORS is expected to remain disabled unless a
 specific environment or integration case genuinely requires cross-origin
 browser access.
 
-### Frontend Deployment Direction
-
-Frontend deployment follows this production-shaped flow:
-
-1. read required public frontend configuration from Terraform outputs
-2. provide those values to the frontend build as `VITE_*` environment variables
-3. build frontend assets
-4. upload build artifacts into the private frontend bucket
-5. invalidate CloudFront cache as needed
-6. serve the new frontend version through CloudFront
-
-This keeps frontend deployment separate from backend Lambda deployment while
-still presenting one public product entry point.
-
-The current local/manual deployment path is implemented by:
-
-- `scripts/deploy_frontend.py`
-
-That helper reads the deployed environment outputs and provides only public
-frontend values to the Vite production build, such as:
-
-- `VITE_AWS_REGION`
-- `VITE_COGNITO_USER_POOL_ID`
-- `VITE_COGNITO_USER_POOL_CLIENT_ID`
-
-These values identify public Cognito client resources and are safe to include
-in browser JavaScript.
-
-The frontend build must not receive:
-
-- raw API Gateway invoke URLs
-- API Gateway stage URLs
-- server-side secrets
-
-API calls remain same-origin relative requests through CloudFront, using paths
-such as `/events`.
-
-CI/CD automation for frontend deployment is intentionally deferred until the
-repository has GitHub OIDC and separate deployment workflows.
-
 ### Frontend Application Structure
 
 The frontend is a React + Vite + TypeScript single-page application delivered
@@ -250,45 +210,6 @@ business logic:
 - client-side filtering and sorting over already loaded event DTOs
 - preserving the user's intended in-app destination when login is required by
   a protected UI prompt
-
-### Frontend Automated Testing Direction
-
-Frontend automated testing is now established as a layered validation baseline
-for the React/Vite frontend.
-
-The current testing baseline is intentionally split into two layers:
-
-1. **Vitest + React Testing Library**
-
-   - component and page-level tests running in Node/jsdom
-   - focused coverage for form validation, accessible labels, controlled filter
-     behavior, loading semantics, and related UI contracts
-   - no AWS, Cognito, CloudFront, or backend dependency
-
-2. **Playwright**
-
-   - browser-level Chromium smoke tests running against the local Vite dev
-     server
-   - current smoke coverage for `/app` shell rendering, public events shell
-     rendering, and protected-route prompt behavior for `/app/my-events`
-   - local route mocking used where needed to keep the baseline deterministic
-     and independent from deployed backend state
-
-Frontend automated tests currently run as validation-only checks. They do not
-deploy infrastructure, mutate AWS resources, or replace the manual CloudFront
-deployment helper.
-
-The current CI validation workflow now runs:
-
-- `npm ci`
-- `npm run typecheck`
-- `npm run build`
-- `npm run test`
-- `npm run test:e2e`
-
-This keeps frontend automated validation in the read-only CI path while
-deployment automation remains a separate future milestone tied to GitHub OIDC
-and dedicated deployment workflows.
 
 ---
 

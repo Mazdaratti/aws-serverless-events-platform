@@ -883,15 +883,14 @@ Important design notes:
 
 - the Lambda module remains infrastructure-focused and consumes prepared ZIP
   artifacts
-- before the Lambda module adjustment, packaging is prepared before Terraform
-  and Terraform deploys the already-built artifacts
-- after the Lambda module adjustment, Terraform should continue to manage
-  Lambda infrastructure, configuration, and wiring while tolerating external
-  code-only updates without planning to revert code
+- packaging is prepared before Terraform so fresh Lambda functions can be
+  created from the expected ZIP artifacts
+- Terraform manages Lambda infrastructure, configuration, and wiring while
+  tolerating external code-only updates without planning to revert code
 - `envs/dev` stays thin and composition-only while reusable Lambda resource
   logic stays in `modules/lambda`
 - API Gateway invoke ARN wiring and SQS event source mappings stay unchanged in
-  Step 25
+  this deployment ownership split
 - each deployed function uses its matching least-privilege IAM role
 - environment variables are workload-specific:
   - event API workloads receive `EVENTS_TABLE_NAME`

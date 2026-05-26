@@ -27,8 +27,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Backend/provisioning deployment workflow automation beyond Terraform
-  validation.
+- Lambda code deployment separation while keeping Terraform responsible for
+  Lambda infrastructure and configuration.
 
 ### Completed milestones
 
@@ -702,12 +702,19 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - validate frontend deployment apply workflow from `main` ✅
    - keep Lambda deployment Terraform-managed initially
 
-25. Optional Lambda code deployment separation
-   - prepare for a future model where Terraform creates Lambda shell/config
-   - move Lambda ZIP artifact publishing to deployment automation
+25. Lambda code deployment separation
+   - keep Terraform responsible for Lambda infrastructure and configuration
+   - keep Terraform responsible for runtime, handler, memory, timeout, tracing,
+     IAM, environment variables, log groups, API Gateway integrations, Lambda
+     permissions, SQS event source mappings, and related service wiring
+   - move Lambda ZIP packaging and function-code updates to deployment
+     automation
    - update Lambda code with `aws lambda update-function-code`
-   - keep IAM, environment variables, log groups, and API wiring in Terraform
-   - add versions/aliases only after the basic split is validated
+   - keep Terraform plans sensitive to real infrastructure/config drift
+   - after the Lambda module adjustment, ensure external code-only updates do
+     not cause Terraform to plan a code reversion
+   - defer Lambda versions, Lambda aliases, CodeDeploy, canary/blue-green
+     deployment, containers, and automatic deployment on push
 
 26. Account lifecycle and Cognito account-management UX
    - docs-first account lifecycle contract

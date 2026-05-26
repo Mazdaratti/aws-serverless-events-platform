@@ -54,5 +54,14 @@ resource "aws_lambda_function" "function" {
     Name = each.value.function_name
   })
 
+  # Terraform needs the package fields for initial function creation, but
+  # Lambda code updates are owned by deployment automation after creation.
+  lifecycle {
+    ignore_changes = [
+      filename,
+      source_code_hash,
+    ]
+  }
+
   depends_on = [aws_cloudwatch_log_group.function]
 }

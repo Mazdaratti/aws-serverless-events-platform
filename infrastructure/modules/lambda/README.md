@@ -133,20 +133,22 @@ The example shows how to:
 
 ---
 
-## Lambda Code Ownership Transition
+## Lambda Code Ownership Boundary
 
-This module currently consumes prepared ZIP artifacts through `package_path`.
-Terraform currently deploys those ZIP artifacts and tracks their
-`source_code_hash`.
+This module consumes prepared ZIP artifacts through `package_path`.
 
-Step 25 separates Lambda code deployment from Lambda infrastructure ownership.
-The intended module direction is that Terraform continues to manage Lambda
-infrastructure and configuration, while external code-only updates performed by
-deployment automation do not create Terraform code drift.
+Terraform still needs the package path and source-code hash for initial Lambda
+function creation. Fresh provisioning must build the expected ZIP artifacts
+before Terraform plan/apply.
 
-This transition is not implemented in the current module yet. Until the module
-is adjusted, Terraform still owns Lambda code through the existing artifact and
-hash inputs.
+After creation, Terraform ignores drift for the package-only fields:
+
+- `filename`
+- `source_code_hash`
+
+This keeps Terraform responsible for Lambda infrastructure and configuration
+while allowing deployment automation to update existing function code with
+`aws lambda update-function-code`.
 
 ---
 

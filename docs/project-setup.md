@@ -357,7 +357,12 @@ Local frontend validation should run from that directory:
 Use `npm ci` for PR validation because `frontend/package-lock.json` is now
 committed and represents the reproducible dependency install plan.
 
-The current frontend automated testing baseline uses:
+### Frontend Automated Testing
+
+Frontend automated testing is a validation-only baseline for the React/Vite
+frontend.
+
+The current testing baseline uses:
 
 - Vitest
 - React Testing Library
@@ -370,6 +375,16 @@ The current frontend automated testing baseline uses:
 These tests run locally without AWS, Cognito, CloudFront, or backend
 dependencies and should be included in frontend validation for component,
 interaction, and browser smoke changes.
+
+The current baseline is split into:
+
+- Vitest and React Testing Library for component and page-level tests in
+  Node/jsdom
+- Playwright for browser-level Chromium smoke tests against the local Vite dev
+  server
+
+Frontend automated tests do not deploy infrastructure, mutate AWS resources, or
+replace the CloudFront deployment helper.
 
 For local browser testing, copy the example environment file and provide the
 public Cognito values for the active environment:
@@ -401,6 +416,29 @@ server and covers:
 - app-shell rendering under `/app`
 - public events route shell rendering
 - protected-route prompt rendering for `/app/my-events`
+
+### Frontend Deployment Model
+
+Frontend deployment follows this flow:
+
+1. read required public frontend configuration from Terraform outputs
+2. provide those values to the frontend build as `VITE_*` environment variables
+3. build frontend assets
+4. upload build artifacts into the private frontend bucket
+5. create a CloudFront invalidation when applying a real deployment
+6. serve the new frontend version through CloudFront
+
+This keeps frontend deployment separate from backend Lambda code deployment
+while still presenting one public product entry point.
+
+The frontend build must not receive:
+
+- raw API Gateway invoke URLs
+- API Gateway stage URLs
+- server-side secrets
+
+API calls remain same-origin relative requests through CloudFront, using paths
+such as `/events`.
 
 ### Frontend Deployment Helper
 

@@ -702,14 +702,17 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - validate frontend deployment apply workflow from `main` ✅
    - keep Lambda deployment Terraform-managed initially
 
-25. Lambda code deployment separation
+25. Lambda provisioning and code deployment separation
    - keep Terraform responsible for Lambda infrastructure and configuration
    - keep Terraform responsible for runtime, handler, memory, timeout, tracing,
      IAM, environment variables, log groups, API Gateway integrations, Lambda
      permissions, SQS event source mappings, and related service wiring
-   - move Lambda ZIP packaging and function-code updates to deployment
-     automation
-   - update Lambda code with `aws lambda update-function-code`
+   - add a provisioning lane that builds Lambda ZIP artifacts before Terraform
+     plan/apply so fresh Lambda infrastructure can be created safely
+   - add a separate Lambda code deployment lane that builds Lambda ZIP artifacts
+     and updates existing functions without running Terraform apply
+   - update existing Lambda function code with
+     `aws lambda update-function-code`
    - keep Terraform plans sensitive to real infrastructure/config drift
    - after the Lambda module adjustment, ensure external code-only updates do
      not cause Terraform to plan a code reversion

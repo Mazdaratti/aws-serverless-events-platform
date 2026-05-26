@@ -133,6 +133,23 @@ The example shows how to:
 
 ---
 
+## Lambda Code Ownership Transition
+
+This module currently consumes prepared ZIP artifacts through `package_path`.
+Terraform currently deploys those ZIP artifacts and tracks their
+`source_code_hash`.
+
+Step 25 separates Lambda code deployment from Lambda infrastructure ownership.
+The intended module direction is that Terraform continues to manage Lambda
+infrastructure and configuration, while external code-only updates performed by
+deployment automation do not create Terraform code drift.
+
+This transition is not implemented in the current module yet. Until the module
+is adjusted, Terraform still owns Lambda code through the existing artifact and
+hash inputs.
+
+---
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 

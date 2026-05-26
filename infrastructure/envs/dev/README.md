@@ -872,7 +872,9 @@ Why this module is wired now:
   - DynamoDB business tables
   - workload IAM roles
 - the platform can now validate synchronous write paths and both public and authenticated read paths end to end in AWS
-- packaging stays outside Terraform, while deployment stays inside the reusable Lambda module
+- packaging stays outside Terraform
+- in the current transitional state, Terraform still owns Lambda code through
+  ZIP artifact and source-code hash inputs in the reusable Lambda module
 - notification workers are deployed through a separate Lambda module call after
   CloudFront so `notification-sender` can receive the CloudFront frontend base
   URL without creating a Lambda/API Gateway/CloudFront dependency cycle
@@ -881,10 +883,15 @@ Important design notes:
 
 - the Lambda module remains infrastructure-focused and consumes prepared ZIP
   artifacts
-- packaging is prepared before Terraform; Terraform deploys the already-built
-  artifacts
+- before the Lambda module adjustment, packaging is prepared before Terraform
+  and Terraform deploys the already-built artifacts
+- after the Lambda module adjustment, Terraform should continue to manage
+  Lambda infrastructure, configuration, and wiring while tolerating external
+  code-only updates without planning to revert code
 - `envs/dev` stays thin and composition-only while reusable Lambda resource
   logic stays in `modules/lambda`
+- API Gateway invoke ARN wiring and SQS event source mappings stay unchanged in
+  Step 25
 - each deployed function uses its matching least-privilege IAM role
 - environment variables are workload-specific:
   - event API workloads receive `EVENTS_TABLE_NAME`

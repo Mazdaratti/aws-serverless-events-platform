@@ -19,7 +19,7 @@ It covers:
 > repository variables are synced from bootstrap outputs for the manual AWS OIDC
 > smoke workflow and frontend deployment workflows. Frontend deployment supports
 > both manual dry-run and manual apply workflows. Terraform provisioning and
-> Lambda artifact generation remain separate from frontend deployment.
+> Lambda code deployment remain separate from frontend deployment.
 
 ---
 
@@ -93,8 +93,10 @@ deploy frontend assets.
    addresses and other local deployment inputs that are intentionally not
    committed.
 11. Package Lambda artifacts before provisioning Lambda-backed infrastructure.
-   Use the packaging instructions in `lambdas/README.md` so Terraform can deploy
-   the expected ZIP artifacts for the current Lambda artifact layout.
+   In the current transitional state, before the Lambda module adjustment,
+   Terraform still owns Lambda code through ZIP artifact and source-code hash
+   inputs. Fresh provisioning still depends on the existing packaging path
+   documented in `lambdas/README.md`.
 12. Provision the `dev` environment:
    ```powershell
    terraform -chdir=infrastructure/envs/dev plan -out=tfplan
@@ -174,6 +176,31 @@ The smoke workflow intentionally does not run `terraform plan`, `terraform apply
 Lambda artifact generation, or frontend deployment. Frontend deployment is
 handled by the dedicated frontend workflows. Terraform provisioning and Lambda
 artifact generation remain separate.
+
+## Lambda Code Deployment Boundary
+
+Step 25 separates Lambda infrastructure ownership from Lambda code deployment.
+
+Current transitional state:
+
+- Terraform still owns Lambda code through ZIP artifact and source-code hash
+  inputs in the Lambda module.
+- Fresh provisioning still requires the existing Lambda packaging path so the
+  expected ZIP artifacts are available.
+
+Target Step 25 state:
+
+- Terraform continues to own Lambda infrastructure, configuration, and service
+  wiring.
+- Lambda deployment automation owns ZIP packaging, workload-to-function mapping,
+  and function-code updates through `aws lambda update-function-code`.
+- Lambda deployment workflows may read Terraform outputs, but they must not run
+  `terraform apply`.
+- After the Lambda module adjustment, external code-only updates should not
+  cause Terraform to plan a code reversion.
+
+Config drift such as environment variables, timeout, memory, tracing, IAM,
+event source mappings, and API Gateway wiring must remain visible to Terraform.
 
 ---
 

@@ -6,9 +6,12 @@ shared helper package under `lambdas/shared`.
 Lambda deployment artifacts in this repository are ZIP files built with:
 
 - `scripts/package_lambda.py`
+- `scripts/package_lambdas.py`
 
-The script keeps packaging deterministic so repeated builds do not create noisy
-artifact differences when the inputs have not changed.
+The scripts keep packaging deterministic so repeated builds do not create noisy
+artifact differences when the inputs have not changed. `package_lambda.py`
+packages one workload. `package_lambdas.py` orchestrates all deployed workloads
+expected by `infrastructure/envs/dev`.
 
 Packaging and deployment are separate responsibilities.
 
@@ -17,6 +20,32 @@ automation will build these artifacts before Terraform plan/apply. Lambda code
 deployment automation will map packaged workloads to Terraform output function
 names and update function code with `aws lambda update-function-code`.
 Terraform ownership rules are documented in the infrastructure and setup docs.
+
+## All-Workload Packaging
+
+Use the orchestration helper when provisioning or deployment automation needs
+the complete Lambda artifact set:
+
+```powershell
+python scripts/package_lambdas.py
+```
+
+The helper packages all deployed workloads into:
+
+- `artifacts/lambda/<function-key>.zip`
+
+It also rebuilds the Lambda-compatible RSVP authorizer vendor tree by default
+before packaging `rsvp-authorizer`.
+
+If the vendor tree has already been rebuilt in the current job or local
+session, the rebuild can be skipped:
+
+```powershell
+python scripts/package_lambdas.py --skip-authorizer-vendor-build
+```
+
+The skip mode still validates that `lambdas/rsvp_authorizer/vendor/` exists and
+is not empty before packaging.
 
 ## Standard Packaging Model
 

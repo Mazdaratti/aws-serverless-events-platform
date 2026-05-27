@@ -77,6 +77,9 @@ jobs:
       - name: Compile helper scripts
         run: python -m compileall -q scripts
 
+      - name: Package Lambda artifacts
+        run: python scripts/package_lambdas.py --skip-authorizer-vendor-build
+
       - name: Run Lambda handler tests
         run: python -m pytest tests/lambdas
 

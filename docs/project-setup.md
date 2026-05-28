@@ -16,10 +16,9 @@ It covers:
 > Current setup model: `infrastructure/bootstrap/dev` creates the remote state
 > bucket, generated backend config, and GitHub OIDC role. The
 > `infrastructure/envs/dev` root uses the generated S3 backend. GitHub
-> repository variables are synced from bootstrap outputs for the manual AWS OIDC
-> smoke workflow and frontend deployment workflows. Dev Terraform inputs can be
-> synced from the local untracked `terraform.tfvars` file into GitHub repository
-> variables and secrets for provisioning workflows. Frontend deployment supports
+> repository variables and secrets are synced from bootstrap outputs and local
+> dev Terraform inputs for the manual AWS OIDC smoke workflow, frontend
+> deployment workflows, and provisioning workflows. Frontend deployment supports
 > both manual dry-run and manual apply workflows. Terraform provisioning and
 > Lambda code deployment remain separate from frontend deployment.
 
@@ -70,13 +69,21 @@ deploy frontend assets.
    Get-Content infrastructure/envs/dev/backend.tf
    git status --short --ignored -- infrastructure/envs/dev/backend.tf
    ```
-7. Sync GitHub repository variables for GitHub Actions from bootstrap outputs:
+7. Copy and edit the `dev` environment variables:
+   - `infrastructure/envs/dev/terraform.tfvars.example`
+   - `infrastructure/envs/dev/terraform.tfvars`
+
+   These variables provide environment-specific values such as project email
+   addresses and other local deployment inputs that are intentionally not
+   committed.
+8. Sync GitHub repository variables and secrets for GitHub Actions:
    ```powershell
    python scripts/sync_github_actions_vars.py --dry-run
    python scripts/sync_github_actions_vars.py
    gh variable list
+   gh secret list
    ```
-8. Package Lambda artifacts for the provisioning lane:
+9. Package Lambda artifacts for the provisioning lane:
    ```powershell
    python scripts/package_lambdas.py
    ```
@@ -85,42 +92,21 @@ deploy frontend assets.
    Lambda functions from the expected package paths. After Lambda functions
    exist, Terraform ignores Lambda package-field drift while continuing to
    manage infrastructure and configuration.
-9. Copy and edit the `dev` environment variables:
-   - `infrastructure/envs/dev/terraform.tfvars.example`
-   - `infrastructure/envs/dev/terraform.tfvars`
-
-   These variables provide environment-specific values such as project email
-   addresses and other local deployment inputs that are intentionally not
-   committed.
-10. Sync dev Terraform inputs into GitHub repository variables and secrets
-    before running GitHub Actions provisioning workflows:
-    ```powershell
-    python scripts/sync_dev_tfvars_to_github.py --dry-run
-    python scripts/sync_dev_tfvars_to_github.py
-    gh variable list
-    gh secret list
-    ```
-
-    The helper reads the local untracked
-    `infrastructure/envs/dev/terraform.tfvars` file. Dry-run mode does not
-    mutate GitHub.
-11. Run the manual AWS OIDC smoke workflow from `main` after the repository
+10. Run the manual AWS OIDC smoke workflow from `main` after the repository
     variables have been synced and the workflow file has been merged:
     ```powershell
     gh workflow run aws-oidc-smoke.yml --ref main
     ```
 
     This confirms that GitHub Actions can assume the AWS role, initialize the
-    remote backend, validate `infrastructure/envs/dev`, and read Terraform
-    outputs from remote state. On a brand-new environment, run this smoke test
-    after the first successful dev provisioning if remote dev outputs do not
-    exist yet.
-12. Initialize `infrastructure/envs/dev` with the generated remote backend:
+    remote backend, validate `infrastructure/envs/dev`, and access the
+    configured remote state bucket and backend key prefix.
+11. Initialize `infrastructure/envs/dev` with the generated remote backend:
    ```powershell
    terraform -chdir=infrastructure/envs/dev init
    terraform -chdir=infrastructure/envs/dev validate -no-color
    ```
-13. Provision the `dev` environment:
+12. Provision the `dev` environment:
    ```powershell
    terraform -chdir=infrastructure/envs/dev plan -out=tfplan
    terraform -chdir=infrastructure/envs/dev apply tfplan
@@ -128,7 +114,7 @@ deploy frontend assets.
    ```
 
    The final plan should report no changes after a successful apply.
-14. Build and deploy the frontend with one of the implemented frontend
+13. Build and deploy the frontend with one of the implemented frontend
     deployment paths.
 
     For local validation without uploading assets:
@@ -150,7 +136,7 @@ deploy frontend assets.
     ```powershell
     gh workflow run frontend-deploy-apply.yml --ref main -f confirm_deploy=deploy-dev
     ```
-15. Validate the CloudFront frontend and `/events` API routes.
+14. Validate the CloudFront frontend and `/events` API routes.
 
     Check the app through the CloudFront domain printed by the deployment
     helper or available from Terraform outputs:
@@ -166,83 +152,61 @@ GitHub Actions uses the OIDC role created by `infrastructure/bootstrap/dev`.
 The current OIDC trust is branch-scoped to `main`, so the smoke workflow uses
 repository variables and does not use a GitHub Environment.
 
-Sync the required repository variables from the bootstrap outputs:
-
-```powershell
-python scripts/sync_github_actions_vars.py --dry-run
-python scripts/sync_github_actions_vars.py
-```
-
-The helper sets these repository variables:
-
-- `AWS_ROLE_TO_ASSUME`
-- `AWS_REGION`
-- `TF_BACKEND_BUCKET`
-- `TF_BACKEND_KEY`
-
-The bootstrap sync helper owns those shared GitHub Actions values. Do not
-replace them with dev-specific duplicates.
-
-Verify the repository variables with:
-
-```powershell
-gh variable list
-```
+Before running GitHub Actions workflows, complete the repository variable and
+secret sync described in [GitHub Actions Input Sync](#github-actions-input-sync).
 
 The manual `AWS OIDC Smoke` workflow validates:
 
 - GitHub Actions can request an OIDC token
 - AWS accepts the token for the branch-scoped role
-- the assumed role can read the S3 remote state object
+- the assumed role can access the configured S3 remote state bucket and backend
+  key prefix
 - Terraform can initialize against the generated S3 backend settings
 - Terraform can validate `infrastructure/envs/dev`
-- Terraform can read `envs/dev` outputs from remote state
 
 The smoke workflow intentionally does not run `terraform plan`, `terraform apply`,
 Lambda artifact generation, or frontend deployment. Frontend deployment is
 handled by the dedicated frontend workflows. Terraform provisioning and Lambda
 artifact generation remain separate.
 
-## Dev Terraform Inputs for GitHub Actions
+## GitHub Actions Input Sync
 
 Local developers can continue to use the untracked dev tfvars file:
 
 - `infrastructure/envs/dev/terraform.tfvars`
 
-GitHub Actions cannot read that local file. To prepare repository values for
-manual provisioning workflows, sync the supported dev Terraform inputs from the
-local tfvars file into GitHub:
+GitHub Actions cannot read that local file. The unified sync helper publishes
+both bootstrap-derived values and supported dev Terraform inputs into GitHub:
 
 ```powershell
-python scripts/sync_dev_tfvars_to_github.py --dry-run
-python scripts/sync_dev_tfvars_to_github.py
+python scripts/sync_github_actions_vars.py --dry-run
+python scripts/sync_github_actions_vars.py
 ```
 
-The helper does not call AWS or Terraform. Dry-run mode parses the local tfvars
-file and prints the planned GitHub variable and secret names without updating
-GitHub. A real sync uses GitHub CLI.
+The helper uses Terraform only to read bootstrap outputs. It does not call AWS
+directly and does not run Terraform plan/apply. Dry-run mode prints the planned
+GitHub variable and secret names without updating GitHub.
 
-The helper sets these repository variables:
+The helper sets these dev Terraform repository variables:
 
 - `DEV_PROJECT_NAME`
 - `DEV_ENVIRONMENT`
 - `DEV_DYNAMODB_POINT_IN_TIME_RECOVERY_ENABLED`
 - `DEV_ENABLE_WAF`
 
-The helper sets these repository secrets:
+The helper sets these dev Terraform repository secrets:
 
 - `DEV_SES_SENDER_EMAIL`
 - `DEV_SNS_ADMIN_EMAIL_SUBSCRIPTIONS_JSON`
 
-The existing bootstrap sync helper still owns these shared repository
-variables:
+The same helper also sets these bootstrap-derived repository variables:
 
 - `AWS_ROLE_TO_ASSUME`
 - `AWS_REGION`
 - `TF_BACKEND_BUCKET`
 - `TF_BACKEND_KEY`
 
-Provisioning workflows should pass these GitHub values to Terraform through
+Provisioning workflows should pass the GitHub values to Terraform through
 `TF_VAR_*` environment variables. The local `terraform.tfvars` file remains
 operator-owned and must not be committed.
 

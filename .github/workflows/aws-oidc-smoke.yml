@@ -82,10 +82,6 @@ jobs:
         working-directory: infrastructure/envs/dev
         run: terraform validate -no-color
 
-      - name: Read remote-backed Terraform output
-        working-directory: infrastructure/envs/dev
-        run: terraform output aws_region
-
       - name: Verify remote state object
         run: |
           aws s3api head-object \

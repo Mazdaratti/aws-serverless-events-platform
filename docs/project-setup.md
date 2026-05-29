@@ -101,12 +101,24 @@ deploy frontend assets.
     This confirms that GitHub Actions can assume the AWS role, initialize the
     remote backend, validate `infrastructure/envs/dev`, and access the
     configured remote state bucket and backend key prefix.
-11. Initialize `infrastructure/envs/dev` with the generated remote backend:
+11. Run the manual provisioning dry-run workflow from `main`:
+    ```powershell
+    gh workflow run provisioning-dry-run.yml --ref main
+    ```
+
+    This validation-only provisioning dry run uses the synced GitHub variables
+    and secrets, generates the dev backend configuration, packages Lambda ZIP
+    artifacts, and runs `terraform init`, `terraform validate`, and
+    `terraform plan`.
+
+    It does not run `terraform apply`, does not call
+    `aws lambda update-function-code`, and does not deploy frontend assets.
+12. Initialize `infrastructure/envs/dev` with the generated remote backend:
    ```powershell
    terraform -chdir=infrastructure/envs/dev init
    terraform -chdir=infrastructure/envs/dev validate -no-color
    ```
-12. Provision the `dev` environment:
+13. Provision the `dev` environment:
    ```powershell
    terraform -chdir=infrastructure/envs/dev plan -out=tfplan
    terraform -chdir=infrastructure/envs/dev apply tfplan
@@ -114,7 +126,7 @@ deploy frontend assets.
    ```
 
    The final plan should report no changes after a successful apply.
-13. Build and deploy the frontend with one of the implemented frontend
+14. Build and deploy the frontend with one of the implemented frontend
     deployment paths.
 
     For local validation without uploading assets:
@@ -136,7 +148,7 @@ deploy frontend assets.
     ```powershell
     gh workflow run frontend-deploy-apply.yml --ref main -f confirm_deploy=deploy-dev
     ```
-14. Validate the CloudFront frontend and `/events` API routes.
+15. Validate the CloudFront frontend and `/events` API routes.
 
     Check the app through the CloudFront domain printed by the deployment
     helper or available from Terraform outputs:
@@ -168,6 +180,29 @@ The smoke workflow intentionally does not run `terraform plan`, `terraform apply
 Lambda artifact generation, or frontend deployment. Frontend deployment is
 handled by the dedicated frontend workflows. Terraform provisioning and Lambda
 artifact generation remain separate.
+
+### Provisioning Dry Run Workflow
+
+The manual provisioning dry-run workflow is:
+
+- `.github/workflows/provisioning-dry-run.yml`
+
+Run it from `main` with:
+
+```powershell
+gh workflow run provisioning-dry-run.yml --ref main
+```
+
+This validation-only provisioning dry run uses synced GitHub variables and
+secrets, generates the dev backend configuration, packages Lambda ZIP artifacts,
+and runs:
+
+- `terraform init`
+- `terraform validate`
+- `terraform plan`
+
+This workflow validates provisioning only. It does not apply infrastructure,
+deploy Lambda code, or deploy frontend assets.
 
 ## GitHub Actions Input Sync
 

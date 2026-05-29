@@ -310,6 +310,7 @@ data "aws_iam_policy_document" "github_actions_deploy_edge_storage_permissions" 
       "s3:GetBucketOwnershipControls",
       "s3:GetBucketPolicy",
       "s3:GetBucketPublicAccessBlock",
+      "s3:GetBucketRequestPayment",
       "s3:GetBucketTagging",
       "s3:GetBucketVersioning",
       "s3:GetBucketWebsite",

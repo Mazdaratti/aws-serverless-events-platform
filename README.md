@@ -28,7 +28,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 ### Current focus
 
 - Lambda deployment automation split:
-  - provisioning dry-run automation is implemented and ready for validation
+  - provisioning dry-run automation is implemented and validated from `main`
   - Lambda code deployment automation remains separate from Terraform apply
 
 ### Completed milestones
@@ -156,12 +156,14 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - manual GitHub Actions provisioning dry-run workflow added
   - workflow packages Lambda ZIP artifacts before Terraform planning
   - workflow runs Terraform init, validate, and plan through GitHub OIDC
+  - workflow validated successfully from `main` with a clean Terraform plan
+  - OIDC deploy policy includes Terraform refresh read permissions required by
+    the current `dev` platform surface
   - workflow does not run Terraform apply
   - workflow does not deploy Lambda code or frontend assets
 
 ### Next milestones
 
-- validate the manual provisioning dry-run workflow from `main`
 - add Lambda code deployment dry-run automation
 
 ---
@@ -728,6 +730,10 @@ Infrastructure is implemented using modular Terraform design with environment-sp
      dry-run workflow ✅
    - run Terraform init, validate, and plan in the provisioning dry-run workflow
      without applying infrastructure ✅
+   - validate provisioning dry-run workflow from `main` with a clean Terraform
+     plan ✅
+   - add required OIDC deploy-policy read permissions for Terraform refresh of
+     the current `dev` platform surface ✅
    - add a separate Lambda code deployment lane that builds Lambda ZIP artifacts
      and updates existing functions without running Terraform apply
    - update existing Lambda function code with

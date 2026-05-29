@@ -27,8 +27,9 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ### Current focus
 
-- Lambda code deployment separation while keeping Terraform responsible for
-  Lambda infrastructure and configuration.
+- Lambda deployment automation split:
+  - provisioning dry-run automation is implemented and ready for validation
+  - Lambda code deployment automation remains separate from Terraform apply
 
 ### Completed milestones
 
@@ -144,14 +145,24 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - AWS bootstrap validation completed for `dev`
   - `infrastructure/envs/dev` migrated to the generated S3 backend
   - remote-backed `dev` Terraform plan validated clean
-  - repository variable sync helper added for GitHub Actions OIDC wiring
-  - GitHub repository variables synced from bootstrap outputs
+  - unified repository variable and secret sync helper added for GitHub Actions
+    provisioning inputs
+  - GitHub repository variables and secrets can be synced from bootstrap outputs
+    and local dev Terraform inputs
   - manual AWS OIDC smoke workflow added for branch-scoped role validation
   - GitHub Actions OIDC smoke workflow validated successfully from `main`
 
+- Provisioning dry-run automation
+  - manual GitHub Actions provisioning dry-run workflow added
+  - workflow packages Lambda ZIP artifacts before Terraform planning
+  - workflow runs Terraform init, validate, and plan through GitHub OIDC
+  - workflow does not run Terraform apply
+  - workflow does not deploy Lambda code or frontend assets
+
 ### Next milestones
 
-- deployment workflow automation beyond Terraform validation
+- validate the manual provisioning dry-run workflow from `main`
+- add Lambda code deployment dry-run automation
 
 ---
 
@@ -356,6 +367,7 @@ aws-serverless-events-platform/
 |       |-- aws-oidc-smoke.yml
 |       |-- frontend-deploy-dry-run.yml
 |       |-- frontend-deploy-apply.yml
+|       |-- provisioning-dry-run.yml
 |       `-- ci.yml
 |
 |-- docs/
@@ -668,8 +680,10 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - validate the bootstrap resources in AWS ✅
    - migrate `infrastructure/envs/dev` to remote state ✅
    - validate a clean remote-backed `dev` Terraform plan ✅
-   - add repository variable sync helper for GitHub Actions OIDC wiring ✅
-   - sync GitHub repository variables from bootstrap outputs ✅
+   - add unified repository variable and secret sync helper for GitHub Actions
+     provisioning inputs ✅
+   - support syncing GitHub repository variables and secrets from bootstrap
+     outputs and local dev Terraform inputs ✅
    - add manual GitHub Actions OIDC smoke workflow ✅
    - validate GitHub Actions OIDC smoke workflow from `main` ✅
    - keep application deployment workflows separate from this infrastructure
@@ -709,6 +723,11 @@ Infrastructure is implemented using modular Terraform design with environment-sp
      permissions, SQS event source mappings, and related service wiring
    - add a provisioning lane that builds Lambda ZIP artifacts before Terraform
      plan/apply so fresh Lambda infrastructure can be created safely
+   - add manual provisioning dry-run workflow for GitHub Actions ✅
+   - package Lambda ZIP artifacts before Terraform plan in the provisioning
+     dry-run workflow ✅
+   - run Terraform init, validate, and plan in the provisioning dry-run workflow
+     without applying infrastructure ✅
    - add a separate Lambda code deployment lane that builds Lambda ZIP artifacts
      and updates existing functions without running Terraform apply
    - update existing Lambda function code with

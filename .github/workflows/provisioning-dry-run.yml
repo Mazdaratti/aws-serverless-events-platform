@@ -1,0 +1,119 @@
+name: Provisioning Dry Run
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  provisioning-dry-run:
+    name: Validate Terraform provisioning dry run
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      TF_BACKEND_BUCKET: ${{ vars.TF_BACKEND_BUCKET }}
+      TF_BACKEND_KEY: ${{ vars.TF_BACKEND_KEY }}
+      TF_VAR_project_name: ${{ vars.DEV_PROJECT_NAME }}
+      TF_VAR_environment: ${{ vars.DEV_ENVIRONMENT }}
+      TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+      TF_VAR_dynamodb_point_in_time_recovery_enabled: ${{ vars.DEV_DYNAMODB_POINT_IN_TIME_RECOVERY_ENABLED }}
+      TF_VAR_enable_waf: ${{ vars.DEV_ENABLE_WAF }}
+      TF_VAR_ses_sender_email: ${{ secrets.DEV_SES_SENDER_EMAIL }}
+      TF_VAR_sns_admin_email_subscriptions: ${{ secrets.DEV_SNS_ADMIN_EMAIL_SUBSCRIPTIONS_JSON }}
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check branch-scoped OIDC context
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "This workflow must run from refs/heads/main because the AWS OIDC role trust is branch-scoped."
+            echo "Current ref: ${GITHUB_REF}"
+            exit 1
+          fi
+
+      - name: Validate required repository variables and secrets
+        run: |
+          for name in \
+            AWS_REGION \
+            AWS_ROLE_TO_ASSUME \
+            TF_BACKEND_BUCKET \
+            TF_BACKEND_KEY \
+            TF_VAR_project_name \
+            TF_VAR_environment \
+            TF_VAR_aws_region \
+            TF_VAR_dynamodb_point_in_time_recovery_enabled \
+            TF_VAR_enable_waf \
+            TF_VAR_ses_sender_email \
+            TF_VAR_sns_admin_email_subscriptions
+          do
+            if [ -z "${!name}" ]; then
+              echo "Missing required GitHub Actions value: ${name}"
+              exit 1
+            fi
+          done
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.14.3
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          mask-aws-account-id: true
+
+      - name: Verify AWS caller identity
+        run: aws sts get-caller-identity
+
+      - name: Generate dev backend configuration
+        working-directory: infrastructure/envs/dev
+        run: |
+          printf '%s\n' \
+            'terraform {' \
+            '  backend "s3" {' \
+            "    bucket       = \"${TF_BACKEND_BUCKET}\"" \
+            "    key          = \"${TF_BACKEND_KEY}\"" \
+            "    region       = \"${AWS_REGION}\"" \
+            '    encrypt      = true' \
+            '    use_lockfile = true' \
+            '  }' \
+            '}' \
+            > backend.tf
+
+      - name: Package Lambda artifacts
+        run: python scripts/package_lambdas.py
+
+      - name: Terraform init
+        working-directory: infrastructure/envs/dev
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        working-directory: infrastructure/envs/dev
+        run: terraform validate -no-color
+
+      - name: Terraform plan
+        working-directory: infrastructure/envs/dev
+        run: terraform plan -input=false -no-color

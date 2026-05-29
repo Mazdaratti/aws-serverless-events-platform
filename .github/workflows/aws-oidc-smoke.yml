@@ -82,14 +82,15 @@ jobs:
         working-directory: infrastructure/envs/dev
         run: terraform validate -no-color
 
-      - name: Read remote-backed Terraform output
-        working-directory: infrastructure/envs/dev
-        run: terraform output aws_region
-
-      - name: Verify remote state object
+      - name: Verify remote state bucket and prefix access
         run: |
-          aws s3api head-object \
+          aws s3api get-bucket-location \
+            --region "${AWS_REGION}" \
+            --bucket "${TF_BACKEND_BUCKET}"
+
+          aws s3api list-objects-v2 \
             --region "${AWS_REGION}" \
             --bucket "${TF_BACKEND_BUCKET}" \
-            --key "${TF_BACKEND_KEY}" \
-            --query "{ContentLength:ContentLength,ServerSideEncryption:ServerSideEncryption,VersionId:VersionId}"
+            --prefix "${TF_BACKEND_KEY}" \
+            --max-keys 1 \
+            --query "{KeyCount:KeyCount}"

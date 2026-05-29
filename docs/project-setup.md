@@ -16,8 +16,9 @@ It covers:
 > Current setup model: `infrastructure/bootstrap/dev` creates the remote state
 > bucket, generated backend config, and GitHub OIDC role. The
 > `infrastructure/envs/dev` root uses the generated S3 backend. GitHub
-> repository variables are synced from bootstrap outputs for the manual AWS OIDC
-> smoke workflow and frontend deployment workflows. Frontend deployment supports
+> repository variables and secrets are synced from bootstrap outputs and local
+> dev Terraform inputs for the manual AWS OIDC smoke workflow, frontend
+> deployment workflows, and provisioning workflows. Frontend deployment supports
 > both manual dry-run and manual apply workflows. Terraform provisioning and
 > Lambda code deployment remain separate from frontend deployment.
 
@@ -51,7 +52,7 @@ deploy frontend assets.
 
    The bootstrap variables define the AWS region, project/environment naming,
    GitHub organization/repository, branch-scoped OIDC trust, and optional tags.
-5. Initialize, validate, and apply the bootstrap root:
+5. Initialize, validate, and apply the bootstrap root locally:
    ```powershell
    terraform -chdir=infrastructure/bootstrap/dev init
    terraform -chdir=infrastructure/bootstrap/dev validate -no-color
@@ -68,36 +69,56 @@ deploy frontend assets.
    Get-Content infrastructure/envs/dev/backend.tf
    git status --short --ignored -- infrastructure/envs/dev/backend.tf
    ```
-7. Sync GitHub repository variables for GitHub Actions from bootstrap outputs:
-   ```powershell
-   python scripts/sync_github_actions_vars.py --dry-run
-   python scripts/sync_github_actions_vars.py
-   gh variable list
-   ```
-8. Initialize `infrastructure/envs/dev` with the generated remote backend:
-   ```powershell
-   terraform -chdir=infrastructure/envs/dev init
-   terraform -chdir=infrastructure/envs/dev validate -no-color
-   ```
-9. Run the manual AWS OIDC smoke workflow from `main` after the repository
-   variables have been synced and the workflow file has been merged.
-
-   This confirms that GitHub Actions can assume the AWS role, initialize the
-   remote backend, validate `infrastructure/envs/dev`, and read Terraform
-   outputs from remote state.
-10. Copy and edit the `dev` environment variables:
+7. Copy and edit the `dev` environment variables:
    - `infrastructure/envs/dev/terraform.tfvars.example`
    - `infrastructure/envs/dev/terraform.tfvars`
 
    These variables provide environment-specific values such as project email
    addresses and other local deployment inputs that are intentionally not
    committed.
-11. Package Lambda artifacts before provisioning Lambda-backed infrastructure.
-   In the current transitional state, before the Lambda module adjustment,
-   Terraform still owns Lambda code through ZIP artifact and source-code hash
-   inputs. Fresh provisioning still depends on the existing packaging path
-   documented in `lambdas/README.md`.
-12. Provision the `dev` environment:
+8. Sync GitHub repository variables and secrets for GitHub Actions:
+   ```powershell
+   python scripts/sync_github_actions_vars.py --dry-run
+   python scripts/sync_github_actions_vars.py
+   gh variable list
+   gh secret list
+   ```
+9. Package Lambda artifacts for the provisioning lane:
+   ```powershell
+   python scripts/package_lambdas.py
+   ```
+
+   Fresh provisioning requires these ZIP artifacts so Terraform can create
+   Lambda functions from the expected package paths. After Lambda functions
+   exist, Terraform ignores Lambda package-field drift while continuing to
+   manage infrastructure and configuration.
+10. Run the manual AWS OIDC smoke workflow from `main` after the repository
+    variables have been synced and the workflow file has been merged:
+    ```powershell
+    gh workflow run aws-oidc-smoke.yml --ref main
+    ```
+
+    This confirms that GitHub Actions can assume the AWS role, initialize the
+    remote backend, validate `infrastructure/envs/dev`, and access the
+    configured remote state bucket and backend key prefix.
+11. Run the manual provisioning dry-run workflow from `main`:
+    ```powershell
+    gh workflow run provisioning-dry-run.yml --ref main
+    ```
+
+    This validation-only provisioning dry run uses the synced GitHub variables
+    and secrets, generates the dev backend configuration, packages Lambda ZIP
+    artifacts, and runs `terraform init`, `terraform validate`, and
+    `terraform plan`.
+
+    It does not run `terraform apply`, does not call
+    `aws lambda update-function-code`, and does not deploy frontend assets.
+12. Initialize `infrastructure/envs/dev` with the generated remote backend:
+   ```powershell
+   terraform -chdir=infrastructure/envs/dev init
+   terraform -chdir=infrastructure/envs/dev validate -no-color
+   ```
+13. Provision the `dev` environment:
    ```powershell
    terraform -chdir=infrastructure/envs/dev plan -out=tfplan
    terraform -chdir=infrastructure/envs/dev apply tfplan
@@ -105,7 +126,7 @@ deploy frontend assets.
    ```
 
    The final plan should report no changes after a successful apply.
-13. Build and deploy the frontend with one of the implemented frontend
+14. Build and deploy the frontend with one of the implemented frontend
     deployment paths.
 
     For local validation without uploading assets:
@@ -127,7 +148,7 @@ deploy frontend assets.
     ```powershell
     gh workflow run frontend-deploy-apply.yml --ref main -f confirm_deploy=deploy-dev
     ```
-14. Validate the CloudFront frontend and `/events` API routes.
+15. Validate the CloudFront frontend and `/events` API routes.
 
     Check the app through the CloudFront domain printed by the deployment
     helper or available from Terraform outputs:
@@ -143,65 +164,103 @@ GitHub Actions uses the OIDC role created by `infrastructure/bootstrap/dev`.
 The current OIDC trust is branch-scoped to `main`, so the smoke workflow uses
 repository variables and does not use a GitHub Environment.
 
-Sync the required repository variables from the bootstrap outputs:
-
-```powershell
-python scripts/sync_github_actions_vars.py --dry-run
-python scripts/sync_github_actions_vars.py
-```
-
-The helper sets these repository variables:
-
-- `AWS_ROLE_TO_ASSUME`
-- `AWS_REGION`
-- `TF_BACKEND_BUCKET`
-- `TF_BACKEND_KEY`
-
-Verify the repository variables with:
-
-```powershell
-gh variable list
-```
+Before running GitHub Actions workflows, complete the repository variable and
+secret sync described in [GitHub Actions Input Sync](#github-actions-input-sync).
 
 The manual `AWS OIDC Smoke` workflow validates:
 
 - GitHub Actions can request an OIDC token
 - AWS accepts the token for the branch-scoped role
-- the assumed role can read the S3 remote state object
+- the assumed role can access the configured S3 remote state bucket and backend
+  key prefix
 - Terraform can initialize against the generated S3 backend settings
 - Terraform can validate `infrastructure/envs/dev`
-- Terraform can read `envs/dev` outputs from remote state
 
 The smoke workflow intentionally does not run `terraform plan`, `terraform apply`,
 Lambda artifact generation, or frontend deployment. Frontend deployment is
 handled by the dedicated frontend workflows. Terraform provisioning and Lambda
 artifact generation remain separate.
 
+### Provisioning Dry Run Workflow
+
+The manual provisioning dry-run workflow is:
+
+- `.github/workflows/provisioning-dry-run.yml`
+
+Run it from `main` with:
+
+```powershell
+gh workflow run provisioning-dry-run.yml --ref main
+```
+
+This validation-only provisioning dry run uses synced GitHub variables and
+secrets, generates the dev backend configuration, packages Lambda ZIP artifacts,
+and runs:
+
+- `terraform init`
+- `terraform validate`
+- `terraform plan`
+
+This workflow validates provisioning only. It does not apply infrastructure,
+deploy Lambda code, or deploy frontend assets.
+
+## GitHub Actions Input Sync
+
+Local developers can continue to use the untracked dev tfvars file:
+
+- `infrastructure/envs/dev/terraform.tfvars`
+
+GitHub Actions cannot read that local file. The unified sync helper publishes
+both bootstrap-derived values and supported dev Terraform inputs into GitHub:
+
+```powershell
+python scripts/sync_github_actions_vars.py --dry-run
+python scripts/sync_github_actions_vars.py
+```
+
+The helper uses Terraform only to read bootstrap outputs. It does not call AWS
+directly and does not run Terraform plan/apply. Dry-run mode prints the planned
+GitHub variable and secret names without updating GitHub.
+
+The helper sets these dev Terraform repository variables:
+
+- `DEV_PROJECT_NAME`
+- `DEV_ENVIRONMENT`
+- `DEV_DYNAMODB_POINT_IN_TIME_RECOVERY_ENABLED`
+- `DEV_ENABLE_WAF`
+
+The helper sets these dev Terraform repository secrets:
+
+- `DEV_SES_SENDER_EMAIL`
+- `DEV_SNS_ADMIN_EMAIL_SUBSCRIPTIONS_JSON`
+
+The same helper also sets these bootstrap-derived repository variables:
+
+- `AWS_ROLE_TO_ASSUME`
+- `AWS_REGION`
+- `TF_BACKEND_BUCKET`
+- `TF_BACKEND_KEY`
+
+Provisioning workflows should pass the GitHub values to Terraform through
+`TF_VAR_*` environment variables. The local `terraform.tfvars` file remains
+operator-owned and must not be committed.
+
 ## Lambda Provisioning and Code Deployment Boundary
 
-Step 25 separates Lambda infrastructure ownership from Lambda code deployment,
-while keeping Lambda artifact generation available to both automation lanes.
-
-Current transitional state:
-
-- Terraform still owns Lambda code through ZIP artifact and source-code hash
-  inputs in the Lambda module.
-- Fresh provisioning still requires the existing Lambda packaging path so the
-  expected ZIP artifacts are available.
-
-Target Step 25 state:
+Lambda infrastructure ownership is separate from Lambda code deployment, while
+Lambda artifact generation remains available to both automation lanes.
 
 - Terraform continues to own Lambda infrastructure, configuration, and service
   wiring.
-- Provisioning automation builds Lambda ZIP artifacts before Terraform
-  plan/apply so Terraform can create Lambda functions when needed.
+- Provisioning builds Lambda ZIP artifacts before Terraform plan/apply so
+  Terraform can create Lambda functions when needed.
+- After Lambda functions exist, Terraform ignores Lambda package-field drift
+  while continuing to detect infrastructure and configuration drift.
 - Lambda code deployment automation builds Lambda ZIP artifacts, maps workloads
   to existing function names from Terraform outputs, and updates code through
   `aws lambda update-function-code`.
 - Lambda code deployment workflows may read Terraform outputs, but they must
   not run `terraform apply`.
-- After the Lambda module adjustment, external code-only updates should not
-  cause Terraform to plan a code reversion.
 
 Config drift such as environment variables, timeout, memory, tracing, IAM,
 event source mappings, and API Gateway wiring must remain visible to Terraform.

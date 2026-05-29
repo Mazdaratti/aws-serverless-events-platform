@@ -302,6 +302,7 @@ data "aws_iam_policy_document" "github_actions_deploy_edge_storage_permissions" 
       "s3:DeleteBucketPolicy",
       "s3:DeleteBucketPublicAccessBlock",
       "s3:DeleteBucketTagging",
+      "s3:GetAccelerateConfiguration",
       "s3:GetBucketAcl",
       "s3:GetBucketCORS",
       "s3:GetBucketLocation",

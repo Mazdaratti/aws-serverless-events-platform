@@ -113,20 +113,20 @@ deploy frontend assets.
 
     It does not run `terraform apply`, does not call
     `aws lambda update-function-code`, and does not deploy frontend assets.
-12. Initialize `infrastructure/envs/dev` with the generated remote backend:
-   ```powershell
-   terraform -chdir=infrastructure/envs/dev init
-   terraform -chdir=infrastructure/envs/dev validate -no-color
-   ```
-13. Provision the `dev` environment:
-   ```powershell
-   terraform -chdir=infrastructure/envs/dev plan -out=tfplan
-   terraform -chdir=infrastructure/envs/dev apply tfplan
-   terraform -chdir=infrastructure/envs/dev plan
-   ```
+12. Run the manual provisioning apply workflow from `main` to create or update
+    the `dev` infrastructure:
+    ```powershell
+    gh workflow run provisioning-apply.yml --ref main -f confirm_apply=apply-dev
+    ```
 
-   The final plan should report no changes after a successful apply.
-14. Build and deploy the frontend with one of the implemented frontend
+    This manual apply workflow uses the same synced GitHub variables and
+    secrets, generates the dev backend configuration, packages Lambda ZIP
+    artifacts, runs `terraform init`, `terraform validate`, saves a Terraform
+    plan, and applies that saved plan.
+
+    It requires the explicit `confirm_apply=apply-dev` input. It does not call
+    `aws lambda update-function-code` and does not deploy frontend assets.
+13. Build and deploy the frontend with one of the implemented frontend
     deployment paths.
 
     For local validation without uploading assets:
@@ -148,7 +148,7 @@ deploy frontend assets.
     ```powershell
     gh workflow run frontend-deploy-apply.yml --ref main -f confirm_deploy=deploy-dev
     ```
-15. Validate the CloudFront frontend and `/events` API routes.
+14. Validate the CloudFront frontend and `/events` API routes.
 
     Check the app through the CloudFront domain printed by the deployment
     helper or available from Terraform outputs:
@@ -203,6 +203,50 @@ and runs:
 
 This workflow validates provisioning only. It does not apply infrastructure,
 deploy Lambda code, or deploy frontend assets.
+
+### Provisioning Apply Workflow
+
+The manual provisioning apply workflow is:
+
+- `.github/workflows/provisioning-apply.yml`
+
+Run it from `main` with the required confirmation input:
+
+```powershell
+gh workflow run provisioning-apply.yml --ref main -f confirm_apply=apply-dev
+```
+
+This workflow is the GitHub Actions path for initial `dev` environment
+provisioning after bootstrap and input sync are complete, and for later
+infrastructure changes. It uses synced GitHub variables and secrets, generates
+the dev backend configuration, packages Lambda ZIP artifacts, and runs:
+
+- `terraform init`
+- `terraform validate`
+- `terraform plan -out=tfplan`
+- `terraform apply tfplan`
+
+The apply workflow requires explicit confirmation and applies only the saved
+Terraform plan. It does not deploy Lambda code through
+`aws lambda update-function-code` and does not deploy frontend assets.
+
+### Local Provisioning Alternative
+
+Local Terraform provisioning remains available for operator-driven validation
+or recovery, but it is an alternative to the GitHub Actions provisioning apply
+workflow, not an additional required setup step.
+
+From the repository root:
+
+```powershell
+terraform -chdir=infrastructure/envs/dev init
+terraform -chdir=infrastructure/envs/dev validate -no-color
+terraform -chdir=infrastructure/envs/dev plan -out=tfplan
+terraform -chdir=infrastructure/envs/dev apply tfplan
+terraform -chdir=infrastructure/envs/dev plan
+```
+
+The final plan should report no changes after a successful apply.
 
 ## GitHub Actions Input Sync
 

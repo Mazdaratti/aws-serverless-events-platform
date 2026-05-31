@@ -29,7 +29,7 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 - Lambda deployment automation split:
   - provisioning dry-run automation is implemented and validated from `main`
-  - provisioning apply automation is implemented and ready for validation
+  - provisioning apply automation is implemented and validated from `main`
   - Lambda code deployment automation remains separate from Terraform apply
 
 ### Completed milestones
@@ -169,11 +169,11 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - workflow packages Lambda ZIP artifacts before Terraform planning
   - workflow runs Terraform init, validate, plan, and apply through GitHub OIDC
   - workflow applies the saved Terraform plan
+  - workflow validated successfully from `main`
   - workflow does not deploy Lambda code or frontend assets
 
 ### Next milestones
 
-- validate the manual provisioning apply workflow from `main`
 - add Lambda code deployment dry-run automation
 
 ---
@@ -751,12 +751,13 @@ Infrastructure is implemented using modular Terraform design with environment-sp
      - run Terraform init, validate, and plan from GitHub Actions
      - validate the provisioning dry-run workflow from `main` with a clean
        Terraform plan
-   - add provisioning apply automation
-     - run Terraform plan/apply manually from GitHub Actions ✅
-     - require explicit confirmation before applying infrastructure changes ✅
-     - apply the saved Terraform plan ✅
-     - do not deploy Lambda code directly through `update-function-code` ✅
-     - do not deploy frontend assets ✅
+   - add provisioning apply automation✅
+     - run Terraform plan/apply manually from GitHub Actions 
+     - require explicit confirmation before applying infrastructure changes 
+     - apply the saved Terraform plan 
+     - validate provisioning apply workflow from `main` 
+     - do not deploy Lambda code directly through `update-function-code` 
+     - do not deploy frontend assets 
    - add Lambda code deployment automation
      - package Lambda ZIP artifacts
      - map workload keys to deployed Lambda function names

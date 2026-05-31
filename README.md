@@ -707,43 +707,50 @@ Infrastructure is implemented using modular Terraform design with environment-sp
    - do not deploy from CI validation jobs ✅
    - validate hardened CI workflow successfully ✅
 
-24. CI/CD deployment workflows
-   - add separate provisioning and deployment workflows after OIDC exists
-   - keep provisioning responsible for Terraform infrastructure changes
-   - keep deployment responsible for application artifacts
+24. Frontend deployment workflows
+   - establish manual GitHub Actions deployment workflows after OIDC exists ✅
+   - keep CI validation separate from deployment workflows ✅
    - add manual frontend deployment dry-run workflow ✅
    - validate frontend deployment dry-run workflow from `main` ✅
    - add frontend deployment apply workflow for S3 sync and CloudFront
      invalidation ✅
    - validate frontend deployment apply workflow from `main` ✅
-   - keep Lambda deployment Terraform-managed initially
+   - keep Terraform provisioning, Lambda packaging, and Lambda code deployment
+     outside frontend deployment workflows ✅
 
 25. Lambda provisioning and code deployment separation
-   - keep Terraform responsible for Lambda infrastructure and configuration
-   - keep Terraform responsible for runtime, handler, memory, timeout, tracing,
-     IAM, environment variables, log groups, API Gateway integrations, Lambda
-     permissions, SQS event source mappings, and related service wiring
-   - add a provisioning lane that builds Lambda ZIP artifacts before Terraform
-     plan/apply so fresh Lambda infrastructure can be created safely
-   - add manual provisioning dry-run workflow for GitHub Actions ✅
-   - package Lambda ZIP artifacts before Terraform plan in the provisioning
-     dry-run workflow ✅
-   - run Terraform init, validate, and plan in the provisioning dry-run workflow
-     without applying infrastructure ✅
-   - validate provisioning dry-run workflow from `main` with a clean Terraform
-     plan ✅
-   - add required OIDC deploy-policy read permissions for Terraform refresh of
-     the current `dev` platform surface ✅
-   - add a separate Lambda code deployment lane that builds Lambda ZIP artifacts
-     and updates existing functions without running Terraform apply
-   - update existing Lambda function code with
-     `aws lambda update-function-code`
-   - keep Terraform plans sensitive to real infrastructure/config drift
-   - after the Lambda module adjustment, ensure external code-only updates do
-     not cause Terraform to plan a code reversion
-   - defer Lambda versions, Lambda aliases, CodeDeploy, canary/blue-green
-     deployment, containers, and automatic deployment on push
-
+   - define the ownership boundary between Terraform and deployment automation ✅
+     - Terraform owns Lambda infrastructure, runtime, handler, memory, timeout,
+       tracing, IAM, environment variables, log groups, API Gateway
+       integrations, Lambda permissions, SQS event source mappings, and related
+       AWS service wiring
+     - automation owns Lambda ZIP artifact packaging for provisioning and code
+       deployment workflows
+     - Lambda code deployment automation owns existing-function code updates
+     - Terraform plans must still detect real infrastructure/configuration drift
+     - external code-only Lambda updates must not cause Terraform to plan a code
+       rollback ✅
+   - establish reusable Lambda packaging for both automation lanes ✅
+     - package all deployed Lambda workloads into `artifacts/lambda/`
+     - reuse the same packaging path for provisioning and future code deployment
+     - handle the RSVP authorizer vendor build requirement
+   - add provisioning automation for Terraform validation ✅
+     - sync required GitHub repository variables and secrets for provisioning
+     - package Lambda ZIP artifacts before Terraform planning
+     - run Terraform init, validate, and plan from GitHub Actions
+     - validate the provisioning dry-run workflow from `main` with a clean
+       Terraform plan
+   - add provisioning apply automation
+     - run Terraform plan/apply manually from GitHub Actions
+     - require explicit confirmation before applying infrastructure changes
+     - do not deploy Lambda code directly through `update-function-code`
+     - do not deploy frontend assets
+   - add Lambda code deployment automation
+     - package Lambda ZIP artifacts
+     - map workload keys to deployed Lambda function names
+     - update existing Lambda function code with
+       `aws lambda update-function-code`
+     - do not run Terraform apply for code-only deployments
 26. Account lifecycle and Cognito account-management UX
    - docs-first account lifecycle contract
      - lock self-service account lifecycle semantics before implementation
@@ -769,17 +776,6 @@ Infrastructure is implemented using modular Terraform design with environment-sp
      - defer admin user-management UI until backend admin account APIs exist
      - keep Cognito group membership as the source of admin capability
      - avoid frontend-only admin account management without backend authority
-
-
-The repository now also includes Terraform validation coverage for the currently
-implemented modules, examples, and `envs/dev` root, focused Python validation
-for the implemented Lambda handlers and shared auth flow, and frontend CI
-validation for typechecking, production builds, component tests, and browser
-smoke tests.
-
-This improves static validation confidence while real AWS behavior continues to
-be verified through local `plan`, `apply`, and milestone-specific routed API
-validation in the dev environment.
 
 ---
 

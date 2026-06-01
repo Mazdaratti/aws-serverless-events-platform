@@ -17,8 +17,8 @@ Packaging and deployment are separate responsibilities.
 
 This directory documents how Lambda ZIP artifacts are built. Provisioning
 automation will build these artifacts before Terraform plan/apply. Lambda code
-deployment automation will map packaged workloads to Terraform output function
-names and update function code with `aws lambda update-function-code`.
+deployment automation maps packaged workloads to Terraform output function
+names and can update function code with `aws lambda update-function-code`.
 Terraform ownership rules are documented in the infrastructure and setup docs.
 
 ## All-Workload Packaging

@@ -309,6 +309,76 @@ Lambda artifact generation remains available to both automation lanes.
 Config drift such as environment variables, timeout, memory, tracing, IAM,
 event source mappings, and API Gateway wiring must remain visible to Terraform.
 
+### Lambda Code Deployment Helper
+
+The local Lambda code deployment helper is:
+
+- `scripts/deploy_lambdas.py`
+
+The helper is the shared deployment path for Lambda ZIP code updates. It
+packages Lambda artifacts, reads deployment values from Terraform outputs in:
+
+- `infrastructure/envs/dev`
+
+Before using the helper, make sure the dev Terraform state is current and
+includes the Lambda deployment outputs:
+
+- `aws_region`
+- `lambda_function_names`
+
+Run a safe dry-run first from the repository root:
+
+```powershell
+python scripts/deploy_lambdas.py --dry-run
+```
+
+Dry-run mode:
+
+- packages all deployed Lambda workloads
+- reads `terraform output -json`
+- validates the workload-to-function mapping
+- validates expected ZIP artifacts
+- prints the planned `aws lambda update-function-code` commands
+- does not update Lambda function code
+
+For a real Lambda code deployment, run:
+
+```powershell
+python scripts/deploy_lambdas.py --apply
+```
+
+Apply mode uses the same packaging and validation path, then updates existing
+Lambda function code with `aws lambda update-function-code`.
+
+The helper does not run `terraform plan`, run `terraform apply`, publish Lambda
+versions, manage aliases, use CodeDeploy, or deploy frontend assets.
+
+### Lambda Deployment Dry Run Workflow
+
+The same dry-run path is also available as a manual GitHub Actions workflow:
+
+- `Lambda Deployment Dry Run`
+- `.github/workflows/lambda-deploy-dry-run.yml`
+
+Run it from `main` with:
+
+```powershell
+gh workflow run lambda-deploy-dry-run.yml --ref main
+```
+
+That workflow uses GitHub OIDC, generates the dev backend configuration from
+repository variables, initializes and validates the remote Terraform backend,
+checks the required Lambda deployment outputs, and then runs:
+
+```powershell
+python scripts/deploy_lambdas.py --dry-run
+```
+
+The GitHub Actions dry-run workflow follows the same safety boundary: it
+packages artifacts and previews Lambda code updates only. It does not run
+`terraform plan`, run `terraform apply`, call `aws lambda update-function-code`,
+or deploy frontend assets.
+
 ---
 
 ## Current Tooling Baseline
@@ -436,263 +506,37 @@ The helper uses AWS CLI commands for:
 - previewing and syncing `frontend/dist/` to the private frontend S3 bucket
 - creating a CloudFront cache invalidation after a real frontend upload
 
-## Frontend
+## Frontend Operations
 
-The frontend application uses:
+Detailed frontend setup, validation, runtime rules, deployment helper behavior,
+and post-deployment checks are documented in:
 
-- Node.js
-- npm
-- React
-- Vite
-- TypeScript
-- React Router
-- Tailwind CSS
+- `frontend/README.md`
 
-The frontend app lives under:
+Common local validation commands from `frontend/`:
 
-- `frontend/`
-
-Local frontend validation should run from that directory:
-
-- `npm ci`
-- `npm run typecheck`
-- `npm run build`
-- `npm run test`
-- `npm run test:e2e`
-- `npm run dev` (optional for local development)
-
-Use `npm ci` for PR validation because `frontend/package-lock.json` is now
-committed and represents the reproducible dependency install plan.
-
-### Frontend Automated Testing
-
-Frontend automated testing is a validation-only baseline for the React/Vite
-frontend.
-
-The current testing baseline uses:
-
-- Vitest
-- React Testing Library
-- `@testing-library/jest-dom`
-- `jsdom`
-- Playwright
-- Chromium browser runtime installed with:
-  - `npx playwright install chromium`
-
-These tests run locally without AWS, Cognito, CloudFront, or backend
-dependencies and should be included in frontend validation for component,
-interaction, and browser smoke changes.
-
-The current baseline is split into:
-
-- Vitest and React Testing Library for component and page-level tests in
-  Node/jsdom
-- Playwright for browser-level Chromium smoke tests against the local Vite dev
-  server
-
-Frontend automated tests do not deploy infrastructure, mutate AWS resources, or
-replace the CloudFront deployment helper.
-
-For local browser testing, copy the example environment file and provide the
-public Cognito values for the active environment:
-
-- `frontend/.env.example`
-- `frontend/.env`
-
-Only public `VITE_*` values belong in the frontend environment file. Do not add
-API Gateway invoke URLs or secrets.
-
-The frontend is built as a static SPA for the CloudFront/S3 delivery model.
-
-Runtime routing and API integration rules:
-
-- React Router uses `BrowserRouter` with `/app` as the basename
-- Vite must not configure `base: "/app/"`; default base (root) must be used
-- static build assets should resolve as root-relative paths such as
-  `/assets/...`
-- API calls must use same-origin relative paths such as `/events`
-- API calls must not use a direct API Gateway URL
-- API calls must not use a `/api` prefix
-
-Local Vite development intentionally keeps the same-origin `/events` API model
-and does not add a development proxy.
-
-The current Playwright browser smoke baseline runs locally against the Vite dev
-server and covers:
-
-- app-shell rendering under `/app`
-- public events route shell rendering
-- protected-route prompt rendering for `/app/my-events`
-
-### Frontend Deployment Model
-
-Frontend deployment follows this flow:
-
-1. read required public frontend configuration from Terraform outputs
-2. provide those values to the frontend build as `VITE_*` environment variables
-3. build frontend assets
-4. upload build artifacts into the private frontend bucket
-5. create a CloudFront invalidation when applying a real deployment
-6. serve the new frontend version through CloudFront
-
-This keeps frontend deployment separate from backend Lambda code deployment
-while still presenting one public product entry point.
-
-The frontend build must not receive:
-
-- raw API Gateway invoke URLs
-- API Gateway stage URLs
-- server-side secrets
-
-API calls remain same-origin relative requests through CloudFront, using paths
-such as `/events`.
-
-### Frontend Deployment Helper
-
-The local frontend deployment helper is:
-
-- `scripts/deploy_frontend.py`
-
-The helper is the shared deployment path for the React/Vite frontend. It is used
-for local deployment and by the manual GitHub Actions frontend workflows. It
-reads public frontend deployment values from Terraform outputs in:
-
-- `infrastructure/envs/dev`
-
-Before using the helper, make sure the dev Terraform state is current and
-includes the frontend deployment outputs:
-
-- `aws_region`
-- `frontend_bucket_name`
-- `cloudfront_distribution_id`
-- `cloudfront_distribution_domain_name`
-- `cognito_user_pool_id`
-- `cognito_user_pool_client_id`
-
-Run a safe dry-run first from the repository root:
-
-```bash
-python scripts/deploy_frontend.py --dry-run
+```powershell
+npm ci
+npm run typecheck
+npm run build
+npm run test
+npm run test:e2e
 ```
 
-The same dry-run path is also available as a manual GitHub Actions workflow:
+Common frontend deployment commands from the repository root:
 
-- `Frontend Deployment Dry Run`
-- `.github/workflows/frontend-deploy-dry-run.yml`
+```powershell
+python scripts/deploy_frontend.py --dry-run
+python scripts/deploy_frontend.py --apply
+```
 
-Run it from `main` with:
+Manual GitHub Actions frontend workflows from `main`:
 
 ```powershell
 gh workflow run frontend-deploy-dry-run.yml --ref main
-```
-
-That workflow has been validated from `main`. It uses GitHub OIDC, generates
-the dev backend configuration from repository variables, initializes the remote
-Terraform backend, checks the required frontend deployment outputs, and then
-runs:
-
-```bash
-python scripts/deploy_frontend.py --dry-run
-```
-
-Dry-run mode:
-
-- reads `terraform output -json`
-- writes a temporary `frontend/.env.production.local`
-- injects only approved public `VITE_*` values
-- runs `npm ci`
-- runs `npm run typecheck`
-- runs `npm run build`
-- does not run frontend browser or component tests yet
-- verifies `frontend/dist/` exists
-- previews the S3 upload with `aws s3 sync --dryrun`
-- does not upload files
-- does not invalidate CloudFront
-
-The GitHub Actions dry-run workflow follows the same safety boundary: it builds
-and previews deployment only. It does not upload frontend assets and does not
-create a CloudFront invalidation.
-
-For a real frontend deployment, run:
-
-```bash
-python scripts/deploy_frontend.py --apply
-```
-
-The same apply path is also available as a manual GitHub Actions workflow:
-
-- `Frontend Deployment Apply`
-- `.github/workflows/frontend-deploy-apply.yml`
-
-Run it from `main` with the required confirmation input:
-
-```powershell
 gh workflow run frontend-deploy-apply.yml --ref main -f confirm_deploy=deploy-dev
 ```
 
-That workflow has been validated from `main`. It uses GitHub OIDC, generates
-the dev backend configuration from repository variables, initializes the remote
-Terraform backend, validates the `dev` environment root, checks the required
-frontend deployment outputs, and then runs:
-
-```bash
-python scripts/deploy_frontend.py --apply
-```
-
-Apply mode performs the same validation and S3 dry-run first, then:
-
-- syncs `frontend/dist/` to the private frontend S3 bucket with `--delete`
-- creates a CloudFront invalidation for `/*`
-- prints the CloudFront frontend URLs to validate
-
-The manual apply workflow follows the same deployment boundary: it uploads
-frontend assets and creates the CloudFront invalidation, but it does not run
-`terraform plan`, run `terraform apply`, provision infrastructure, package
+Frontend deployment uploads static assets to S3 and creates a CloudFront
+invalidation in apply mode. It does not run Terraform provisioning, package
 Lambda artifacts, or deploy Lambda code.
-
-The helper writes only these public browser build values:
-
-- `VITE_AWS_REGION`
-- `VITE_COGNITO_USER_POOL_ID`
-- `VITE_COGNITO_USER_POOL_CLIENT_ID`
-
-Do not add an API Gateway URL, secrets, AWS credentials, or non-public
-configuration to frontend Vite environment files.
-
-The helper restores any existing `frontend/.env.production.local` file after
-the build. If that file did not exist before the helper ran, it is removed.
-
-After a real deployment, validate through CloudFront:
-
-- `https://<cloudfront-domain>/app`
-- `https://<cloudfront-domain>/app/events`
-- `https://<cloudfront-domain>/app/my-events`
-- `https://<cloudfront-domain>/app/create-event`
-- `https://<cloudfront-domain>/app/events/<event-id>`
-- `https://<cloudfront-domain>/app/events/<event-id>/rsvps`
-- `https://<cloudfront-domain>/events`
-
-Also refresh a frontend deep link directly in the browser, such as:
-
-- `https://<cloudfront-domain>/app/events`
-
-The refresh should return the SPA entrypoint through CloudFront. API routes
-under `/events` should continue to return API responses, not frontend HTML.
-
-For a quick frontend smoke test after deployment, also verify:
-
-- keyboard access to the skip link, navigation, filters, forms, and destructive
-  confirmation flows
-- sign-in redirects back to protected frontend destinations such as
-  `/app/my-events`, event detail pages, and RSVP list pages
-
-Authentication uses Cognito through the frontend Amplify Auth SDK.
-
-Token rules:
-
-- Cognito auth tokens must use `sessionStorage`
-- Cognito auth tokens must not use `localStorage`
-- the frontend must use the JWT type currently validated by API Gateway and the
-  RSVP authorizer, expected to be the Cognito ID token
-- the anonymous RSVP token may use `localStorage` because it is not an auth
-  token

@@ -30,7 +30,9 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 - Lambda deployment automation split:
   - provisioning dry-run automation is implemented and validated from `main`
   - provisioning apply automation is implemented and validated from `main`
-  - Lambda code deployment automation remains separate from Terraform apply
+  - Lambda deployment dry-run automation is implemented and validated from
+    `main`
+  - Lambda deployment apply automation remains separate from Terraform apply
 
 ### Completed milestones
 
@@ -172,9 +174,20 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - workflow validated successfully from `main`
   - workflow does not deploy Lambda code or frontend assets
 
+- Lambda deployment dry-run automation
+  - reusable Lambda deployment helper added with dry-run and apply modes
+  - manual GitHub Actions Lambda deployment dry-run workflow added
+  - workflow packages Lambda ZIP artifacts through the real packaging path
+  - workflow validates deployed workload-to-function mapping from Terraform
+    outputs
+  - workflow previews planned `aws lambda update-function-code` commands
+  - workflow validated successfully from `main`
+  - workflow does not run Terraform plan/apply
+  - workflow does not update Lambda code or deploy frontend assets
+
 ### Next milestones
 
-- add Lambda code deployment dry-run automation
+- add Lambda code deployment apply automation
 
 ---
 
@@ -381,6 +394,7 @@ aws-serverless-events-platform/
 |       |-- frontend-deploy-apply.yml
 |       |-- provisioning-dry-run.yml
 |       |-- provisioning-apply.yml
+|       |-- lambda-deploy-dry-run.yml
 |       `-- ci.yml
 |
 |-- docs/
@@ -402,6 +416,7 @@ aws-serverless-events-platform/
 |   |   |-- main.tsx
 |   |   `-- styles.css
 |   |-- .env.example
+|   |-- README.md
 |   |-- index.html
 |   |-- package-lock.json
 |   |-- package.json
@@ -751,16 +766,20 @@ Infrastructure is implemented using modular Terraform design with environment-sp
      - run Terraform init, validate, and plan from GitHub Actions
      - validate the provisioning dry-run workflow from `main` with a clean
        Terraform plan
-   - add provisioning apply automation✅
-     - run Terraform plan/apply manually from GitHub Actions 
-     - require explicit confirmation before applying infrastructure changes 
-     - apply the saved Terraform plan 
-     - validate provisioning apply workflow from `main` 
-     - do not deploy Lambda code directly through `update-function-code` 
-     - do not deploy frontend assets 
+   - add provisioning apply automation ✅
+     - run Terraform plan/apply manually from GitHub Actions ✅
+     - require explicit confirmation before applying infrastructure changes ✅
+     - apply the saved Terraform plan ✅
+     - validate provisioning apply workflow from `main` ✅
+     - do not deploy Lambda code directly through `update-function-code` ✅
+     - do not deploy frontend assets ✅
    - add Lambda code deployment automation
-     - package Lambda ZIP artifacts
-     - map workload keys to deployed Lambda function names
+     - add reusable Lambda deployment helper with dry-run/apply modes ✅
+     - add manual Lambda deployment dry-run workflow ✅
+     - package Lambda ZIP artifacts ✅
+     - map workload keys to deployed Lambda function names ✅
+     - validate Lambda deployment dry-run workflow from `main` ✅
+     - add manual Lambda deployment apply workflow
      - update existing Lambda function code with
        `aws lambda update-function-code`
      - do not run Terraform apply for code-only deployments
@@ -829,6 +848,7 @@ Detailed architecture description:
 - `docs/architecture.md`
 - `docs/platform-behavior.md`
 - `docs/project-setup.md`
+- `frontend/README.md`
 - `infrastructure/envs/dev/README.md`
 - each module also contains its own `README.md` in the module root directory
 

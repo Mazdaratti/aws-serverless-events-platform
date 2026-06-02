@@ -563,9 +563,8 @@ after interface changes.
 
 ## AWS CLI
 
-The AWS CLI is required for local application artifact deployment helpers. It
-must be able to access the same AWS account and permissions used for the dev
-environment.
+The AWS CLI is required for local deployment helpers. It must be configured for
+the same AWS account and dev permissions used by the platform.
 
 The frontend helper uses AWS CLI commands for:
 

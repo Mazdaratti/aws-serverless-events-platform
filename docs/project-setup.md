@@ -7,11 +7,11 @@ It covers:
 
 - required local tools
 - AWS credential setup
-- Terraform bootstrap
-- remote state initialization
-- `dev` environment provisioning
-- Lambda code deployment
-- frontend deployment
+- Terraform bootstrap and remote backend setup
+- GitHub Actions input sync
+- provisioning dry-run/apply workflows
+- Lambda packaging and code deployment helpers
+- frontend deployment pointer
 - validation commands
 
 ---
@@ -85,7 +85,7 @@ is allowed to create the bootstrap resources.
     ```powershell
     gh workflow run lambda-deploy-dry-run.yml --ref main
     ```
-13. Deploy the frontend with one of the implemented frontend paths:
+13. Deploy or preview the frontend with one of the implemented frontend paths:
     ```powershell
     python scripts/deploy_frontend.py --dry-run
     python scripts/deploy_frontend.py --apply
@@ -242,10 +242,11 @@ Run it from `main` with:
 gh workflow run lambda-deploy-dry-run.yml --ref main
 ```
 
-This workflow validates the Lambda code deployment lane. It uses GitHub OIDC,
-generates the dev backend configuration from repository variables, initializes
-and validates the remote Terraform backend, checks the required Lambda
-deployment outputs, and then runs:
+This workflow validates the Lambda code deployment preview lane. It uses GitHub
+OIDC, generates the dev backend configuration from repository variables,
+initializes and validates the remote Terraform backend, checks the required
+Lambda deployment outputs, packages artifacts, previews Lambda code updates,
+and then runs:
 
 ```powershell
 python scripts/deploy_lambdas.py --dry-run
@@ -284,7 +285,7 @@ Lambda code.
 
 ---
 
-## Local Helper Commands
+## Local Operations
 
 ### Lambda Packaging
 
@@ -324,7 +325,7 @@ Dry-run mode packages all deployed Lambda workloads, reads
 expected ZIP artifacts, and prints the planned
 `aws lambda update-function-code` commands.
 
-For a real Lambda code deployment, run:
+For a real local Lambda code deployment, run:
 
 ```powershell
 python scripts/deploy_lambdas.py --apply
@@ -332,6 +333,8 @@ python scripts/deploy_lambdas.py --apply
 
 Apply mode uses the same packaging and validation path, then updates existing
 Lambda function code with `aws lambda update-function-code`.
+
+A GitHub Actions Lambda deployment apply workflow is not implemented yet.
 
 The helper does not run `terraform plan`, run `terraform apply`, publish Lambda
 versions, manage aliases, use CodeDeploy, or deploy frontend assets.
@@ -433,37 +436,26 @@ The project workflow expects these tools to be available:
 - Node.js
 - npm
 
-These tools support the setup and validation workflow:
+Tool usage summary:
 
-- Python is used for Lambda source code, tests, and helper scripts
-- Docker is used for Lambda-compatible vendored dependency builds where native
-  dependencies are involved
-- Terraform is used for infrastructure validation, planning, and deployment
-- `tflint` is used for Terraform linting
-- `terraform-docs` is used to refresh generated module and environment README sections
-- AWS CLI is used by local deployment helpers for frontend S3/CloudFront
-  deployment and Lambda code updates
-- GitHub CLI is used to sync repository variables and run manual GitHub
-  Actions workflows
-- Node.js and npm are used for the React/Vite frontend application under
-  `frontend/`
+- Python: Lambda runtime alignment, helper scripts, and handler tests
+- Docker: Lambda-compatible RSVP authorizer vendor rebuild
+- Terraform: bootstrap, provisioning, validation, and outputs
+- `tflint`: Terraform linting
+- `terraform-docs`: generated Terraform README sections
+- AWS CLI: local frontend artifact deployment and Lambda code updates
+- GitHub CLI: repository input sync and manual workflow runs
+- Node.js and npm: frontend validation and builds under `frontend/`
 
 ## Python
-
-Current project direction:
 
 - use Python `3.13` for deployed Lambda runtime compatibility
 - local helper scripts in `scripts/` are also Python-based where practical
 - local Python virtual environments such as `.venv` are recommended for tests,
   helper scripts, and local dependency installs
 
-Examples of Python-based local workflow:
-
-- packaging Lambda ZIP artifacts:
-  - `scripts/package_lambda.py`
-- rebuilding the RSVP authorizer vendor tree:
-  - `scripts/build_rsvp_authorizer_vendor.py`
-- running focused handler tests
+Python-based local workflows include Lambda packaging, RSVP authorizer vendor
+builds, repository helper scripts, and focused handler tests.
 
 Local test execution now uses the shared pytest bootstrap under:
 
@@ -487,9 +479,7 @@ tests.
 
 ## Docker
 
-Docker is currently required for the mixed-mode RSVP authorizer packaging flow.
-
-Why:
+Docker is currently required for the mixed-mode RSVP authorizer packaging flow:
 
 - the authorizer depends on native libraries such as `cryptography` and `cffi`
 - local importability is not the same as Lambda-runtime compatibility
@@ -503,9 +493,8 @@ flow.
 
 ## Terraform
 
-Terraform is the source of truth for infrastructure in this repository.
-
-The local workflow currently uses Terraform for:
+Terraform is the source of truth for infrastructure in this repository. Local
+Terraform usage includes:
 
 - `fmt`
 - `init`
@@ -534,10 +523,8 @@ after interface changes.
 
 ## AWS CLI
 
-The AWS CLI is required for local application artifact deployment workflows.
-
-For the current frontend and Lambda deployment helpers, the AWS CLI must be
-able to access the same AWS account and permissions used for the dev
+The AWS CLI is required for local application artifact deployment helpers. It
+must be able to access the same AWS account and permissions used for the dev
 environment.
 
 The frontend helper uses AWS CLI commands for:

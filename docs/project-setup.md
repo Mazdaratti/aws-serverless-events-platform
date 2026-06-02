@@ -85,14 +85,19 @@ is allowed to create the bootstrap resources.
     ```powershell
     gh workflow run lambda-deploy-dry-run.yml --ref main
     ```
-13. Deploy or preview the frontend with one of the implemented frontend paths:
+13. Run the manual Lambda deployment apply workflow from `main` when code-only
+    Lambda changes are ready to deploy:
+    ```powershell
+    gh workflow run lambda-deploy-apply.yml --ref main -f confirm_deploy=deploy-lambdas-dev
+    ```
+14. Deploy or preview the frontend with one of the implemented frontend paths:
     ```powershell
     python scripts/deploy_frontend.py --dry-run
     python scripts/deploy_frontend.py --apply
     gh workflow run frontend-deploy-dry-run.yml --ref main
     gh workflow run frontend-deploy-apply.yml --ref main -f confirm_deploy=deploy-dev
     ```
-14. Validate the CloudFront frontend and `/events` API routes.
+15. Validate the CloudFront frontend and `/events` API routes.
 
     Check the app through the CloudFront domain printed by the deployment
     helper or available from Terraform outputs:
@@ -255,6 +260,34 @@ python scripts/deploy_lambdas.py --dry-run
 It does not run `terraform plan`, run `terraform apply`, call
 `aws lambda update-function-code`, or deploy frontend assets.
 
+### Lambda Deployment Apply Workflow
+
+Workflow file:
+
+- `.github/workflows/lambda-deploy-apply.yml`
+
+Run it from `main` with the required confirmation input:
+
+```powershell
+gh workflow run lambda-deploy-apply.yml --ref main -f confirm_deploy=deploy-lambdas-dev
+```
+
+This workflow is the GitHub Actions path for code-only Lambda deployment. It
+uses GitHub OIDC, generates the dev backend configuration from repository
+variables, initializes and validates the remote Terraform backend, checks the
+required Lambda deployment outputs, packages artifacts, and then runs:
+
+```powershell
+python scripts/deploy_lambdas.py --apply
+```
+
+The helper updates existing Lambda function code with
+`aws lambda update-function-code --no-publish`. The workflow does not call that
+AWS CLI command directly.
+
+It does not run `terraform plan`, run `terraform apply`, deploy frontend
+assets, publish Lambda versions, manage aliases, or use CodeDeploy.
+
 ### Frontend Deployment Workflows
 
 Workflow files:
@@ -334,7 +367,8 @@ python scripts/deploy_lambdas.py --apply
 Apply mode uses the same packaging and validation path, then updates existing
 Lambda function code with `aws lambda update-function-code`.
 
-A GitHub Actions Lambda deployment apply workflow is not implemented yet.
+For GitHub Actions, use the manual Lambda deployment apply workflow documented
+in [GitHub Actions Workflows](#github-actions-workflows).
 
 The helper does not run `terraform plan`, run `terraform apply`, publish Lambda
 versions, manage aliases, use CodeDeploy, or deploy frontend assets.

@@ -37,6 +37,10 @@ Use this order when setting up the project from a fresh clone. The sequence
 assumes a `dev` environment and an AWS account where the local AWS CLI identity
 is allowed to create the bootstrap resources.
 
+Provisioning steps create or update the platform. Deployment steps after
+provisioning are operational paths for application artifacts and code-only
+changes.
+
 1. Clone the repository.
 2. Install the required local tools listed in
    [Current Tooling Baseline](#current-tooling-baseline).
@@ -81,16 +85,18 @@ is allowed to create the bootstrap resources.
     ```powershell
     gh workflow run provisioning-apply.yml --ref main -f confirm_apply=apply-dev
     ```
-12. Run the manual Lambda deployment dry-run workflow from `main`:
+12. After provisioning succeeds, optionally run the manual Lambda deployment
+    dry-run workflow from `main` to preview code-only Lambda updates:
     ```powershell
     gh workflow run lambda-deploy-dry-run.yml --ref main
     ```
-13. Run the manual Lambda deployment apply workflow from `main` when code-only
-    Lambda changes are ready to deploy:
+13. When code-only Lambda changes are ready to deploy, run the manual Lambda
+    deployment apply workflow from `main`:
     ```powershell
     gh workflow run lambda-deploy-apply.yml --ref main -f confirm_deploy=deploy-lambdas-dev
     ```
-14. Deploy or preview the frontend with one of the implemented frontend paths:
+14. Deploy or preview frontend artifacts with one of the implemented frontend
+    paths:
     ```powershell
     python scripts/deploy_frontend.py --dry-run
     python scripts/deploy_frontend.py --apply
@@ -563,7 +569,8 @@ environment.
 
 The frontend helper uses AWS CLI commands for:
 
-- previewing and syncing `frontend/dist/` to the private frontend S3 bucket
+- previewing frontend artifact changes in dry-run mode
+- syncing `frontend/dist/` to the private frontend S3 bucket in apply mode
 - creating a CloudFront cache invalidation after a real frontend upload
 
 The Lambda deployment helper uses AWS CLI commands for:

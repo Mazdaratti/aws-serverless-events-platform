@@ -843,14 +843,22 @@ In `dev`, WAF is disabled by default until active frontend traffic justifies the
 
 ## Documentation
 
-Detailed architecture description:
+Project documentation is split by purpose:
 
-- `docs/architecture.md`
-- `docs/platform-behavior.md`
-- `docs/project-setup.md`
-- `frontend/README.md`
-- `infrastructure/envs/dev/README.md`
-- each module also contains its own `README.md` in the module root directory
+- [architecture.md](docs/architecture.md): platform architecture, service
+  boundaries, and implementation direction.
+- [platform-behavior.md](docs/platform-behavior.md): product/API behavior,
+  authorization semantics, and runtime platform contracts.
+- [project-setup.md](docs/project-setup.md): setup and operations runbook for
+  bootstrap, provisioning, deployment workflows, and local tooling.
+- [frontend/README.md](frontend/README.md): frontend validation, runtime
+  rules, deployment helper behavior, and CloudFront validation.
+- [lambdas/README.md](lambdas/README.md): Lambda packaging, artifact layout, and
+  workload-specific packaging notes.
+- [infrastructure/envs/dev/README.md](infrastructure/envs/dev/README.md): composed
+  `dev` Terraform environment.
+- Terraform modules each include a module-specific `README.md` in the module
+  root directory.
 
 ---
 

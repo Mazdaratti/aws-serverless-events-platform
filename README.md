@@ -32,7 +32,9 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - provisioning apply automation is implemented and validated from `main`
   - Lambda deployment dry-run automation is implemented and validated from
     `main`
-  - Lambda deployment apply automation remains separate from Terraform apply
+  - Lambda deployment apply automation is implemented and ready for validation
+    from `main`
+  - Lambda deployment automation remains separate from Terraform apply
 
 ### Completed milestones
 
@@ -185,9 +187,21 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
   - workflow does not run Terraform plan/apply
   - workflow does not update Lambda code or deploy frontend assets
 
+- Lambda deployment apply automation
+  - manual GitHub Actions Lambda deployment apply workflow added
+  - workflow requires explicit `confirm_deploy=deploy-lambdas-dev`
+    confirmation
+  - workflow packages Lambda ZIP artifacts through the real packaging path
+  - workflow validates deployed workload-to-function mapping from Terraform
+    outputs
+  - workflow updates existing Lambda function code with
+    `aws lambda update-function-code --no-publish`
+  - workflow is ready for validation from `main`
+  - workflow does not run Terraform plan/apply or deploy frontend assets
+
 ### Next milestones
 
-- add Lambda code deployment apply automation
+- validate Lambda deployment apply workflow from `main`
 
 ---
 
@@ -395,6 +409,7 @@ aws-serverless-events-platform/
 |       |-- provisioning-dry-run.yml
 |       |-- provisioning-apply.yml
 |       |-- lambda-deploy-dry-run.yml
+|       |-- lambda-deploy-apply.yml
 |       `-- ci.yml
 |
 |-- docs/
@@ -779,10 +794,12 @@ Infrastructure is implemented using modular Terraform design with environment-sp
      - package Lambda ZIP artifacts ✅
      - map workload keys to deployed Lambda function names ✅
      - validate Lambda deployment dry-run workflow from `main` ✅
-     - add manual Lambda deployment apply workflow
+     - add manual Lambda deployment apply workflow ✅
      - update existing Lambda function code with
        `aws lambda update-function-code`
+     - validate Lambda deployment apply workflow from `main`
      - do not run Terraform apply for code-only deployments
+     - do not deploy frontend assets
 26. Account lifecycle and Cognito account-management UX
    - docs-first account lifecycle contract
      - lock self-service account lifecycle semantics before implementation
@@ -892,6 +909,5 @@ See:
 
 - Custom domain and TLS configuration
 - Production alert delivery and escalation routing
-- Backend and Lambda deployment automation
-- Multi-environment promotion strategy
+- Multi-environment promotion and release strategy
 - Advanced security hardening

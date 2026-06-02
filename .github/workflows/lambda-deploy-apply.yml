@@ -1,0 +1,140 @@
+name: Lambda Deployment Apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_deploy:
+        description: "Type deploy-lambdas-dev to update Lambda function code in dev."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  lambda-deploy-apply:
+    name: Apply Lambda function code deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      TF_BACKEND_BUCKET: ${{ vars.TF_BACKEND_BUCKET }}
+      TF_BACKEND_KEY: ${{ vars.TF_BACKEND_KEY }}
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check branch-scoped OIDC context
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "This workflow must run from refs/heads/main because the AWS OIDC role trust is branch-scoped."
+            echo "Current ref: ${GITHUB_REF}"
+            exit 1
+          fi
+
+      - name: Check deployment confirmation
+        env:
+          CONFIRM_DEPLOY: ${{ inputs.confirm_deploy }}
+        run: |
+          if [ "${CONFIRM_DEPLOY}" != "deploy-lambdas-dev" ]; then
+            echo "This workflow requires confirm_deploy=deploy-lambdas-dev."
+            exit 1
+          fi
+
+      - name: Validate required repository variables
+        run: |
+          for name in AWS_REGION AWS_ROLE_TO_ASSUME TF_BACKEND_BUCKET TF_BACKEND_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required repository variable: ${name}"
+              exit 1
+            fi
+          done
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.14.3
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          mask-aws-account-id: true
+
+      - name: Verify AWS caller identity
+        run: aws sts get-caller-identity
+
+      - name: Generate dev backend configuration
+        working-directory: infrastructure/envs/dev
+        run: |
+          printf '%s\n' \
+            'terraform {' \
+            '  backend "s3" {' \
+            "    bucket       = \"${TF_BACKEND_BUCKET}\"" \
+            "    key          = \"${TF_BACKEND_KEY}\"" \
+            "    region       = \"${AWS_REGION}\"" \
+            '    encrypt      = true' \
+            '    use_lockfile = true' \
+            '  }' \
+            '}' \
+            > backend.tf
+
+      - name: Terraform init
+        working-directory: infrastructure/envs/dev
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        working-directory: infrastructure/envs/dev
+        run: terraform validate -no-color
+
+      - name: Capture remote-backed Terraform outputs
+        working-directory: infrastructure/envs/dev
+        run: terraform output -json > /tmp/tf-outputs.json
+
+      - name: Validate Lambda deployment outputs
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("/tmp/tf-outputs.json").read_text())
+          required_outputs = {
+              "aws_region",
+              "lambda_function_names",
+          }
+          missing = sorted(required_outputs - set(payload))
+          if missing:
+              raise SystemExit(f"Missing required Terraform outputs: {', '.join(missing)}")
+
+          aws_region = payload["aws_region"].get("value")
+          if not isinstance(aws_region, str) or not aws_region.strip():
+              raise SystemExit("Terraform output aws_region must be a non-empty string.")
+
+          function_names = payload["lambda_function_names"].get("value")
+          if not isinstance(function_names, dict) or not function_names:
+              raise SystemExit("Terraform output lambda_function_names must be a non-empty map.")
+
+          print("Required Lambda deployment Terraform outputs are present.")
+          PY
+
+      - name: Deploy Lambda function code
+        run: python scripts/deploy_lambdas.py --apply

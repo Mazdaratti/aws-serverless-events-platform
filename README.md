@@ -25,17 +25,6 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ## Current Development Status
 
-### Current focus
-
-- Lambda deployment automation split:
-  - provisioning dry-run automation is implemented and validated from `main`
-  - provisioning apply automation is implemented and validated from `main`
-  - Lambda deployment dry-run automation is implemented and validated from
-    `main`
-  - Lambda deployment apply automation is implemented and ready for validation
-    from `main`
-  - Lambda deployment automation remains separate from Terraform apply
-
 ### Completed milestones
 
 - Platform foundations
@@ -196,12 +185,8 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
     outputs
   - workflow updates existing Lambda function code with
     `aws lambda update-function-code --no-publish`
-  - workflow is ready for validation from `main`
+  - workflow validated successfully from `main`
   - workflow does not run Terraform plan/apply or deploy frontend assets
-
-### Next milestones
-
-- validate Lambda deployment apply workflow from `main`
 
 ---
 
@@ -797,7 +782,7 @@ Infrastructure is implemented using modular Terraform design with environment-sp
      - add manual Lambda deployment apply workflow ✅
      - update existing Lambda function code with
        `aws lambda update-function-code`
-     - validate Lambda deployment apply workflow from `main`
+     - validate Lambda deployment apply workflow from `main` ✅
      - do not run Terraform apply for code-only deployments
      - do not deploy frontend assets
 26. Account lifecycle and Cognito account-management UX

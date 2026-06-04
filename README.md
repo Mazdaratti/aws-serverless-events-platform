@@ -11,6 +11,47 @@ This project is designed as a **cloud engineering portfolio showcase** and follo
 
 ---
 
+## Portfolio Snapshot
+
+This project showcases:
+
+- end-to-end AWS serverless application delivery with CloudFront, API Gateway,
+  Lambda, DynamoDB, Cognito, EventBridge, SQS, SNS, SES, CloudWatch, and X-Ray
+- modular Terraform infrastructure with reusable modules, examples, generated
+  documentation, and CI validation
+- GitHub Actions deployment automation using AWS OIDC instead of long-lived AWS
+  credentials
+- separated operational lanes for Terraform provisioning, frontend asset
+  deployment, and Lambda code deployment
+- transactional DynamoDB write paths with asynchronous notification fanout
+- React/Vite frontend delivery through a private S3 origin and CloudFront
+
+Planned showcase visuals:
+
+- Product screenshot placeholder:
+  - deployed event listing, event detail, RSVP, and owner/admin views
+- Operations screenshot placeholder:
+  - validated GitHub Actions workflows for provisioning, frontend deployment,
+    and Lambda code deployment
+- Observability screenshot placeholder:
+  - CloudWatch dashboard, representative alarms, or X-Ray trace summary
+- Architecture diagram placeholder:
+  - current AWS infrastructure and application request/event workflow
+- Operations diagram placeholder:
+  - provisioning, frontend deployment, and Lambda code deployment workflow
+    boundaries
+
+Validation snapshot:
+
+- local validation passed for Lambda unit tests, frontend typecheck/build,
+  frontend component tests, Playwright browser smoke tests, Python compilation,
+  and Terraform formatting
+- GitHub Actions workflows have been validated from `main` for CI, OIDC smoke,
+  provisioning dry-run/apply, frontend deployment dry-run/apply, and Lambda
+  deployment dry-run/apply
+
+---
+
 ## Project Goals
 
 - Build a production-shaped serverless platform using managed AWS services

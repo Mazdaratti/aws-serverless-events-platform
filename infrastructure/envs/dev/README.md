@@ -873,8 +873,8 @@ Why this module is wired now:
   - workload IAM roles
 - the platform can now validate synchronous write paths and both public and authenticated read paths end to end in AWS
 - packaging stays outside Terraform
-- in the current transitional state, Terraform still owns Lambda code through
-  ZIP artifact and source-code hash inputs in the reusable Lambda module
+- Terraform uses prepared ZIP artifacts for fresh Lambda creation while
+  tolerating external code-only updates after functions exist
 - notification workers are deployed through a separate Lambda module call after
   CloudFront so `notification-sender` can receive the CloudFront frontend base
   URL without creating a Lambda/API Gateway/CloudFront dependency cycle

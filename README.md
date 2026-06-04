@@ -26,15 +26,31 @@ This project showcases:
 - transactional DynamoDB write paths with asynchronous notification fanout
 - React/Vite frontend delivery through a private S3 origin and CloudFront
 
-Planned showcase visuals:
+Showcase visuals:
 
-- Product screenshot placeholder:
-  - deployed event listing, event detail, RSVP, and owner/admin views
-- Operations screenshot placeholder:
-  - validated GitHub Actions workflows for provisioning, frontend deployment,
-    and Lambda code deployment
-- Observability screenshot placeholder:
-  - CloudWatch dashboard, representative alarms, or X-Ray trace summary
+Product workflow through CloudFront:
+
+![Event detail and RSVP workflow](docs/assets/showcase/02-product-event-detail-rsvp.png)
+
+Code-only Lambda deployment through GitHub Actions:
+
+![Lambda deployment apply workflow success](docs/assets/showcase/05-lambda-deploy-apply-success.png)
+
+CloudWatch operational dashboard:
+
+![CloudWatch observability dashboard](docs/assets/showcase/07-cloudwatch-dashboard.png)
+
+Additional evidence:
+
+- [Event listing through CloudFront](docs/assets/showcase/01-product-event-list.png)
+- [Owner event management view](docs/assets/showcase/03-product-owner-rsvp-list.png)
+- [GitHub Actions workflow inventory](docs/assets/showcase/04-github-actions-workflows.png)
+- [Provisioning apply workflow success](docs/assets/showcase/06-provisioning-apply-success.png)
+- [X-Ray trace map](docs/assets/showcase/08-xray-trace-map.png)
+- [CloudWatch alarms](docs/assets/showcase/09-cloudwatch-alarms.png)
+
+Planned diagrams:
+
 - Architecture diagram placeholder:
   - current AWS infrastructure and application request/event workflow
 - Operations diagram placeholder:

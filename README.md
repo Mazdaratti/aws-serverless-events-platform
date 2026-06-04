@@ -839,7 +839,8 @@ In `dev`, WAF is disabled by default until active frontend traffic justifies the
 
 - Development begins with a single `dev` environment
 - Terraform modules allow future multi-environment expansion
-- Deployment automation will be added after validating the core platform
+- Deployment automation is implemented for provisioning, frontend assets, and
+  Lambda code updates in `dev`
 
 ---
 

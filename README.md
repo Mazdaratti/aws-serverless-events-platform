@@ -28,17 +28,22 @@ This project showcases:
 
 Showcase visuals:
 
+Current AWS serverless architecture and application workflows:
+
+![AWS Serverless Events Platform architecture](docs/assets/showcase/10-aws-serverless-events-platform-architecture-overview.png)
+
 Product workflow through CloudFront:
 
 ![Event detail and RSVP workflow](docs/assets/showcase/02-product-event-detail-rsvp.png)
 
-Code-only Lambda deployment through GitHub Actions:
-
-![Lambda deployment apply workflow success](docs/assets/showcase/05-lambda-deploy-apply-success.png)
 
 CloudWatch operational dashboard:
 
 ![CloudWatch observability dashboard](docs/assets/showcase/07-cloudwatch-dashboard.png)
+
+Code-only Lambda deployment through GitHub Actions:
+
+![Lambda deployment apply workflow success](docs/assets/showcase/05-lambda-deploy-apply-success.png)
 
 Additional evidence:
 
@@ -51,20 +56,9 @@ Additional evidence:
 
 Planned diagrams:
 
-- Architecture diagram placeholder:
-  - current AWS infrastructure and application request/event workflow
 - Operations diagram placeholder:
   - provisioning, frontend deployment, and Lambda code deployment workflow
     boundaries
-
-Validation snapshot:
-
-- local validation passed for Lambda unit tests, frontend typecheck/build,
-  frontend component tests, Playwright browser smoke tests, Python compilation,
-  and Terraform formatting
-- GitHub Actions workflows have been validated from `main` for CI, OIDC smoke,
-  provisioning dry-run/apply, frontend deployment dry-run/apply, and Lambda
-  deployment dry-run/apply
 
 ---
 

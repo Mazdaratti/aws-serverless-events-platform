@@ -32,6 +32,10 @@ Current AWS serverless architecture and application workflows:
 
 ![AWS Serverless Events Platform architecture](docs/assets/showcase/10-aws-serverless-events-platform-architecture-overview.png)
 
+Development workflows, tooling, and deployment boundaries:
+
+![Development workflows and tooling](docs/assets/showcase/11-development-workflows-and-tooling.png)
+
 Product workflow through CloudFront:
 
 ![Event detail and RSVP workflow](docs/assets/showcase/02-product-event-detail-rsvp.png)
@@ -53,12 +57,6 @@ Additional evidence:
 - [Provisioning apply workflow success](docs/assets/showcase/06-provisioning-apply-success.png)
 - [X-Ray trace map](docs/assets/showcase/08-xray-trace-map.png)
 - [CloudWatch alarms](docs/assets/showcase/09-cloudwatch-alarms.png)
-
-Planned diagrams:
-
-- Operations diagram placeholder:
-  - provisioning, frontend deployment, and Lambda code deployment workflow
-    boundaries
 
 ---
 

@@ -1,45 +1,55 @@
 # Architecture Overview
 
-The AWS Serverless Events Platform is a fully managed, cloud-native web application built entirely on AWS serverless services.
+The AWS Serverless Events Platform is a fully managed, cloud-native web
+application built on AWS serverless services.
 
-The architecture follows a **transactional core + event-driven extension model**:
+This document owns the detailed platform architecture, service responsibilities,
+and system boundaries. Product and authorization contracts are documented in
+`platform-behavior.md`; operational setup and deployment procedures are
+documented in `project-setup.md`; concrete `dev` Terraform composition is
+documented in `infrastructure/envs/dev/README.md`.
 
-- Business-critical API operations execute synchronously and durably through DynamoDB commit
-- Asynchronous services are used for scalability, decoupling, and background processing
+The deployed architecture follows a **transactional core with event-driven
+extensions**:
 
-This approach preserves immediate correctness guarantees while enabling production-grade system evolution.
+- business-critical API operations execute synchronously and commit durably to
+  DynamoDB
+- asynchronous services provide post-commit fanout, buffering, retries, and
+  notification delivery
 
----
+This preserves immediate business outcomes while isolating downstream work from
+the synchronous request path.
 
 ## Edge Layer (Global Entry Point)
 
 User traffic enters the system through:
 
 - **Amazon CloudFront** for global content delivery
-- **AWS WAF** for edge-level protection
 - **AWS Shield Standard** for automatic DDoS mitigation
+- optional **AWS WAF** protection when enabled for the environment
 
-CloudFront serves static frontend assets from:
+CloudFront serves static frontend assets from a private:
 
 - **Amazon S3**
 
-WAF applies:
+When enabled, WAF applies:
 
 - AWS Managed Rule Sets
 - IP-based rate limiting
 
-This design protects the platform at the network edge and reduces load on backend services.
+WAF is disabled by default in `dev` to avoid steady non-production cost.
+CloudFront remains the public browser entry point regardless of the WAF setting.
 
-### Edge Delivery Direction
+### Edge Delivery Model
 
-The intended edge-delivery baseline uses one CloudFront distribution as the
-public entry point for browser traffic.
+The deployed edge layer uses one CloudFront distribution as the public entry
+point for browser traffic.
 
-That distribution is expected to:
+The distribution:
 
 - serve static frontend assets from a private S3 bucket
 - forward backend API requests to API Gateway
-- attach WAF protection at the edge
+- attach WAF protection when enabled
 - enforce HTTPS-only browser access
 - provide CDN caching for static frontend assets
 

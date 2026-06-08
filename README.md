@@ -284,27 +284,17 @@ Project documentation is split by purpose:
 
 ## Developer Tooling
 
-The current local workflow expects:
+| Area | Technologies |
+|---|---|
+| Infrastructure | Terraform, AWS CLI, `tflint`, `terraform-docs` |
+| Backend | Python 3.13, AWS Lambda |
+| Frontend | React, Vite, TypeScript, Tailwind CSS |
+| Validation | pytest, Vitest, React Testing Library, Playwright |
+| Automation | GitHub Actions, GitHub OIDC, GitHub CLI, Docker |
 
-- Python
-- Docker
-- Terraform
-- `tflint`
-- `terraform-docs`
-- Node.js
-- npm
-
-The frontend implementation uses:
-
-- React + Vite + TypeScript
-- React Router with `BrowserRouter` and `/app` as the route basename
-- `aws-amplify/auth` for Cognito browser authentication
-- plain `fetch` for backend API calls
-- Node.js and npm for frontend build tooling
-
-See:
-
-- `docs/project-setup.md`
+Setup and operational commands are documented in
+[project-setup.md](docs/project-setup.md). Frontend-specific tooling is
+documented in [frontend/README.md](frontend/README.md).
 
 ---
 

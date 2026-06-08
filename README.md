@@ -129,116 +129,57 @@ default in `dev`.
 
 ## System Workflows
 
-### Frontend Delivery
+### Frontend and API Delivery
 
-1. Users access the application through **Amazon CloudFront**.
-2. CloudFront securely serves static frontend assets from a private **Amazon
-   S3** bucket.
-3. Frontend browser routes are served under `/app`.
-4. When enabled, **AWS WAF** filters traffic at the edge before requests reach
-   the frontend or backend origins.
+CloudFront is the public entry point for the platform. It serves the React SPA
+from a private S3 origin under `/app`, forwards same-origin `/events` requests
+to API Gateway, and applies SPA deep-link rewrites without changing API paths.
+AWS WAF can optionally filter traffic at the CloudFront edge.
 
-### Frontend Routing Model
+API Gateway routes requests to dedicated Lambda workloads. Cognito JWT
+authorization protects ordinary authenticated routes, while a Lambda
+authorizer supports anonymous and authenticated callers on the mixed-mode RSVP
+route.
 
-The frontend is delivered as a SPA under:
+### Synchronous Business Operations
 
-- `/app`
+Event and RSVP operations use the synchronous path:
 
-API routes remain under:
+```text
+Client -> CloudFront -> API Gateway -> Lambda -> DynamoDB
+```
 
-- `/events`
+Transactional DynamoDB writes preserve immediate business outcomes for event
+management and RSVP processing, including authorization, event state, and
+capacity rules.
 
-CloudFront handles SPA deep-link routing for `/app/*` without affecting API behavior.
+### Asynchronous Notifications
 
-### API Request Flow
+After successful event creation, update, or cancellation, write workloads
+publish compact domain events to EventBridge. EventBridge routes:
 
-5. The frontend sends same-origin API requests through **Amazon CloudFront** to **Amazon API Gateway**.
-6. Route protection is enforced at API Gateway using a hybrid authorizer model:
-   - native JWT authorizer for ordinary protected routes
-   - a dedicated Lambda authorizer for the mixed-mode RSVP route
+- admin notifications to SNS
+- participant update and cancellation work through:
 
-### Event Management
+```text
+EventBridge -> dispatch SQS -> planner Lambda
+            -> email SQS -> sender Lambda -> SES
+```
 
-7. API Gateway invokes dedicated **Lambda functions** for event and RSVP
-   operations.
-8. Event and RSVP records are stored in **Amazon DynamoDB**.
-
-### RSVP Processing
-
-9. RSVP submissions are handled as a **synchronous business operation**.
-10. The primary RSVP write path is:
-
-`Client -> CloudFront -> API Gateway -> Lambda -> DynamoDB transaction`
-
-11. This design preserves the current API contract so the caller immediately knows whether:
-- the RSVP was created
-- the RSVP was updated
-- the event is already at capacity
-- access is forbidden
-- the event does not exist
-
-### Event-Driven Extensions
-
-12. After a successful durable event-management write, one compact domain event
-is published to **Amazon EventBridge**.
-13. EventBridge routes admin notifications directly to an **Amazon SNS** admin
-topic. In the current direct-SNS baseline, EventBridge input transformers
-provide lightweight admin email formatting with the full CloudFront event URL.
-14. EventBridge routes participant-notification planning work to **Amazon SQS**.
-15. The participant notification path is:
-
-`EventBridge -> notification-dispatch SQS -> notification-planner Lambda -> notification-email SQS -> notification-sender Lambda -> SES`
-
-16. The deployed `notification-planner` creates one recipient-level email job
-per authenticated RSVP user for event update and cancellation notifications.
-17. The SES baseline provides the sender identity and reusable participant email
-templates for update and cancellation notifications.
-18. The deployed `notification-sender` consumes recipient-level jobs from
-`notification-email`, resolves the current recipient email through Cognito at
-send time, selects the SES template, provides safe template data, and sends
-participant email through **Amazon SES**.
-
-The planner and sender execution roles are provisioned separately with
-least-privilege IAM.
-
-Participant emails are user-facing product emails, not admin/debug messages.
-The planner produces safe recipient-level jobs. SES owns reusable template
-definitions, and the sender owns template selection, safe template data, and
-delivery.
-
-In `dev`, SES uses a verified project sender inbox and sandbox-verified
-recipient addresses. Production-shaped deliverability improvements such as a
-custom domain identity, DKIM, SPF, DMARC, and MAIL FROM configuration remain
-future email-deliverability work.
-
-The v1 event-management domain events are:
-
-- `event.created`
-- `event.updated`
-- `event.cancelled`
-
-EventBridge owns fanout, and notification publication or delivery failures must
-not change the original synchronous API result.
+The planner creates recipient-level jobs, while the sender resolves current
+Cognito email addresses and delivers SES-templated messages. Notification
+failures remain isolated from the original API result.
 
 ### Observability
 
-19. Logs and metrics are collected in **Amazon CloudWatch**.
-20. **AWS X-Ray** active tracing is enabled for deployed Lambda workloads in
-`dev` to analyze request performance and dependencies.
-21. CloudWatch metric alarms are deployed for Lambda errors/throttles, API
-Gateway 5xx responses, SQS queue depth/age/DLQ depth, and EventBridge failed
-invocations.
-22. A compact CloudWatch dashboard is deployed for Lambda, API Gateway, SQS,
-and EventBridge runtime visibility.
+CloudWatch provides logs, alarms, metrics, and a compact operational dashboard
+for Lambda, API Gateway, SQS, and EventBridge. AWS X-Ray active tracing is
+enabled for deployed Lambda workloads.
 
-API Gateway active tracing is not enabled because the platform uses API Gateway
-HTTP API, while API Gateway active tracing applies to REST APIs.
-
-CloudWatch alarm actions are intentionally empty in `dev`; alert routing is
-kept separate from the first metric coverage baseline.
-
-This design preserves immediate correctness for core business writes while
-using asynchronous processing for post-commit notification work.
+Detailed service relationships are documented in
+[architecture.md](docs/architecture.md). Product, authorization, and runtime
+contracts are documented in
+[platform-behavior.md](docs/platform-behavior.md).
 
 ---
 

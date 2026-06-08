@@ -72,170 +72,34 @@ Additional evidence:
 
 ---
 
-## Current Development Status
+## Delivered Capabilities
 
-### Completed milestones
+The deployed and validated `dev` platform includes:
 
-- Platform foundations
-  - AWS account and repository foundation
-  - modular Terraform structure
-  - local-state-first `dev` environment
-  - architecture and behavior contracts
+- **Serverless infrastructure:** modular Terraform composition for DynamoDB,
+  Lambda, API Gateway, Cognito, EventBridge, SQS, SNS, SES, CloudFront, S3,
+  optional WAF protection, CloudWatch, and X-Ray.
+- **Application workloads:** dedicated Lambda functions for event creation,
+  listing, retrieval, updates, cancellation, RSVP processing, owner views, and
+  RSVP administration, with transactional DynamoDB write paths.
+- **Identity and edge delivery:** Cognito authentication, JWT and mixed-mode
+  Lambda authorization, a private S3 frontend origin, CloudFront SPA routing,
+  and same-origin API delivery.
+- **Asynchronous notifications:** post-commit EventBridge domain events, SNS
+  admin notifications, SQS-buffered participant notification planning, and SES
+  templated email delivery with dedicated planner and sender workers.
+- **Frontend application:** a responsive React, Vite, and TypeScript SPA with
+  public event discovery, mixed-mode RSVP, and authenticated event-management
+  workflows.
+- **Observability and validation:** CloudWatch alarms and dashboards, Lambda
+  X-Ray tracing, Python Lambda tests, Terraform validation, and frontend
+  component and browser tests.
+- **Secure delivery automation:** S3 remote Terraform state, native state
+  locking, GitHub OIDC authentication, and separate manual workflows for
+  provisioning, frontend deployment, and Lambda code deployment.
 
-- Core infrastructure
-  - DynamoDB data layer for events and RSVPs
-  - SQS queues and DLQs for async notification work:
-    - `notification-dispatch`
-    - `notification-email`
-  - least-privilege IAM roles for deployed Lambda workloads
-  - split least-privilege IAM roles for `notification-planner` and
-    `notification-sender`
-  - separate notification Lambda composition for planner/sender workers
-  - ZIP-packaged Lambda deployment baseline
-  - Cognito User Pool, app client, and admin group
-  - routed API Gateway HTTP API baseline
-
-- Edge and frontend delivery
-  - private S3 frontend origin
-  - CloudFront distribution as the browser-facing entry point
-  - CloudFront Function for `/app` SPA deep-link rewrites
-  - API forwarding for `/events` and `/events/*`
-  - optional CloudFront-scoped WAF baseline
-  - local frontend deployment helper for S3 sync and CloudFront invalidation
-  - manual GitHub Actions frontend deployment dry-run workflow validated from
-    `main`
-  - manual GitHub Actions frontend deployment apply workflow validated from
-    `main`
-
-- Routed backend workloads
-  - `create-event`
-  - `list-events`
-  - `list-my-events`
-  - `get-event`
-  - `update-event`
-  - `cancel-event`
-  - `rsvp`
-  - `get-event-rsvps`
-  - `rsvp-authorizer`
-
-- Async notification foundation
-  - EventBridge custom event bus
-  - compact post-commit domain events for:
-    - `event.created`
-    - `event.updated`
-    - `event.cancelled`
-  - SNS admin notification topic and confirmed dev email subscription
-  - EventBridge-routed admin notifications
-  - participant dispatch routing to `notification-dispatch` for:
-    - `event.updated`
-    - `event.cancelled`
-  - deployed `notification-planner` worker for participant notification planning
-  - `notification-email` queue for recipient-level participant email jobs
-  - SES sender identity and participant email templates wired in `dev`
-  - deployed `notification-sender` worker for SES templated participant email
-    delivery
-  - `notification-email` event source mapping with partial batch responses
-  - Cognito `sub` lookup at send time for current recipient email resolution
-  - EventBridge-to-SNS and EventBridge-to-SQS policies hardened with source ARN
-    and `aws:SourceAccount`
-  - synchronous API outcomes remain independent from async notification delivery
-
-- Frontend application
-  - React + Vite + TypeScript SPA under `/app`
-  - same-origin API client using `/events` paths
-  - Cognito auth with sessionStorage token handling
-  - public event listing and detail pages
-  - mixed-mode RSVP UI
-  - authenticated create, edit, cancel, my-events, and RSVP-list flows
-  - responsive Tailwind CSS UI
-  - route-level lazy loading
-  - accessibility and user-feedback baseline
-
-- Validation and developer workflow
-  - Python Lambda tests
-  - frontend Vitest and Playwright tests
-  - Terraform module/example/dev validation in CI
-  - frontend CI validation for install, typecheck, build, component tests, and
-    browser smoke tests
-  - deterministic Lambda ZIP packaging helper
-  - CI concurrency and job timeouts for stale-run and stuck-job protection
-  - CI syntax compilation for repository helper scripts
-  - terraform-docs documentation workflow
-
-- Observability baseline
-  - Lambda X-Ray active tracing enabled for all deployed `dev` Lambda workloads
-  - minimal X-Ray write permissions added to Lambda execution policies
-  - representative trace generation validated in AWS X-Ray
-  - reusable CloudWatch observability module added for alarms and dashboard
-  - CloudWatch metric alarms wired into `dev` for Lambda, API Gateway, SQS, and
-    EventBridge
-  - compact CloudWatch dashboard wired into `dev`
-  - alert delivery intentionally disabled with empty alarm and OK actions
-  - CloudWatch observability validation completed in AWS
-
-- Remote backend and GitHub OIDC bootstrap
-  - reusable persistent remote backend module baseline
-  - teardown-friendly `dev` bootstrap root
-  - generated Git-ignored `infrastructure/envs/dev/backend.tf`
-  - S3 backend bucket with versioning, SSE-S3 encryption, public access block,
-    and `BucketOwnerEnforced`
-  - S3 native lockfile backend configuration
-  - GitHub Actions OIDC provider
-  - branch-scoped GitHub Actions IAM role for `main`
-  - separate Terraform state access policy
-  - split serverless deploy policies for the current platform surface
-  - repo-aligned permissions boundary
-  - AWS bootstrap validation completed for `dev`
-  - `infrastructure/envs/dev` migrated to the generated S3 backend
-  - remote-backed `dev` Terraform plan validated clean
-  - unified repository variable and secret sync helper added for GitHub Actions
-    provisioning inputs
-  - GitHub repository variables and secrets can be synced from bootstrap outputs
-    and local dev Terraform inputs
-  - manual AWS OIDC smoke workflow added for branch-scoped role validation
-  - GitHub Actions OIDC smoke workflow validated successfully from `main`
-
-- Provisioning dry-run automation
-  - manual GitHub Actions provisioning dry-run workflow added
-  - workflow packages Lambda ZIP artifacts before Terraform planning
-  - workflow runs Terraform init, validate, and plan through GitHub OIDC
-  - workflow validated successfully from `main` with a clean Terraform plan
-  - OIDC deploy policy includes Terraform refresh read permissions required by
-    the current `dev` platform surface
-  - workflow does not run Terraform apply
-  - workflow does not deploy Lambda code or frontend assets
-
-- Provisioning apply automation
-  - manual GitHub Actions provisioning apply workflow added
-  - workflow requires explicit `confirm_apply=apply-dev` confirmation
-  - workflow packages Lambda ZIP artifacts before Terraform planning
-  - workflow runs Terraform init, validate, plan, and apply through GitHub OIDC
-  - workflow applies the saved Terraform plan
-  - workflow validated successfully from `main`
-  - workflow does not deploy Lambda code or frontend assets
-
-- Lambda deployment dry-run automation
-  - reusable Lambda deployment helper added with dry-run and apply modes
-  - manual GitHub Actions Lambda deployment dry-run workflow added
-  - workflow packages Lambda ZIP artifacts through the real packaging path
-  - workflow validates deployed workload-to-function mapping from Terraform
-    outputs
-  - workflow previews planned `aws lambda update-function-code` commands
-  - workflow validated successfully from `main`
-  - workflow does not run Terraform plan/apply
-  - workflow does not update Lambda code or deploy frontend assets
-
-- Lambda deployment apply automation
-  - manual GitHub Actions Lambda deployment apply workflow added
-  - workflow requires explicit `confirm_deploy=deploy-lambdas-dev`
-    confirmation
-  - workflow packages Lambda ZIP artifacts through the real packaging path
-  - workflow validates deployed workload-to-function mapping from Terraform
-    outputs
-  - workflow updates existing Lambda function code with
-    `aws lambda update-function-code --no-publish`
-  - workflow validated successfully from `main`
-  - workflow does not run Terraform plan/apply or deploy frontend assets
+Detailed delivery history and planned work are recorded in the
+[implementation roadmap](docs/implementation-roadmap.md).
 
 ---
 

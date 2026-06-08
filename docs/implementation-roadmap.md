@@ -6,6 +6,35 @@ development direction for the AWS Serverless Events Platform.
 Completed items document delivered and validated capabilities. Unchecked items
 represent planned work and may be refined before implementation.
 
+## Implementation Approach
+
+The platform is implemented incrementally so infrastructure and application
+boundaries can be validated in real AWS before the next major capability is
+introduced.
+
+Each implementation slice follows the same general progression:
+
+1. define the intended architecture or behavior contract
+2. implement the smallest complete capability
+3. validate it locally, in CI, and in AWS where applicable
+4. tighten reusable modules, documentation, examples, and automation
+5. proceed to the next platform layer
+
+This approach keeps review boundaries clear, limits premature abstraction, and
+allows cost, security, and operational assumptions to be tested against the
+deployed environment.
+
+Reusable Terraform modules may begin as narrow environment-driven building
+blocks while a service boundary is being proven. Once validated end to end,
+their interfaces and supporting validation are hardened before broader reuse.
+
+Architecture and implementation choices may evolve when real access patterns,
+workload characteristics, or operational evidence justify a change. Product
+and authorization contracts remain separately documented so roadmap changes do
+not silently redefine platform behavior.
+
+## Roadmap
+
 1. Terraform environment foundation ✅
    - local-state-first `envs/dev` baseline ✅
    - provider/version constraints ✅

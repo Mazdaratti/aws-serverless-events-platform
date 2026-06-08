@@ -215,106 +215,23 @@ state are documented in
 
 ```text
 aws-serverless-events-platform/
-|
-|-- .github/
-|   `-- workflows/
-|       |-- aws-oidc-smoke.yml
-|       |-- frontend-deploy-dry-run.yml
-|       |-- frontend-deploy-apply.yml
-|       |-- provisioning-dry-run.yml
-|       |-- provisioning-apply.yml
-|       |-- lambda-deploy-dry-run.yml
-|       |-- lambda-deploy-apply.yml
-|       `-- ci.yml
-|
-|-- docs/
-|   |-- assets/
-|   |-- architecture.md
-|   |-- project-setup.md
-|   `-- platform-behavior.md
-|
-|-- frontend/
-|   |-- public/
-|   |   `-- favicon.ico
-|   |-- src/
-|   |   |-- api/
-|   |   |-- auth/
-|   |   |-- components/
-|   |   |-- routes/
-|   |   |-- utils/
-|   |   |-- App.tsx
-|   |   |-- main.tsx
-|   |   `-- styles.css
-|   |-- .env.example
-|   |-- README.md
-|   |-- index.html
-|   |-- package-lock.json
-|   |-- package.json
-|   |-- tsconfig.json
-|   `-- vite.config.ts
-|
+|-- .github/workflows/       CI, OIDC smoke, provisioning, and deployment workflows
+|-- docs/                    Architecture, behavior, setup, roadmap, and evidence
+|-- frontend/                React, Vite, and TypeScript SPA
 |-- infrastructure/
-|   |-- bootstrap/
-|   |   `-- dev/
-|   |       |-- README.md
-|   |       |-- artifacts.tf
-|   |       |-- github_oidc.tf
-|   |       |-- locals.tf
-|   |       |-- outputs.tf
-|   |       |-- policy_boundary.tf
-|   |       |-- policy_deploy.tf
-|   |       |-- policy_state.tf
-|   |       |-- providers.tf
-|   |       |-- remote_backend.tf
-|   |       |-- terraform.tfvars.example
-|   |       |-- variables.tf
-|   |       `-- versions.tf
-|   |
-|   |-- envs/
-|   |   `-- dev/
-|   |       |-- README.md
-|   |       |-- data.tf
-|   |       |-- locals.tf
-|   |       |-- main.tf
-|   |       |-- outputs.tf
-|   |       |-- providers.tf
-|   |       |-- resource_policies.tf
-|   |       |-- terraform.tfvars.example
-|   |       |-- variables.tf
-|   |       `-- versions.tf
-|   |
-|   `-- modules/
-|       |-- api_gateway/
-|       |-- cloudfront/
-|       |-- cognito/
-|       |-- dynamodb_data_layer/
-|       |-- eventbridge/
-|       |-- iam/
-|       |-- lambda/
-|       |-- observability/
-|       |-- remote_backend/
-|       |-- s3_frontend_bucket/
-|       |-- ses/
-|       |-- sns/
-|       |-- sqs/
-|       `-- waf/
-|
-|-- lambdas/
-|   `-- Python Lambda workload source folders, shared helpers, and authorizer code
-|
-|-- scripts/
-|   `-- Python helper scripts for packaging and local build workflows
-|
-|-- tests/
-|   `-- Focused automated tests for implemented Lambda handlers, shared auth logic, and related workflows
-|
-|-- .gitignore
-|-- .terraform-docs.yml
+|   |-- bootstrap/dev/       Remote state and GitHub OIDC bootstrap
+|   |-- envs/dev/            Composed Terraform development environment
+|   `-- modules/             Reusable Terraform modules and examples
+|-- lambdas/                 Python workloads, shared helpers, and packaging notes
+|-- scripts/                 Packaging, deployment, and repository sync helpers
+|-- tests/                   Lambda handler and shared Python tests
 |-- LICENSE
 `-- README.md
 ```
 
-Infrastructure is implemented using modular Terraform design with environment-specific composition.
+Generated Lambda ZIP artifacts are written under the ignored
+`artifacts/lambda/` directory. Detailed ownership and usage are documented in
+the README files within each project area.
 
 ---
 

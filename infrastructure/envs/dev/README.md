@@ -428,6 +428,8 @@ Important design notes:
 - the sender email is configured through local untracked `terraform.tfvars`
 - the sender email must be a dedicated project inbox, not a private personal
   email address
+- private sender addresses must not be hardcoded in committed application code,
+  Terraform configuration, or documentation
 - Terraform creates the SES email identity, but inbox verification is manual
 - the dedicated project inbox is the visible participant email `From` address
 - Terraform manages templates for:

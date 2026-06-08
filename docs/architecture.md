@@ -406,116 +406,68 @@ in `platform-behavior.md`.
 
 ---
 
-## Event-Driven Async Processing
+## Event-Driven Notification Architecture
 
 Asynchronous services are used **after durable business state changes**.
 
-Core API outcomes remain synchronous. Notification routing and delivery must
-not decide whether the original API request succeeds or fails.
+Core API outcomes remain synchronous. Notification publication or delivery
+failures do not change the result of an already committed business operation.
 
-The platform uses:
+### Post-Commit Fanout
 
-- **Amazon EventBridge**
-  - post-commit domain event router
-- **Amazon SNS**
-  - admin/platform broadcast notification topic
-- **Amazon SQS**
-  - durable participant-notification work buffers
-- **AWS Lambda**
-  - notification planner and sender workers
-- **Amazon SES**
-  - participant email sender identity, templates, and delivery service
-
-After successful event-management writes, compact domain events are published to
-EventBridge. These events are emitted only after the primary DynamoDB business
-write succeeds.
-
-The v1 event-management domain events are:
+After a successful event-management write, the responsible Lambda publishes one
+compact domain event to EventBridge:
 
 - `event.created`
 - `event.updated`
 - `event.cancelled`
 
-Each successful business change publishes exactly one EventBridge domain event.
-Write Lambdas do not publish separate events for separate notification targets.
-EventBridge owns fanout.
+Write Lambdas do not publish target-specific notification messages.
+EventBridge owns downstream routing and fanout.
 
-The locked notification foundation uses separate admin and participant paths.
+The notification architecture separates admin broadcasts from participant
+email delivery.
 
-Admin notification path:
+### Admin Notification Path
 
-`EventBridge -> SNS admin topic`
+```text
+EventBridge -> SNS admin topic
+```
 
-The direct admin SNS path uses lightweight EventBridge target formatting for
-admin-readable messages. Environment-specific formatting can combine the
-published app-relative `event_detail_path` with the deployed frontend domain to
-produce a browser URL without changing the Lambda domain event payload.
+Admin notifications cover event creation, update, and cancellation. EventBridge
+input transformers produce lightweight admin-readable SNS messages without
+requiring a notification Lambda.
 
-Participant notification path:
+### Participant Notification Path
 
-`EventBridge -> notification-dispatch SQS -> notification-planner Lambda -> notification-email SQS -> notification-sender Lambda -> SES`
+Participant notifications for event updates and cancellations follow this
+pipeline:
 
-SQS is used for participant notification durability and retry isolation:
+| Stage | Component | Responsibility |
+|---|---|---|
+| 1 | EventBridge | Routes committed domain events |
+| 2 | SQS `notification-dispatch` | Buffers event-level planning work |
+| 3 | Lambda `notification-planner` | Expands RSVP records into recipient-level jobs |
+| 4 | SQS `notification-email` | Buffers recipient-level email work |
+| 5 | Lambda `notification-sender` | Resolves the current Cognito email and selects the SES template |
+| 6 | Amazon SES | Delivers the participant email |
 
-- `notification-dispatch`
-  - event-level planning queue for `event.updated` and `event.cancelled`
-- `notification-email`
-  - recipient-level user-facing email work queue between the planner and the
-    sender
+Both workers use partial SQS batch responses so one failed record does not
+force successful records to be retried.
 
-The notification worker layer is intentionally split:
+### Delivery Boundary
 
-- `notification-planner`
-  - consumes event-level participant notification work from
-    `notification-dispatch`
-  - queries RSVP records by event
-  - creates one recipient-level email job per authenticated RSVP user in
-    `notification-email`
-  - includes both attending and not-attending RSVP users
-  - skips anonymous RSVP subjects in v1
-  - uses partial batch responses for SQS retry isolation
-- `notification-sender`
-  - consumes recipient-level email jobs
-  - resolves the current recipient email through Cognito at send time using
-    the canonical Cognito `sub`
-  - builds safe template data for SES-managed participant email templates
-  - sends participant email through SES `SendTemplatedEmail`
+Terraform manages the `dev` SES sender identity and participant templates.
+The environment remains in the SES sandbox and therefore requires verified
+sender and recipient identities.
 
-This keeps EventBridge responsible for fanout, SQS responsible for durable
-participant work buffering, SES templates responsible for reusable user-facing
-email content, and SES delivery responsible for direct participant email.
+Queues remain outside the synchronous RSVP write path. They are used only for
+post-commit notification buffering, retries, and failure isolation.
 
-Development SES strategy:
-
-- participant email delivery uses Amazon SES
-- `dev` wires a Terraform-managed SES email identity and SES templates
-- the development baseline uses a dedicated project inbox as the SES sender identity
-- the dedicated project inbox is the visible participant email `From` address
-- the sender email value comes from untracked `terraform.tfvars`
-- private personal email addresses must not be used as the project sender
-- private personal email addresses must not be hardcoded in committed code,
-  Terraform, or documentation
-- SES email identity verification is completed manually through the verification
-  email sent to the dedicated project inbox
-- Terraform manages participant notification templates for:
-  - `event.updated`
-  - `event.cancelled`
-- SES templates contain the subject, plain-text body, and HTML body
-- `notification-sender` chooses the SES template and provides safe template data
-- sender SES permissions cover the configured sender address, participant
-  templates, and SES identity scope required by sandbox validation
-- SES sandbox assumptions remain explicit for `dev`
-- sandbox validation requires verified recipient email addresses
-- no SES production access request, domain identity, DKIM, SPF, DMARC, or
-  custom MAIL FROM configuration is part of the current architecture baseline
-
-Participant emails are user-facing product emails, not admin/debug messages.
-The planner produces safe recipient-level jobs, and the sender owns final
-presentation through stable templates. EventBridge does not send directly to
-`notification-email`.
-
-Queues are **not used in the primary RSVP write path**, but remain essential
-for decoupled notification processing and failure isolation.
+Detailed recipient selection, message contracts, and worker behavior are
+documented in [platform-behavior.md](platform-behavior.md). Concrete deployed
+wiring, SES configuration, and validation evidence are documented in the
+[development environment README](../infrastructure/envs/dev/README.md).
 
 ---
 

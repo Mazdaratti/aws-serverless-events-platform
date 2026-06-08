@@ -473,48 +473,36 @@ wiring, SES configuration, and validation evidence are documented in the
 
 ## Data Layer
 
-Business data is stored in:
+Amazon DynamoDB stores business data in two canonical tables:
 
-- **Amazon DynamoDB**
+| Table | Primary key | Responsibility |
+|---|---|---|
+| `events` | Partition key: `event_pk` | Event metadata, lifecycle state, visibility, creator ownership, and aggregate RSVP helper counters |
+| `rsvps` | Partition key: `event_pk`; sort key: `subject_sk` | Canonical event membership for authenticated and anonymous RSVP subjects |
 
-The initial data model uses an **initial two-table business data design**:
+Canonical key values use:
 
-### Events table
+- `event_pk = EVENT#<event_id>`
+- `subject_sk = USER#<user_id>` for authenticated RSVP subjects
+- `subject_sk = ANON#<anonymous_token>` for anonymous RSVP subjects
 
-Stores canonical event records including:
+RSVP records are the source of truth for attendance membership. Event-level
+counters support efficient reads but are maintained as derived helper values.
 
-- event metadata
-- visibility flags
-- organizer ownership
-- aggregate RSVP helper counters
+RSVP writes use DynamoDB transactions across both tables to keep membership,
+counters, and capacity enforcement consistent under concurrent requests.
 
-Counters improve read efficiency but are **not the source of truth**.
+The `events` table includes indexes only for established query patterns:
 
-### RSVPs table
+- `public-upcoming-events` for public event discovery
+- `creator-events` for creator-owned event listing
 
-Stores canonical RSVP membership records using:
-
-- event-scoped partition key
-- subject-scoped sort key
-
-This design supports:
-
-- efficient per-event RSVP queries
-- both authenticated and anonymous RSVP subjects
-- transactional capacity enforcement
-
-DynamoDB runs in **on-demand billing mode** for cost efficiency and burst handling.
-
-Global secondary indexes are introduced only for **validated access patterns**, such as:
-
-- public upcoming event discovery
-- creator event listing
-
-Those access patterns intentionally support the current Lambda rollout order:
-
-- broad event discovery
-- creator-owned event listing
-- later transactional RSVP handling
+The tables use on-demand capacity. Environment-specific durability and cost
+choices, including the `dev` point-in-time recovery setting, are documented in
+the [development environment README](../infrastructure/envs/dev/README.md).
+Detailed keys, lifecycle behavior, capacity rules, pagination, and public DTO
+boundaries are documented in
+[platform-behavior.md](platform-behavior.md).
 
 ---
 

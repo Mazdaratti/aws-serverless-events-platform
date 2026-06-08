@@ -274,7 +274,7 @@ not part of business workflow logic.
 
 The platform's canonical internal user identifier is the Cognito user `sub`.
 
-The platform's raw identity baseline derives from:
+The current identity model derives:
 
 - Cognito `sub` for user identity
 - Cognito group membership for admin capability
@@ -288,40 +288,45 @@ This keeps internal identity:
 - immutable
 - independent of username or email changes
 
-### Sign-In Strategy (v1)
+### Sign-In Model
 
 Sign-in is Cognito-managed.
 
-The initial identity baseline uses:
+The deployed User Pool uses:
 
 - username as the primary sign-in attribute
+- case-insensitive usernames
+- self-service registration
 - required email collection
 - Cognito-managed email verification
+- verified email for account recovery
 
-This does not lock the platform into permanent username-only login. Future
-changes such as email-based sign-in can evolve without changing the canonical
-internal identity model.
+The public User Pool Client supports password, SRP, and refresh-token
+authentication without a client secret. A later sign-in change can preserve the
+canonical internal identity model because application ownership is based on
+Cognito `sub`, not username or email.
 
 ### Admin Model
 
 Administrative capabilities are derived from Cognito group membership.
 
-The initial identity baseline includes one Cognito group:
+The deployed User Pool includes one administrative group:
 
 - `admin`
 
-Lambda functions must not infer admin privileges from request payloads or
-handler-specific custom auth logic.
+API Gateway authorizers project group membership into normalized caller
+context. Business Lambdas must not infer admin privileges from request payloads
+or handler-specific authentication logic.
 
-### Initial Cognito Scope
+### Cognito Scope
 
-The initial Cognito baseline intentionally includes only:
+The deployed identity layer includes:
 
 - one User Pool
 - one public User Pool Client
 - one `admin` group
 
-The following identity features are intentionally deferred:
+It intentionally does not include:
 
 - hosted UI
 - social identity providers
@@ -330,8 +335,10 @@ The following identity features are intentionally deferred:
 - custom domains
 - OAuth scopes and resource servers
 
-This keeps the identity layer minimal while still supporting the platform's
-locked authentication and authorization direction.
+This keeps the identity layer focused on the authentication and authorization
+requirements currently used by the application. Detailed account-lifecycle,
+route-authentication, and authorization behavior is documented in
+`platform-behavior.md`.
 
 ---
 

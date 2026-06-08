@@ -3,30 +3,50 @@
 [![CI Validation](https://github.com/Mazdaratti/aws-serverless-events-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Mazdaratti/aws-serverless-events-platform/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-A production-style, fully AWS-native serverless web application for managing events and RSVP workflows.
+[![AWS](https://img.shields.io/badge/AWS-Serverless-232F3E?logo=amazonwebservices&logoColor=white)](https://aws.amazon.com/serverless/)
+[![Terraform](https://img.shields.io/badge/Terraform-Infrastructure_as_Code-844FBA?logo=terraform&logoColor=white)](https://www.terraform.io/)
+[![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-CI%2FCD-2088FF?logo=githubactions&logoColor=white)](https://github.com/features/actions)
+[![React](https://img.shields.io/badge/React-TypeScript-149ECA?logo=react&logoColor=white)](https://react.dev/)
+[![Docker](https://img.shields.io/badge/Docker-Lambda_Packaging-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 
-The system demonstrates modern cloud architecture patterns including transactional serverless writes, event-driven extensions, managed authentication, edge security, and Infrastructure as Code using Terraform.
+A production-style AWS serverless web application for managing events and RSVP
+workflows.
 
-This project is designed as a **cloud engineering portfolio showcase** and follows real-world engineering practices such as least-privilege IAM, cost-aware design, incremental delivery, and modular infrastructure composition.
+Built as a **cloud engineering portfolio project**, the platform demonstrates
+how a complete serverless application can be designed, provisioned, secured,
+observed, tested, and deployed on AWS.
+
+The infrastructure is composed with reusable **Terraform** modules and uses
+**Amazon CloudFront**, **AWS WAF**, **Amazon S3**, **Amazon API Gateway**,
+**AWS Lambda**, **Amazon DynamoDB**, **Amazon Cognito**, **Amazon EventBridge**,
+**Amazon SQS**, **Amazon SNS**, **Amazon SES**, **Amazon CloudWatch**, and
+**AWS X-Ray**.
+
+The **React and TypeScript** frontend is delivered through a private S3 origin,
+while transactional API operations and asynchronous notification workflows
+remain clearly separated.
+
+**Engineering and delivery highlights:**
+
+- **Infrastructure as Code:** Terraform modules, remote S3 state, and native
+  state locking
+- **Security:** least-privilege IAM, Cognito-managed identity, edge protection,
+  and GitHub OIDC without long-lived AWS credentials
+- **Backend and automation:** Python 3.13 Lambda workloads and Python helper
+  scripts for deterministic packaging, deployment previews, and GitHub input
+  synchronization
+- **Frontend:** React, Vite, TypeScript, and Tailwind CSS
+- **Automated validation:** pytest, Vitest, React Testing Library, Playwright,
+  Terraform validation, and TFLint
+- **CI/CD:** separate GitHub Actions dry-run and apply workflows for Terraform
+  provisioning, frontend deployment, and Lambda code deployment
+- **Observability:** CloudWatch logs, alarms, dashboards, and active Lambda
+  tracing with X-Ray
 
 ---
 
-## Portfolio Snapshot
-
-This project showcases:
-
-- end-to-end AWS serverless application delivery with CloudFront, API Gateway,
-  Lambda, DynamoDB, Cognito, EventBridge, SQS, SNS, SES, CloudWatch, and X-Ray
-- modular Terraform infrastructure with reusable modules, examples, generated
-  documentation, and CI validation
-- GitHub Actions deployment automation using AWS OIDC instead of long-lived AWS
-  credentials
-- separated operational lanes for Terraform provisioning, frontend asset
-  deployment, and Lambda code deployment
-- transactional DynamoDB write paths with asynchronous notification fanout
-- React/Vite frontend delivery through a private S3 origin and CloudFront
-
-Showcase visuals:
+## Portfolio Showcase
 
 Current AWS serverless architecture and application workflows:
 
@@ -40,14 +60,9 @@ Product workflow through CloudFront:
 
 ![Event detail and RSVP workflow](docs/assets/showcase/02-product-event-detail-rsvp.png)
 
-
 CloudWatch operational dashboard:
 
 ![CloudWatch observability dashboard](docs/assets/showcase/07-cloudwatch-dashboard.png)
-
-Code-only Lambda deployment through GitHub Actions:
-
-![Lambda deployment apply workflow success](docs/assets/showcase/05-lambda-deploy-apply-success.png)
 
 Additional evidence:
 
@@ -55,6 +70,7 @@ Additional evidence:
 - [Owner event management view](docs/assets/showcase/03-product-owner-rsvp-list.png)
 - [GitHub Actions workflow inventory](docs/assets/showcase/04-github-actions-workflows.png)
 - [Provisioning apply workflow success](docs/assets/showcase/06-provisioning-apply-success.png)
+- [Lambda deployment apply workflow success](docs/assets/showcase/05-lambda-deploy-apply-success.png)
 - [X-Ray trace map](docs/assets/showcase/08-xray-trace-map.png)
 - [CloudWatch alarms](docs/assets/showcase/09-cloudwatch-alarms.png)
 
@@ -298,9 +314,11 @@ documented in [frontend/README.md](frontend/README.md).
 
 ---
 
-## Future Improvements
+## Longer-Term Opportunities
 
-- Custom domain and TLS configuration
+- Custom domain, Route 53, and ACM-managed TLS
 - Production alert delivery and escalation routing
 - Multi-environment promotion and release strategy
-- Advanced security hardening
+- Production SES deliverability with domain identity, DKIM, SPF, DMARC, and
+  custom MAIL FROM
+- Additional security controls guided by a production threat model

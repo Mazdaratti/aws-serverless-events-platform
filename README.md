@@ -185,59 +185,29 @@ contracts are documented in
 
 ## Key Architecture Decisions
 
-**Fully Serverless Design**
+- **Fully managed serverless:** managed AWS services provide scaling and remove
+  server and cluster administration.
+- **Synchronous core, asynchronous extensions:** business writes commit
+  synchronously, while EventBridge, SNS, SQS, and SES handle isolated
+  post-commit notification work.
+- **Managed identity with route-specific authorization:** Cognito owns identity
+  and token issuance; API Gateway uses JWT authorization for ordinary protected
+  routes and a Lambda authorizer for mixed-mode RSVP access.
+- **No VPC dependency:** the current managed-service architecture avoids VPC,
+  NAT Gateway, and private-network administration.
+- **Remote Terraform state:** the bootstrap root creates the S3 backend used by
+  `dev`, including native lockfile support. Provisioning and application
+  deployment remain separate operational lanes.
+- **Modular, composition-oriented Terraform:** reusable resource logic belongs
+  in focused modules, while `infrastructure/envs/dev` owns environment
+  composition and concrete cross-resource wiring.
+- **Incremental hardening:** infrastructure slices are validated in AWS before
+  reusable modules are tightened, documented, example-backed, and added to CI.
 
-Avoids infrastructure management and enables automatic scaling.
-
-**Synchronous Core, Async Extensions**
-
-Core business writes are intentionally kept synchronous so the system can
-preserve immediate business-result semantics required by the current API
-contract.
-
-Asynchronous processing is reserved for durable post-commit work. EventBridge
-owns notification fanout, SNS handles admin broadcasts, and SQS buffers
-participant-notification work outside the primary API write path.
-
-**Managed Authentication**
-
-Amazon Cognito replaces custom authentication logic, improving security and reducing operational overhead.
-
-The routed API uses a hybrid authorizer model so ordinary protected routes stay
-simple while the RSVP route can support anonymous and authenticated callers on
-one business operation.
-
-**No VPC Architecture**
-
-Simplifies networking and keeps costs low while still supporting production-grade patterns.
-
-**Local Terraform State First**
-
-Infrastructure started with local Terraform state for rapid iteration while
-the platform shape was still changing quickly.
-
-The `dev` environment uses an S3 remote backend created by the bootstrap root.
-Its backend configuration is generated into `infrastructure/envs/dev/backend.tf`.
-Terraform state uses S3 native lockfile support enabled through
-`use_lockfile = true`, while deployment automation remains separate from infrastructure state management. 
-
-**Modular Terraform Design**
-
-Reusable infrastructure logic is implemented in focused Terraform modules, while `infrastructure/envs/dev` stays thin and composition-oriented.
-
-This keeps changes reviewable, reduces refactoring churn, and supports future multi-environment expansion.
-
-**Incremental Module Hardening**
-
-Infrastructure slices may begin as environment-driven compositions while the
-required behavior is being proven in real AWS.
-
-Once a layer is validated end to end, its reusable module is tightened,
-documented, example-backed, and CI-validated before the next major platform
-layer is introduced.
-
-This allows delivery to stay incremental without leaving temporary module
-assumptions in place longer than necessary.
+Detailed rationale and service boundaries are documented in
+[architecture.md](docs/architecture.md). Environment composition and remote
+state are documented in
+[infrastructure/envs/dev/README.md](infrastructure/envs/dev/README.md).
 
 ---
 

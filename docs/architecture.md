@@ -344,43 +344,43 @@ route-authentication, and authorization behavior is documented in
 
 ## API Layer
 
-**Amazon API Gateway (HTTP API)** routes requests to individual:
+**Amazon API Gateway HTTP API** routes each operation to a dedicated **AWS
+Lambda** workload.
 
-- **AWS Lambda functions**
+This provides:
 
-Each endpoint is implemented as an independent Lambda to provide:
+- fault isolation
+- independent scaling
+- clear workload ownership
+- workload-specific IAM permissions
 
-- Fault isolation
-- Independent scaling
-- Clear ownership boundaries
-- Fine-grained IAM permissions
-
-This keeps the compute layer aligned with the platform's business workflow
-boundaries, such as:
+The deployed route families cover:
 
 - event creation
 - public event listing and lookup
 - creator-scoped event listing
 - creator-owned event management
-- synchronous RSVP business handling
+- RSVP submission and RSVP administration
 
-The routed API intentionally uses a hybrid authorization model:
+The API uses three route-authentication modes:
 
-- public read routes such as broad event listing and single-event lookup remain open
-- ordinary protected routes use the native JWT authorizer path
-- the RSVP route uses a dedicated custom authorizer path to support mixed anonymous and authenticated access on one operation
+- `NONE` for public event listing and lookup
+- `JWT` for authenticated event-management and owner/admin routes
+- `CUSTOM` for mixed anonymous and authenticated RSVP access
 
 ---
 
-## Core Business Write Pattern (RSVP)
+## Synchronous RSVP Write Pattern
 
 RSVP submission is implemented as a **synchronous transactional operation**.
 
-Primary flow:
+Request path:
 
-`Client -> CloudFront -> API Gateway -> Lambda -> DynamoDB transaction`
+```text
+Client -> CloudFront -> API Gateway -> Lambda -> DynamoDB transaction
+```
 
-This guarantees the caller immediately receives the final business outcome:
+The transaction returns the final business outcome to the caller:
 
 - RSVP created
 - RSVP updated
@@ -388,18 +388,21 @@ This guarantees the caller immediately receives the final business outcome:
 - access denied
 - event not found
 
-This pattern aligns with the existing API contract and improves user experience by avoiding eventual-consistency uncertainty in critical workflows.
+SQS and EventBridge are intentionally excluded from this primary write path so
+notification processing cannot delay or redefine the RSVP result.
 
-The RSVP decision itself remains business-driven inside Lambda:
+Business authorization remains inside the RSVP Lambda:
 
 - public events may allow anonymous RSVP
 - protected events require authenticated callers
 - admin events require admin callers
 
-JWT validation remains outside the RSVP business Lambda.
+Token validation remains in the dedicated mixed-mode Lambda authorizer. The
+business handler consumes normalized caller context and owns event access,
+capacity, and RSVP state decisions.
 
-For the mixed-mode RSVP route, token validation is performed in the dedicated
-custom Lambda authorizer, not in the business handler.
+Detailed route, request, response, and authorization contracts are documented
+in `platform-behavior.md`.
 
 ---
 

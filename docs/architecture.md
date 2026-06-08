@@ -5,9 +5,10 @@ application built on AWS serverless services.
 
 This document owns the detailed platform architecture, service responsibilities,
 and system boundaries. Product and authorization contracts are documented in
-`platform-behavior.md`; operational setup and deployment procedures are
-documented in `project-setup.md`; concrete `dev` Terraform composition is
-documented in `infrastructure/envs/dev/README.md`.
+[platform-behavior.md](platform-behavior.md); operational setup and deployment
+procedures are documented in [project-setup.md](project-setup.md); concrete
+`dev` Terraform composition is documented in the
+[development environment README](../infrastructure/envs/dev/README.md).
 
 The deployed architecture follows a **transactional core with event-driven
 extensions**:
@@ -47,11 +48,11 @@ point for browser traffic.
 
 The distribution:
 
-- serve static frontend assets from a private S3 bucket
-- forward backend API requests to API Gateway
-- attach WAF protection when enabled
-- enforce HTTPS-only browser access
-- provide CDN caching for static frontend assets
+- serves static frontend assets from a private S3 bucket
+- forwards backend API requests to API Gateway
+- attaches WAF protection when enabled
+- enforces HTTPS-only browser access
+- provides CDN caching for static frontend assets
 
 This keeps the platform aligned with a production-style edge model:
 
@@ -64,7 +65,7 @@ This keeps the platform aligned with a production-style edge model:
 The platform separates frontend application routes and backend API routes at
 the CloudFront edge layer.
 
-The following namespace split is now locked:
+The deployed namespace split is:
 
 - `/app` and `/app/*`
   - reserved for the frontend application
@@ -274,7 +275,7 @@ not part of business workflow logic.
 
 The platform's canonical internal user identifier is the Cognito user `sub`.
 
-The current identity model derives:
+The deployed identity model derives:
 
 - Cognito `sub` for user identity
 - Cognito group membership for admin capability
@@ -302,7 +303,7 @@ The deployed User Pool uses:
 - verified email for account recovery
 
 The public User Pool Client supports password, SRP, and refresh-token
-authentication without a client secret. A later sign-in change can preserve the
+authentication without a client secret. Future sign-in changes can preserve the
 canonical internal identity model because application ownership is based on
 Cognito `sub`, not username or email.
 
@@ -338,7 +339,7 @@ It intentionally does not include:
 This keeps the identity layer focused on the authentication and authorization
 requirements currently used by the application. Detailed account-lifecycle,
 route-authentication, and authorization behavior is documented in
-`platform-behavior.md`.
+[platform-behavior.md](platform-behavior.md).
 
 ---
 
@@ -402,7 +403,7 @@ business handler consumes normalized caller context and owns event access,
 capacity, and RSVP state decisions.
 
 Detailed route, request, response, and authorization contracts are documented
-in `platform-behavior.md`.
+in [platform-behavior.md](platform-behavior.md).
 
 ---
 

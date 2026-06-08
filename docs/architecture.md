@@ -534,30 +534,3 @@ evidence are documented in the
 [development environment README](../infrastructure/envs/dev/README.md).
 Reusable alarm and dashboard behavior is documented in the
 [observability module README](../infrastructure/modules/observability/README.md).
-
----
-
-## Architecture Evolution Strategy
-
-The platform is intentionally implemented incrementally.
-
-Infrastructure layers are introduced in a controlled sequence to:
-
-- validate architectural assumptions early
-- reduce refactoring risk
-- maintain clear review boundaries
-- support cost-aware experimentation
-
-Reusable modules are allowed to begin as thin environment-driven building
-blocks while behavior is being proven in real AWS.
-
-Once a layer is validated end to end, its reusable module is tightened,
-documented, example-backed, and CI-validated before the next major platform
-layer is introduced.
-
-Early decisions (such as synchronous RSVP writes and minimal DynamoDB indexing)
-may evolve as real workload characteristics become known.
-
-Business behavior contracts are tracked separately from this architecture
-overview so the system design can stay high-level while endpoint behavior and
-authorization rules continue to evolve in a controlled way.

@@ -128,31 +128,32 @@ This preserves a cleaner production-shaped boundary:
 - CloudFront delivers those artifacts publicly
 - origin access stays controlled at the edge layer
 
-### CloudFront Behavior Direction
+### CloudFront Behavior Model
 
-CloudFront behavior remains intentionally simple while preserving a clean
-frontend/API path split at the edge.
+CloudFront uses separate origin and cache behavior families for frontend and
+API traffic.
 
-The distribution should support:
+The deployed distribution includes:
 
 - one default behavior for static frontend assets from S3
 - S3-facing frontend behaviors for `/app` and `/app/*`
 - API Gateway-facing backend behaviors for `/events` and `/events/*`
 - a CloudFront Function attached only to the S3-facing frontend behaviors for
   SPA deep-link rewrites
-- HTTPS redirect at the edge
-- compression for static frontend assets
-- caching for static frontend assets
-- little or no caching for backend API traffic
-- WAF association on the distribution
+- HTTP-to-HTTPS redirection for every behavior
+- compression for frontend and API responses
+- AWS managed `CachingOptimized` policy for frontend assets
+- AWS managed `CachingDisabled` policy for API traffic
+- AWS managed `AllViewerExceptHostHeader` origin request policy for API
+  forwarding
+- optional WAF association when enabled by the environment
 
-The backend-forwarding behavior should preserve the existing routed backend
-contract instead of redefining backend authorization or business behavior at
-the edge.
+The API behaviors forward the methods and request details required by the
+routed backend without moving authentication, authorization, or business
+decisions into CloudFront.
 
-The browser-visible path split is now locked: frontend application routes live
-under `/app` and `/app/*`, while backend API routes remain under `/events` and
-`/events/*`.
+Frontend application routes remain under `/app` and `/app/*`; backend API
+routes remain under `/events` and `/events/*`.
 
 ### API Gateway Relationship
 
@@ -170,20 +171,18 @@ API Gateway remains responsible for:
 CloudFront changes the public entry path and request-routing layer, but the
 backend authorization model remains unchanged.
 
-### CORS Direction
+### Same-Origin and CORS Model
 
-The reusable API Gateway module supports optional CORS configuration, but the
-platform's preferred browser-integration direction is same-origin access
-through CloudFront.
+Browser traffic uses the same CloudFront origin for frontend assets and API
+requests:
 
-That means the long-term preferred browser path is:
+- `/app` and static assets are served from S3
+- `/events` and `/events/*` are forwarded to API Gateway
 
-- frontend assets delivered through CloudFront
-- backend API requests also entering through CloudFront
-
-Because of that, API Gateway CORS is expected to remain disabled unless a
-specific environment or integration case genuinely requires cross-origin
-browser access.
+The `dev` environment therefore leaves API Gateway CORS disabled with
+`cors_configuration = null`. The reusable API Gateway module still supports
+optional CORS for a future environment or integration that genuinely requires
+cross-origin browser access.
 
 ### Frontend Application Structure
 

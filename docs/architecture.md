@@ -506,45 +506,34 @@ boundaries are documented in
 
 ---
 
-## Observability
+## Observability Layer
 
-System monitoring and tracing use AWS-native services:
+The deployed observability baseline uses AWS-native logs, metrics, alarms,
+dashboards, and traces:
 
-- **Amazon CloudWatch** for service logs and metrics
-- **Amazon CloudWatch Alarms** for native service-metric alert conditions
-- **Amazon CloudWatch Dashboards** for a compact operational view
-- **AWS X-Ray** for Lambda request tracing
+| Signal | Implementation | Coverage |
+|---|---|---|
+| Logs | Amazon CloudWatch Logs | Terraform-managed Lambda log groups and a dedicated API Gateway access-log group |
+| Alarms | Amazon CloudWatch metric alarms | Lambda errors and throttles, API Gateway 5xx responses, SQS backlog and message age, DLQ messages, and EventBridge failed target invocations |
+| Dashboard | Amazon CloudWatch dashboard | Lambda, API Gateway, SQS, and EventBridge service health and performance |
+| Traces | AWS X-Ray | Active tracing for API/business, authorizer, and notification-worker Lambdas |
 
-The observability baseline includes:
+The CloudWatch baseline uses native AWS service metrics. It does not create
+custom application metrics or log metric filters.
 
-- Terraform-managed Lambda log groups with retention
-- API Gateway HTTP API access logs in a dedicated CloudWatch Logs log group
-- Lambda X-Ray active tracing for deployed API/business, authorizer, and
-  notification-worker Lambdas in `dev`
-- minimal X-Ray write permissions on Lambda execution policies
-- CloudWatch metric alarms for:
-  - Lambda errors
-  - Lambda throttles
-  - API Gateway 5xx responses
-  - SQS source queue visible messages
-  - SQS source queue oldest message age
-  - SQS DLQ visible messages
-  - EventBridge failed target invocations
-- one CloudWatch dashboard covering:
-  - Lambda invocations, errors, throttles, and duration p95
-  - API Gateway request count, 4xx, 5xx, and latency
-  - SQS visible messages, DLQ visible messages, and oldest message age
-  - EventBridge invocations and failed invocations
+Alert delivery remains separate from detection. The `dev` alarms have no alarm
+or OK actions, so they expose operational conditions without routing
+notifications to an incident channel.
 
-Alert delivery is not configured in the baseline. CloudWatch alarms are created
-with empty alarm and OK action lists so notification routing remains separate
-from metric coverage.
+API Gateway active tracing is not enabled because the platform uses HTTP API;
+API Gateway X-Ray tracing supports REST APIs. Lambda tracing remains active
+across the deployed workloads.
 
-The baseline uses native AWS service metrics. It does not create CloudWatch log
-metric filters or custom application metrics.
-
-API Gateway active tracing is not enabled because the platform uses API Gateway
-HTTP API, while API Gateway active tracing applies to REST APIs.
+Concrete alarm definitions, dashboard coverage, log retention, and validation
+evidence are documented in the
+[development environment README](../infrastructure/envs/dev/README.md).
+Reusable alarm and dashboard behavior is documented in the
+[observability module README](../infrastructure/modules/observability/README.md).
 
 ---
 

@@ -239,9 +239,9 @@ Additional evidence:
 
 ---
 
-## Target Architecture
+## Current Architecture
 
-The platform uses native AWS serverless services:
+The deployed `dev` environment uses these AWS serverless services:
 
 - Amazon CloudFront
 - AWS WAF
@@ -257,18 +257,22 @@ The platform uses native AWS serverless services:
 - Amazon CloudWatch
 - AWS X-Ray
 
-AWS Shield Standard provides automatic edge protection.
+AWS Shield Standard provides automatic edge protection. AWS WAF is available
+as an optional environment-controlled edge protection layer and is disabled by
+default in `dev`.
 
 ---
 
-## Target System Workflow
+## System Workflows
 
 ### Frontend Delivery
 
 1. Users access the application through **Amazon CloudFront**.
-2. CloudFront securely serves static frontend assets from a private **Amazon S3** bucket.
+2. CloudFront securely serves static frontend assets from a private **Amazon
+   S3** bucket.
 3. Frontend browser routes are served under `/app`.
-4. **AWS WAF** can filter malicious traffic at the edge before requests reach the backend when enabled for the environment.
+4. When enabled, **AWS WAF** filters traffic at the edge before requests reach
+   the frontend or backend origins.
 
 ### Frontend Routing Model
 
@@ -291,8 +295,9 @@ CloudFront handles SPA deep-link routing for `/app/*` without affecting API beha
 
 ### Event Management
 
-7. API Gateway invokes a **Lambda function** to create or retrieve event data.
-8. Event information is stored in **Amazon DynamoDB**, providing scalable serverless persistence.
+7. API Gateway invokes dedicated **Lambda functions** for event and RSVP
+   operations.
+8. Event and RSVP records are stored in **Amazon DynamoDB**.
 
 ### RSVP Processing
 
@@ -368,7 +373,8 @@ HTTP API, while API Gateway active tracing applies to REST APIs.
 CloudWatch alarm actions are intentionally empty in `dev`; alert routing is
 kept separate from the first metric coverage baseline.
 
-This design preserves immediate correctness for core business writes while still enabling scalable asynchronous processing where it adds real value.
+This design preserves immediate correctness for core business writes while
+using asynchronous processing for post-commit notification work.
 
 ---
 

@@ -60,15 +60,23 @@ Additional evidence:
 
 ---
 
-## Project Goals
+## Engineering Principles
 
-- Build a production-shaped serverless platform using managed AWS services
-- Demonstrate **transactional API workflows with asynchronous extensions**
-- Apply security best practices (edge protection, managed identity, least privilege)
-- Implement observability and operational readiness patterns
-- Use Terraform as the single source of infrastructure truth
-- Follow clean Git workflow and small, reviewable infrastructure changes
-- Stay within AWS Free Tier and promotional credits
+- **Managed serverless architecture:** use AWS managed services to reduce
+  operational overhead while preserving production-shaped service boundaries.
+- **Transactional core with asynchronous extensions:** keep business writes
+  synchronous and use event-driven processing for isolated post-commit work.
+- **Infrastructure as Code:** Terraform owns infrastructure and configuration;
+  frontend assets and Lambda code use separate deployment lanes.
+- **Security by design:** apply least-privilege IAM, Cognito-managed identity,
+  private S3 origins, optional WAF protection, and SQS failure isolation.
+- **Operational visibility:** provide CloudWatch logs, metrics, alarms, and
+  dashboards together with Lambda X-Ray tracing.
+- **Cost-aware development:** avoid EC2, NAT Gateways, and relational databases;
+  optional steady-cost features such as WAF remain disabled by default in
+  `dev`.
+- **Incremental delivery:** keep changes small and reviewable, validate them in
+  AWS, and support future environments through reusable Terraform modules.
 
 ---
 
@@ -248,37 +256,6 @@ automation lanes are complete.
 
 The next planned direction focuses on account lifecycle and Cognito
 account-management behavior.
-
----
-
-## Security Principles
-
-- Least-privilege IAM access
-- Optional edge protection using AWS WAF
-- Private S3 origin behind CloudFront
-- Managed identity via Amazon Cognito
-- Failure isolation using SQS dead-letter queues where asynchronous processing is used
-
----
-
-## Cost Awareness
-
-The system is designed to operate within:
-
-- AWS promotional credits
-- Always-free service limits
-
-No EC2 instances, NAT Gateways, or relational databases are used.
-In `dev`, WAF is disabled by default until active frontend traffic justifies the steady Web ACL and rule cost.
-
----
-
-## Environment Strategy
-
-- Development begins with a single `dev` environment
-- Terraform modules allow future multi-environment expansion
-- Deployment automation is implemented for provisioning, frontend assets, and
-  Lambda code updates in `dev`
 
 ---
 

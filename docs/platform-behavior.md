@@ -481,32 +481,23 @@ in [implementation-roadmap.md](implementation-roadmap.md).
 
 ### `create-event`
 
-Routed API shape:
+Route:
 
 - `POST /events`
 
-#### Access rule
+#### Access and Ownership
 
 - authenticated users may create public events
 - authenticated users may create protected events
 - admin users may also create admin-only events
-
-#### Ownership rule
-
 - event ownership must be derived from caller identity
-- `creator_id` should come from `caller.user_id`
+- `creator_id` comes from `caller.user_id`
 - request-body `creator_id` must not be trusted as the source of ownership
 
-#### Current implementation note
+#### Creation Contract
 
-The deployed `create-event` Lambda now enforces the locked creation contract:
-
-- authenticated-only event creation
-- ownership derived from caller identity
-- request-body `creator_id` ignored as an ownership source
-- admin-only events restricted to admin callers
-- new canonical event records must include `status = ACTIVE`
-- returned event DTO must include `status`
+New canonical event records use `status = ACTIVE`. The successful response
+returns the public event DTO, including `status`.
 
 #### Post-commit EventBridge publication
 
@@ -540,14 +531,14 @@ EventBridge publication failure after durable creation is logged, but it must no
 
 ### `list-events`
 
-Routed API shape:
+Route:
 
 - `GET /events`
 
-#### Access rule
+#### Access Rule
 
-- all users may use public broad event listing
-- this is a public route
+- all users may use broad event listing
+- the route is public
 - no caller context is required or consumed by this handler
 
 #### Request contract
@@ -573,8 +564,8 @@ The response body shape is:
 
 #### Event DTO contract
 
-`list-events` should return a stable public event DTO instead of raw or
-half-cleaned DynamoDB storage items.
+`list-events` returns a stable public event DTO instead of raw DynamoDB storage
+items.
 
 The public event DTO is:
 
@@ -592,7 +583,7 @@ The public event DTO is:
 - `rsvp_count`
 - `attending_count`
 
-These mappings are locked:
+Field mappings:
 
 - `event_pk` -> `event_id` without the `EVENT#` prefix
 - `creator_id` -> `created_by`
@@ -621,79 +612,63 @@ Timestamp presentation is intentionally split across backend and frontend:
 This keeps the API-facing event model cleaner than the storage model while
 still exposing the most useful UI-oriented event information.
 
-#### Mapping ownership
+#### Mapping Ownership
 
 Event DTO mapping belongs in Lambda code, not in API Gateway.
 
 The storage model and API model are intentionally separate:
 
-- DynamoDB keeps the current canonical storage item shape
+- DynamoDB keeps the canonical storage item shape
 - Lambda handlers map storage items into the public event DTO
 
-#### Pagination contract
+#### Pagination Contract
 
 - `next_cursor` is an opaque string cursor
 - internally it is derived from DynamoDB `LastEvaluatedKey`
 - the public contract must not expose raw DynamoDB key structure directly
 
-#### Current implementation direction
+#### Read Model
 
-- broad public listing currently uses a temporary table `Scan`
+- broad listing uses a temporary table `Scan`
 - pagination is required
 - creator-scoped listing behavior no longer belongs to this handler
-- the dedicated authenticated creator-scoped listing workload is:
-  - `list-my-events`
+- `list-my-events` owns authenticated creator-scoped listing
 
-This is an intentional tradeoff:
+This is an explicit optimization boundary:
 
-- broad listing preserves the current product direction
-- long-term scan reduction remains desirable, but broad listing is currently an
-  intentional platform behavior
+- the API contract remains independent of the storage access path
+- replacing the scan with an indexed query must preserve pagination and DTO
+  behavior unless the product contract is deliberately revised
 
-#### Current implementation note
+#### Lifecycle and Visibility Behavior
 
-The deployed `list-events` Lambda now validates the currently locked read
-contract in `dev`:
-
-- broad public listing returns the current event collection
-- returned items use the locked public event DTO
-- request validation is intentionally limited to:
-  - `limit`
-  - `next_cursor`
-- the current broad public route filters cancelled events
-- due to the temporary scan-based access path, non-public and past events may still appear in this phase
-
-Lifecycle note:
-
-- during the current temporary scan-based phase, `list-events` must filter out
-  cancelled events in Lambda
-- long-term behavior will rely on index-based access patterns instead of scan
-  filtering
-- `list-events` must expose `status` in the public DTO
+- request parameters are limited to `limit` and `next_cursor`
+- cancelled events are excluded by the Lambda
+- active non-public and past events may appear in the broad result set
+- every returned item includes `status`
 
 ### `list-my-events`
 
-Routed API shape:
+Route:
 
 - `GET /events/mine`
 
-#### Access rule
+#### Access Rule
 
 - authenticated users may list the events they created
-- anonymous caller is not allowed
+- anonymous callers are rejected at the API edge
 - missing authenticated caller context must not fall back to public behavior
 
-#### Query direction
+#### Read Model
 
-This operation is the dedicated creator-scoped listing workload and replaces
-the previous creator-scoped behavior that was formerly part of `list-events`.
+This operation owns creator-scoped listing and uses the `creator-events` GSI.
+Pagination is required.
 
-The route is intentionally split so:
+The separate route keeps:
 
 - broad event discovery remains public
-- creator-scoped event listing becomes a straightforward authenticated route
-- API Gateway can enforce authentication at the route level instead of relying
-  on mode-specific business gating for one listing route
+- creator-scoped event listing authenticated
+- route authentication enforced by API Gateway
 
 #### Request contract
 
@@ -722,17 +697,12 @@ The response body shape is:
 - `items`
 - `next_cursor`
 
-The returned items use the same locked public event DTO as:
+The returned items use the same public event DTO as:
 
 - `list-events`
 - `get-event`
 
-#### Current implementation direction
-
-- `list-my-events` now uses the `creator-events` GSI
-- pagination is required
-
-#### Lifecycle visibility
+#### Lifecycle Visibility
 
 Visible in this route:
 
@@ -740,42 +710,19 @@ Visible in this route:
 - `CANCELLED`
 - past events
 
-Past events remain visible unless a later product behavior explicitly changes
-that rule.
-
-#### Status direction
-
-`list-my-events` must expose `status` in the public event DTO.
-
-#### Current implementation note
-
-The deployed `list-my-events` Lambda now validates the currently locked
-creator-scoped read contract in `dev`:
-
-- anonymous requests are rejected at the API edge for this route
-- authenticated creator-scoped listing succeeds through the dedicated routed path
-- returned items use the same locked public event DTO as:
-  - `list-events`
-  - `get-event`
-- request validation is limited to:
-  - `limit`
-  - `next_cursor`
-- the current access path uses the `creator-events` GSI
-- creator-scoped results include:
-  - `ACTIVE`
-  - `CANCELLED`
-  - past events
+Every returned item includes `status`. Past and cancelled events remain visible
+because this is an owner-management view rather than public discovery.
 
 ### `get-event`
 
-Routed API shape:
+Route:
 
 - `GET /events/{event_id}`
 
-#### Access rule
+#### Access Rule
 
 - all users may read a single event by public identifier
-- no caller context is required in this step
+- no caller context is required
 
 #### Request contract
 
@@ -808,29 +755,26 @@ The response body shape is:
 
 - `item`
 
-The returned `item` uses the same locked public event DTO as `list-events`.
+The returned `item` uses the same public event DTO as `list-events`.
 
-#### Visibility direction
+#### Visibility Behavior
 
-The current single-item read behavior is intentionally public:
+Single-item reads are public:
 
 - public events are readable by anyone
 - protected non-public events are readable by anyone
 - admin-only events are readable by anyone
 
-At this stage:
-
 - `is_public` and `requires_admin` affect business workflows such as RSVP and
-  later mutation rules
+  mutation
 - they do not restrict single-item event-detail reads
 
-If this product direction changes later, both read handlers should be updated
-together:
+Any future visibility change must consider both:
 
 - `list-events`
 - `get-event`
 
-#### DynamoDB lookup contract
+#### DynamoDB Lookup Contract
 
 - `get-event` uses DynamoDB `GetItem`
 - the public identifier is translated into the canonical key:
@@ -839,28 +783,14 @@ together:
 - no `Query`
 - no GSI access pattern
 
-#### Not-found behavior
+#### Not-Found Behavior
 
 - `404` is returned only when the event item does not exist
 - the response body is:
   - `{"message": "Event not found."}`
 
-#### Current implementation note
-
-The deployed `get-event` Lambda now validates the currently locked single-item
-read contract in `dev`:
-
-- direct single-item reads succeed without caller context
-- API Gateway-routed public single-item reads now succeed in `dev`
-- API Gateway-style `pathParameters.event_id` is supported
-- missing items return `404`
-- returned items use the locked public event DTO under `item`
-
-Lifecycle note:
-
-- `get-event` still returns cancelled events by ID
-- `get-event` still returns non-public events by ID
-- returned items must expose `status` in the public DTO
+Cancelled and non-public events remain readable by ID. Returned items include
+`status`.
 
 ### `update-event`
 

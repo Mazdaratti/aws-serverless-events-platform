@@ -22,8 +22,9 @@ This document is the working source of truth for:
 - post-commit notification publication and delivery behavior
 
 Operational setup, deployment procedures, and validation evidence belong in
-[project-setup.md](project-setup.md), `frontend/README.md`, and the relevant
-infrastructure documentation.
+[project-setup.md](project-setup.md),
+[frontend/README.md](../frontend/README.md), and the relevant infrastructure
+documentation.
 
 ---
 
@@ -121,7 +122,7 @@ The frontend must:
 ### CORS Behavior
 
 The reusable API Gateway module supports optional CORS configuration, but the
-deployed frontend does not depend on cross-origin API requests.
+frontend does not depend on cross-origin API requests.
 
 - the preferred product path is same-origin browser access through CloudFront
 - the frontend should not be designed around cross-origin browser calls to the
@@ -135,7 +136,7 @@ deployed frontend does not depend on cross-origin API requests.
 CORS remains an infrastructure capability rather than part of the normal
 frontend integration contract.
 
-### Frontend authentication behavior
+### Frontend Authentication Behavior
 
 Frontend authentication remains Cognito-managed.
 
@@ -171,7 +172,7 @@ The frontend should understand the routed auth modes as:
   - malformed or invalid presented auth should be treated as a failed request,
     not silently downgraded to anonymous behavior
 
-### Frontend request-shape contract
+### Frontend Request-Shape Contract
 
 The frontend must follow the current routed API contract and must not rely on
 internal storage model details.
@@ -187,10 +188,10 @@ Rules:
 - not infer DynamoDB key structure from API responses
 - not depend on hidden storage-only fields
 
-### Frontend response-consumption contract
+### Frontend Response-Consumption Contract
 
-The frontend must consume the already locked backend response contracts as they
-are exposed by the routed API.
+The frontend must consume the backend response contracts exposed by the routed
+API.
 
 This includes:
 
@@ -233,8 +234,8 @@ The frontend:
 - the frontend must not require the backend to pre-render presentation-specific
   date strings
 
-This preserves the current backend/frontend responsibility split already used
-by the event DTO contract.
+This preserves the backend/frontend responsibility split defined by the event
+DTO contract.
 
 ### Frontend Route and Presentation Behavior
 
@@ -303,7 +304,7 @@ Important examples from the backend contract:
 
 The frontend should preserve these distinctions in a user-appropriate way.
 
-### Frontend non-responsibilities
+### Frontend Non-Responsibilities
 
 The frontend must not:
 
@@ -399,7 +400,7 @@ recompute admin status or accept it from request payloads.
 
 ### Sign-In Behavior
 
-Sign-in is Cognito-managed. The deployed behavior uses:
+Sign-in is Cognito-managed. The sign-in contract uses:
 
 - username as the primary sign-in attribute
 - required email collection
@@ -422,7 +423,7 @@ need to change ownership or user-scoped data keys.
 The mixed-mode `rsvp` authorizer must not require anonymous callers to present
 an `Authorization` header before the authorizer is invoked.
 
-The deployed authorizer configuration uses:
+The authorizer configuration uses:
 
 - request authorizer `identity_sources` must be omitted
 - `enable_simple_responses` must remain enabled
@@ -499,7 +500,7 @@ Route:
 New canonical event records use `status = ACTIVE`. The successful response
 returns the public event DTO, including `status`.
 
-#### Post-commit EventBridge publication
+#### Post-Commit EventBridge Publication
 
 After successful durable event creation, `create-event` publishes one
 `event.created` domain event to EventBridge.
@@ -541,7 +542,7 @@ Route:
 - the route is public
 - no caller context is required or consumed by this handler
 
-#### Request contract
+#### Request Contract
 
 Support both:
 
@@ -553,7 +554,7 @@ Supported request parameters:
 - `limit`
 - `next_cursor`
 
-#### Response contract
+#### Response Contract
 
 The Lambda returns an API Gateway-style wrapped response.
 
@@ -562,7 +563,7 @@ The response body shape is:
 - `items`
 - `next_cursor`
 
-#### Event DTO contract
+#### Event DTO Contract
 
 `list-events` returns a stable public event DTO instead of raw DynamoDB storage
 items.
@@ -670,7 +671,7 @@ The separate route keeps:
 - creator-scoped event listing authenticated
 - route authentication enforced by API Gateway
 
-#### Request contract
+#### Request Contract
 
 Support both:
 
@@ -682,13 +683,13 @@ Supported request parameters:
 - `limit`
 - `next_cursor`
 
-#### Caller context
+#### Caller Context
 
 Caller identity comes from:
 
 - `caller.user_id`
 
-#### Response contract
+#### Response Contract
 
 The Lambda returns an API Gateway-style wrapped response.
 
@@ -724,7 +725,7 @@ Route:
 - all users may read a single event by public identifier
 - no caller context is required
 
-#### Request contract
+#### Request Contract
 
 Support both:
 
@@ -740,14 +741,14 @@ Resolution order:
 1. `pathParameters.event_id`
 2. top-level `event_id`
 
-#### Input validation contract
+#### Input Validation Contract
 
 - `event_id` is required
 - `event_id` must be a non-empty string after trimming
 - clients must pass the public identifier only
 - clients must not pass the internal storage key form `EVENT#...`
 
-#### Response contract
+#### Response Contract
 
 The Lambda returns an API Gateway-style wrapped response.
 
@@ -963,7 +964,7 @@ The returned `item` uses the same public event DTO as:
 - `404` event not found
 - `500` internal/runtime/data issue
 
-#### Post-commit EventBridge publication
+#### Post-Commit EventBridge Publication
 
 After successful durable event update, `update-event` publishes one
 `event.updated` domain event to EventBridge.
@@ -1045,7 +1046,7 @@ The returned `item` uses the public event DTO, including:
 - repeated cancel attempts return the normal wrapped `item` response instead of
   an error
 
-#### Post-commit EventBridge publication
+#### Post-Commit EventBridge Publication
 
 After a successful durable `ACTIVE -> CANCELLED` state transition,
 `cancel-event` publishes one `event.cancelled` domain event to EventBridge.
@@ -1772,4 +1773,4 @@ The following behavior is not currently implemented:
 - user notification preferences
 - anonymous RSVP email collection
 - participant delivery channels other than email
-- deployed notification integration tests in CI
+- deployed-environment notification integration tests in CI

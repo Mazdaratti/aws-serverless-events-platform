@@ -27,6 +27,12 @@ Start the local Vite development server:
 npm run dev
 ```
 
+Install the Playwright Chromium runtime before the first browser-test run:
+
+```powershell
+npx playwright install chromium
+```
+
 Run the complete validation suite:
 
 ```powershell
@@ -34,12 +40,6 @@ npm run typecheck
 npm run build
 npm run test
 npm run test:e2e
-```
-
-Install the Playwright Chromium runtime before the first browser-test run:
-
-```powershell
-npx playwright install chromium
 ```
 
 Testing is split into:

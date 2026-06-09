@@ -794,16 +794,16 @@ Cancelled and non-public events remain readable by ID. Returned items include
 
 ### `update-event`
 
-Routed API shape:
+Route:
 
 - `PATCH /events/{event_id}`
 
-#### Access rule
+#### Access Rule
 
 - event creator may update their own event
 - admin may update any event
 
-#### Operation model
+#### Operation Model
 
 `update-event` is a partial update operation, not a full replace.
 
@@ -829,7 +829,7 @@ Immutable/system-managed fields:
 `status` is a system-managed lifecycle field and must never be set directly by
 clients.
 
-#### Request contract
+#### Request Contract
 
 Support both:
 
@@ -848,14 +848,14 @@ Update payload resolution:
 - otherwise, top-level fields are treated as the update payload for direct
   invocation
 
-#### Payload rules
+#### Payload Rules
 
 - the payload must contain at least one mutable field
 - only supported mutable fields may be sent
 - unknown fields are rejected
 - immutable fields are rejected, not silently ignored
 
-#### Input validation contract
+#### Input Validation Contract
 
 - `event_id` is required
 - `event_id` must be a non-empty string after trimming
@@ -867,22 +867,20 @@ Update payload resolution:
 - if unknown fields are present, return `400`
 - if immutable fields are present, return `400`
 
-#### Authorization direction
+#### Authorization Behavior
 
 Caller identity comes from:
 
 - `caller.user_id`
 - `caller.is_admin`
 
-Current mutation rule:
-
 - creator may update their own event
 - admin may update any event
 - all other authenticated callers receive `403`
 
-#### Existence and authorization behavior
+#### Existence and Authorization Order
 
-`update-event` should evaluate the current item in this order:
+`update-event` evaluates the current item in this order:
 
 1. read the event
 2. if it does not exist, return `404`
@@ -891,12 +889,10 @@ Current mutation rule:
 
 This operation does not mask unauthorized update attempts as `404`.
 
-#### Field validation direction
+#### Field Validation
 
-Field-level validation should reuse the same business rules already locked in
-`create-event` where applicable.
-
-Additional locked rule:
+Field-level validation reuses the `create-event` business rules where
+applicable.
 
 - only admin may set `requires_admin = true`
 
@@ -904,25 +900,30 @@ Capacity safety rule:
 
 - if `capacity` is provided and is less than the current `attending_count`,
   reject with `400`
-- the response should explain that capacity cannot be reduced below the current
+- the response explains that capacity cannot be reduced below the current
   number of attending RSVPs
 
-#### DynamoDB update strategy
+#### DynamoDB Write Model
 
-The update path should use:
+The update path uses:
 
 - `GetItem` first
 - authorization and business validation against the current item
 - compare requested mutable values against the current item
 - `UpdateItem` second, only when at least one mutable value actually changes
 
-The write should use a condition that the item still exists.
+The write condition requires the item to still exist. Capacity changes are also
+protected by a condition so concurrent RSVP activity cannot reduce capacity
+below the effective attending count.
+
+Conditional write failures are re-evaluated and translated into the appropriate
+business error.
 
 Valid update requests that do not change any mutable value should return `200`
 with the current public event DTO, without writing to DynamoDB and without
 publishing `event.updated`.
 
-#### GSI maintenance rules
+#### GSI Maintenance
 
 Index helper attributes must stay correct after updates.
 
@@ -941,57 +942,26 @@ Also:
 - `creator_events_gsi_pk` remains tied to the original creator
 - `creator_id` must never change
 
-#### Response contract
+#### Response Contract
 
-`update-event` should return the same API Gateway-style wrapper used by the
-other implemented Lambdas.
+`update-event` returns the standard API Gateway-style wrapper.
 
 Success body shape:
 
 - `item`
 
-The returned `item` should use the same locked public event DTO already used
-by:
+The returned `item` uses the same public event DTO as:
 
 - `list-events`
 - `get-event`
 
-#### Error contract
+#### Error Contract
 
 - `400` invalid input or business validation failure
+- `401` missing or invalid authentication rejected at the API edge
 - `403` authenticated caller is not allowed to update the event
 - `404` event not found
 - `500` internal/runtime/data issue
-
-Not used in this direct invocation stage:
-
-- `401`
-
-Not currently locked for this step:
-
-- `409`
-
-#### Current implementation note
-
-The deployed `update-event` Lambda now validates the currently locked partial
-update contract in `dev`:
-
-- creator may update their own event
-- admin may update any event
-- authenticated non-owner non-admin receives `403`
-- direct invocation and API Gateway-style `body` JSON are both supported
-- immutable and unknown fields are rejected with `400`
-- `status` is rejected as immutable input
-- `requires_admin = true` is restricted to admin callers
-- `capacity` cannot be reduced below current `attending_count`
-- conditional write protection (DynamoDB `ConditionExpression`) guards the
-  capacity rule against concurrent changes
-- conditional write failures are re-evaluated to return correct business errors
-  instead of generic failures
-- returned items use the locked public event DTO under `item`
-- internal GSI helper fields remain hidden from the response
-- valid no-op update requests return the current public event DTO without a
-  DynamoDB update or EventBridge publication
 
 #### Post-commit EventBridge publication
 
@@ -1029,56 +999,41 @@ EventBridge publication failure after durable update is logged, but it must not:
 - roll back the DynamoDB update
 - turn the original API result into `500`
 
-Lifecycle note:
+#### Lifecycle Boundary
 
-- once effective status is `CANCELLED`, `update-event` must return `400`
-- there is no reactivation path in this phase
-- there are no metadata edits after cancellation in this phase
+- once effective status is `CANCELLED`, `update-event` returns `400`
+- cancelled events cannot be reactivated
+- event metadata cannot be edited after cancellation
 
 ### `cancel-event`
 
-Routed API shape:
+Route:
 
 - `POST /events/{event_id}/cancel`
 
-#### Access rule
+#### Access Rule
 
 - event creator may cancel their own event
 - admin may cancel any event
 
-#### Naming direction
-
-`cancel-event` is preferred over hard delete as the default operation because
-it is safer, more realistic, and leaves room for history, notifications, and
-later auditability.
-
-#### Deletion model
+#### Lifecycle Model
 
 `cancel-event` is a soft delete, not a hard delete.
 
 - the event item remains in DynamoDB
 - cancellation is represented as lifecycle state, not item removal
-
-#### Lifecycle field
-
-Canonical event records use:
-
-- `status = ACTIVE | CANCELLED`
-
-Rules:
-
 - new events must be written with explicit `status = ACTIVE`
 - `cancel-event` sets `status = CANCELLED`
 - all canonical event records must include `status`
 - missing `status` is invalid state and should not be relied on by handlers
 
-#### Response contract
+#### Response Contract
 
 Successful cancel returns the standard API Gateway-style wrapper:
 
 - `item`
 
-The returned `item` uses the locked public event DTO, including:
+The returned `item` uses the public event DTO, including:
 
 - `status`
 
@@ -1123,7 +1078,7 @@ not:
 - roll back the DynamoDB cancellation
 - turn the original API result into `500`
 
-#### GSI behavior
+#### GSI Behavior
 
 On cancel:
 
@@ -1135,9 +1090,9 @@ On cancel:
 This removes cancelled events from public discovery while preserving
 creator/admin visibility.
 
-#### Write model
+#### DynamoDB Write Model
 
-The cancel flow should use:
+The cancel flow uses:
 
 1. `GetItem`
 2. if missing, return `404`
@@ -1145,7 +1100,7 @@ The cancel flow should use:
 4. if already cancelled, return `200`
 5. otherwise `UpdateItem`
 
-Recommended condition:
+Write condition:
 
 - `attribute_exists(event_pk) AND #status = :active`
 
@@ -1159,27 +1114,24 @@ If the conditional write fails:
 This keeps the mutation retry-safe and translates conditional-write outcomes
 back into the correct business result.
 
-#### Interaction with other handlers
+#### Interaction with Other Handlers
 
 - `get-event` still returns cancelled events by ID
 - `list-my-events` includes cancelled events
-- `list-events` must filter cancelled events during the current scan-based
-  phase
-- long-term `list-events` behavior should rely on index-based access patterns
-  instead of scan filtering
+- `list-events` filters cancelled events from its scan result
 - `update-event` is blocked once an event is cancelled
-- there is no reactivation path in this phase
+- cancelled events cannot be reactivated
 
-#### Past events versus cancelled events
+#### Past Events Versus Cancelled Events
 
 Past events are not the same as cancelled events.
 
 - past/outdated is derived from `date`
 - cancelled is an explicit stored lifecycle state
-- past events should not be auto-cancelled
-- no extra lifecycle state such as `COMPLETED` is introduced in this step
+- past events are not automatically cancelled
+- no additional lifecycle state such as `COMPLETED` exists
 
-Future RSVP behavior should reject:
+RSVP writes reject:
 
 - cancelled events
 - past events

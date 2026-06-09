@@ -1,14 +1,11 @@
 # Platform Behavior Contracts
 
-This document records the currently locked platform behavior contracts for the
-serverless events platform.
+This document defines the product, API, authorization, identity, and runtime
+behavior contracts for the serverless events platform.
 
-It is intentionally more specific than `docs/architecture.md`.
-
-The architecture document stays focused on high-level system design and service
-boundaries. This document captures the current behavioral and authorization
-rules that implementation work should follow across Lambda handlers, API
-planning, and future environment wiring.
+It is intentionally more specific than
+[architecture.md](architecture.md), which owns service responsibilities and
+system boundaries.
 
 ---
 
@@ -17,52 +14,44 @@ planning, and future environment wiring.
 This document is the working source of truth for:
 
 - event visibility and ownership behavior
-- RSVP access rules
-- account-management direction
+- event and RSVP API contracts
+- account-lifecycle behavior and deferred decisions
 - frontend and edge-delivery behavior
-- auth versus business-authorization boundaries
-- normalized caller-context rules
-- Lambda implementation sequencing
-- post-commit async notification behavior
+- authentication and business-authorization boundaries
+- normalized caller-context behavior
+- post-commit notification publication and delivery behavior
 
-It should be updated when the platform's intended behavior changes in a
-meaningful way.
+Operational setup, deployment procedures, and validation evidence belong in
+[project-setup.md](project-setup.md), `frontend/README.md`, and the relevant
+infrastructure documentation.
 
 ---
 
 ## Frontend and Edge Delivery Behavior
 
-The platform's frontend and edge-delivery direction is now locked strongly
-enough that frontend implementation must follow it.
+This section defines the browser-facing routing, authentication, API
+consumption, and presentation boundaries used by the frontend.
 
-This section defines the behavioral contract the frontend app must use when
-interacting with the already implemented backend.
+### Public Entry-Point Model
 
-### Public entry-point model
+The public entry point for the product is one CloudFront distribution.
 
-The intended public entry point for the product is one CloudFront distribution.
-
-That distribution is expected to serve:
+The distribution serves:
 
 - static frontend assets from a private S3 bucket
-- backend API requests using the existing routed API path shape
+- backend API requests using the canonical routed API paths
 
-This means the long-term browser-visible product is intended to present one
-origin for:
+The browser-visible product therefore uses one origin for:
 
 - static frontend assets
 - backend API requests
 
-The platform is intentionally not introducing a second browser-facing API path
-contract such as `/api/*` in this phase.
+The platform does not introduce a second browser-facing API namespace such as
+`/api/*`.
 
-Instead, the edge layer preserves the already implemented routed backend path
-shape.
+### Routed API Path Contract
 
-### Routed API path contract for the frontend
-
-The frontend should follow the same route paths already implemented and
-validated in the backend:
+The frontend uses these canonical API routes:
 
 - `GET /events`
 - `GET /events/mine`
@@ -73,10 +62,7 @@ validated in the backend:
 - `POST /events/{event_id}/rsvp`
 - `GET /events/{event_id}/rsvps`
 
-This is the primary frontend integration direction for the product.
-
-The frontend must be implemented assuming these route paths remain the
-canonical public API shape.
+Frontend code must not invent alternate paths for these operations.
 
 ### Frontend Route Namespace
 
@@ -99,40 +85,22 @@ The frontend must not:
 This keeps browser navigation and client-side routing separate from the routed
 backend API contract.
 
-### Current deployment-path note
+### Same-Origin Contract
 
-The currently deployed direct API Gateway entry point still includes the stage
-path for the active environment.
-
-In `dev`, that means direct non-CloudFront API testing currently uses the
-stage-qualified API Gateway invoke path shape, for example:
-
-- `/dev/events`
-- `/dev/events/mine`
-- `/dev/events/{event_id}`
-
-That stage-qualified execute-api URL is a deployment detail of the current
-backend/API validation path, not the intended browser-facing product shape.
-
-The CloudFront layer preserves the routed backend path contract without forcing
-the frontend to adopt a separate translated API path family.
-
-### Same-origin contract
-
-The frontend should treat the backend API as same-origin application traffic in
-the CloudFront edge-delivery model.
+The frontend treats the backend API as same-origin application traffic through
+CloudFront.
 
 Rules:
 
-- the frontend should call backend routes through relative paths such as:
+- the frontend must call backend routes through relative paths such as:
   - `/events`
   - `/events/mine`
   - `/events/{event_id}`
-- the frontend should not treat the raw API Gateway execute-api hostname as the
+- the frontend must not treat the raw API Gateway execute-api hostname as the
   normal browser-facing API base
-- the frontend should not hardcode a direct API Gateway stage URL into normal
+- the frontend must not hardcode a direct API Gateway stage URL into
   application behavior
-- the frontend should assume the final browser-visible product uses one origin
+- the frontend must use the same browser origin
   for:
   - static frontend assets
   - backend API requests
@@ -150,12 +118,10 @@ The frontend must:
 - not prefix API calls with `/app`
 - not assume API routes serve HTML
 
-### CORS direction
+### CORS Behavior
 
-The reusable API Gateway module now supports optional CORS configuration, but
-that is not the primary frontend integration strategy.
-
-Locked direction:
+The reusable API Gateway module supports optional CORS configuration, but the
+deployed frontend does not depend on cross-origin API requests.
 
 - the preferred product path is same-origin browser access through CloudFront
 - the frontend should not be designed around cross-origin browser calls to the
@@ -164,10 +130,10 @@ Locked direction:
   cases such as:
   - temporary direct API testing
   - alternate environment setups
-  - future integration needs that genuinely require cross-origin behavior
+  - integrations that genuinely require cross-origin behavior
 
-So CORS readiness remains useful, but the frontend app contract is not based on
-cross-origin API usage.
+CORS remains an infrastructure capability rather than part of the normal
+frontend integration contract.
 
 ### Frontend authentication behavior
 
@@ -255,11 +221,11 @@ In particular:
   - raw DynamoDB keys
   - `not_attending_count` inside public event DTOs
 
-### Frontend timestamp behavior
+### Frontend Timestamp Behavior
 
 Backend APIs return canonical timestamps as ISO 8601 UTC strings.
 
-Locked frontend direction:
+The frontend:
 
 - the frontend is responsible for user-friendly timestamp rendering
 - the frontend should convert backend UTC timestamps into readable UI text for
@@ -270,32 +236,19 @@ Locked frontend direction:
 This preserves the current backend/frontend responsibility split already used
 by the event DTO contract.
 
-### Frontend route-usage direction
-
-The frontend foundation should align with the currently implemented routed API
-surface only.
-
-Locked initial browser-facing API surface:
-
-- `GET /events`
-- `GET /events/mine`
-- `GET /events/{event_id}`
-- `POST /events`
-- `PATCH /events/{event_id}`
-- `POST /events/{event_id}/cancel`
-- `POST /events/{event_id}/rsvp`
-- `GET /events/{event_id}/rsvps`
+### Frontend Route and Presentation Behavior
 
 The frontend must not assume unimplemented routes exist.
 
-Current frontend implementation (non-exhaustive subset of the contract):
+The frontend provides:
 
-- the frontend foundation covers:
+- public event workflows:
   - public event listing with `GET /events`
   - public event detail with `GET /events/{event_id}`
   - mixed-mode RSVP with `POST /events/{event_id}/rsvp`
+- Cognito-backed account access:
   - Cognito-backed register, confirmation, login, logout, and session restore
-- the product functionality layer covers:
+- event-management workflows:
   - event creation with `POST /events`
   - event editing with `PATCH /events/{event_id}`
   - event cancellation with `POST /events/{event_id}/cancel`
@@ -329,19 +282,12 @@ The RSVP panel may use event visibility flags to choose user-facing guidance:
 This is presentation guidance only. Backend authorizers and business rules remain
 the source of truth for whether the RSVP request succeeds.
 
-- admin account management remains intentionally deferred until backend admin
-  account APIs exist
-- local/manual frontend deployment is implemented through
-  `scripts/deploy_frontend.py`
-- CI/CD frontend deployment automation remains intentionally deferred until
-  GitHub OIDC and separate deployment workflows exist
-
-### Frontend error-handling direction
+### Frontend Error-Handling Behavior
 
 The frontend should respect the current routed API error semantics instead of
 normalizing all failures into one generic UI state.
 
-Important examples from the locked backend contract:
+Important examples from the backend contract:
 
 - `401`
   - ordinary protected route called without valid authentication
@@ -370,6 +316,10 @@ The frontend must not:
 - assume CORS is the primary browser integration mechanism
 - use `/events` paths for browser UI routing
 - depend on API routes serving frontend HTML
+
+Detailed frontend tooling, local validation, deployment helper behavior, and
+GitHub Actions workflows are documented in
+[frontend/README.md](../frontend/README.md).
 
 ---
 

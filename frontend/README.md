@@ -181,26 +181,30 @@ Shared OIDC, backend, and repository-input prerequisites are documented in
 
 ## Post-Deployment Validation
 
-After a real deployment, validate through CloudFront:
+Use the CloudFront domain printed by the deployment helper.
 
-- `https://<cloudfront-domain>/app`
-- `https://<cloudfront-domain>/app/events`
-- `https://<cloudfront-domain>/app/my-events`
-- `https://<cloudfront-domain>/app/create-event`
-- `https://<cloudfront-domain>/app/events/<event-id>`
-- `https://<cloudfront-domain>/app/events/<event-id>/rsvps`
-- `https://<cloudfront-domain>/events`
+### Edge Routing Checks
 
-Also refresh a frontend deep link directly in the browser, such as:
+| Check | URL | Expected result |
+|---|---|---|
+| App entry point | `https://<cloudfront-domain>/app` | React application loads |
+| Public frontend route | `https://<cloudfront-domain>/app/events` | Event-list page loads |
+| Protected frontend route | `https://<cloudfront-domain>/app/my-events` | Page loads or prompts for authentication |
+| Frontend deep link | `https://<cloudfront-domain>/app/events/<event-id>` | Event-detail page loads |
+| API route | `https://<cloudfront-domain>/events` | API response is returned instead of frontend HTML |
 
-- `https://<cloudfront-domain>/app/events`
+Refresh the frontend deep link directly in the browser. CloudFront should return
+the SPA entry point, allowing React Router to restore the requested route.
 
-The refresh should return the SPA entrypoint through CloudFront. API routes
-under `/events` should continue to return API responses, not frontend HTML.
+### Product Smoke Checks
 
-For a quick frontend smoke test after deployment, also verify:
+Verify:
 
-- keyboard access to the skip link, navigation, filters, forms, and destructive
-  confirmation flows
-- sign-in redirects back to protected frontend destinations such as
-  `/app/my-events`, event detail pages, and RSVP list pages
+- public event listing and event-detail loading
+- registration, confirmation, sign-in, and sign-out
+- redirect back to the requested protected route after sign-in
+- event creation, editing, cancellation confirmation, and owned-event listing
+- authenticated and anonymous RSVP behavior
+- creator/admin RSVP-list access
+- keyboard access to the skip link, navigation, filters, forms, and
+  confirmation controls

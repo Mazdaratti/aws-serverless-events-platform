@@ -171,9 +171,10 @@ repository secrets, and `TF_VAR_*` environment variables. The local
 GitHub Actions uses the OIDC role created by `infrastructure/bootstrap/dev`.
 The repository has two workflow categories:
 
-- `.github/workflows/ci.yml` runs automatically for repository validation.
+- `.github/workflows/ci.yml` runs on pull requests and pushes to `main`, and
+  also supports manual dispatch.
 - AWS smoke, provisioning, Lambda deployment, and frontend deployment workflows
-  are manually triggered with `workflow_dispatch`.
+  are manual-only workflows triggered with `workflow_dispatch`.
 
 The operational workflows documented below:
 
@@ -350,14 +351,20 @@ workflow, not an additional required setup step.
 From the repository root:
 
 ```powershell
+python scripts/package_lambdas.py
+$planPath = Join-Path $env:TEMP "aws-serverless-events-platform-dev.tfplan"
+
 terraform -chdir=infrastructure/envs/dev init
 terraform -chdir=infrastructure/envs/dev validate -no-color
-terraform -chdir=infrastructure/envs/dev plan -out=tfplan
-terraform -chdir=infrastructure/envs/dev apply tfplan
+terraform -chdir=infrastructure/envs/dev plan -out="$planPath"
+terraform -chdir=infrastructure/envs/dev apply "$planPath"
+Remove-Item -LiteralPath $planPath
 terraform -chdir=infrastructure/envs/dev plan
 ```
 
-The final plan should report no changes after a successful apply.
+Lambda artifacts must exist before Terraform plans fresh function creation. The
+saved plan is kept outside the repository and removed after apply. The final
+plan should report no changes.
 
 ---
 

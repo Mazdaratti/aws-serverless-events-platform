@@ -104,43 +104,18 @@ subject identifier rather than an authentication credential.
 
 ## Deployment Model
 
-Frontend deployment follows this flow:
+Frontend deployment reads public configuration from the remote-backed Terraform
+outputs, builds the application, uploads `frontend/dist/` to the private S3
+bucket, and invalidates CloudFront in apply mode.
 
-1. read required public frontend configuration from Terraform outputs
-2. provide those values to the frontend build as `VITE_*` environment variables
-3. build frontend assets
-4. upload build artifacts into the private frontend bucket
-5. create a CloudFront invalidation when applying a real deployment
-6. serve the new frontend version through CloudFront
+This lane is separate from Terraform provisioning and Lambda code deployment.
+It does not change the same-origin `/events` API contract defined in
+[Routing and API Integration](#routing-and-api-integration).
 
-This keeps frontend deployment separate from Terraform provisioning and backend
-Lambda code deployment while still presenting one public product entry point.
+### Deployment Helper
 
-The frontend build must not receive:
-
-- raw API Gateway invoke URLs
-- API Gateway stage URLs
-- server-side secrets
-
-API calls remain same-origin relative requests through CloudFront, using paths
-such as `/events`.
-
-## Deployment Helper
-
-The local frontend deployment helper is:
-
-- `scripts/deploy_frontend.py`
-
-Run helper commands from the repository root.
-
-The helper is the shared deployment path for the React/Vite frontend. It is used
-for local deployment and by the manual GitHub Actions frontend workflows. It
-reads public frontend deployment values from Terraform outputs in:
-
-- `infrastructure/envs/dev`
-
-Before using the helper, make sure the dev Terraform state is current and
-includes the frontend deployment outputs:
+`scripts/deploy_frontend.py` is the shared local and GitHub Actions deployment
+path. Run it from the repository root after the `dev` Terraform state exposes:
 
 - `aws_region`
 - `frontend_bucket_name`
@@ -149,42 +124,29 @@ includes the frontend deployment outputs:
 - `cognito_user_pool_id`
 - `cognito_user_pool_client_id`
 
-Run a safe dry-run first:
+Preview the deployment:
 
 ```powershell
 python scripts/deploy_frontend.py --dry-run
 ```
 
-Dry-run mode:
-
-- reads `terraform output -json`
-- writes a temporary `frontend/.env.production.local`
-- injects only approved public `VITE_*` values
-- runs `npm ci`
-- runs `npm run typecheck`
-- runs `npm run build`
-- verifies `frontend/dist/` exists
-- previews the S3 upload with `aws s3 sync --dryrun`
-- does not upload files
-- does not invalidate CloudFront
-
-For a real frontend deployment, run:
+Apply the deployment:
 
 ```powershell
 python scripts/deploy_frontend.py --apply
 ```
 
-Apply mode performs the same validation and S3 dry-run first, then:
+Both modes:
 
-- syncs `frontend/dist/` to the private frontend S3 bucket with `--delete`
-- creates a CloudFront invalidation for `/*`
-- prints the CloudFront frontend URLs to validate
+- read and validate the required Terraform outputs
+- reject unapproved `VITE_*` keys in frontend environment files
+- temporarily write the approved public build configuration
+- run `npm ci`, typechecking, and the production build
+- verify `frontend/dist/`
+- preview `aws s3 sync --delete`
 
-The helper writes only these public browser build values:
-
-- `VITE_AWS_REGION`
-- `VITE_COGNITO_USER_POOL_ID`
-- `VITE_COGNITO_USER_POOL_CLIENT_ID`
+Dry-run is the default and does not mutate AWS. Apply mode performs the S3 sync,
+creates a CloudFront invalidation for `/*`, and prints the frontend URLs.
 
 The helper restores any existing `frontend/.env.production.local` file after
 the build. If that file did not exist before the helper ran, it is removed.

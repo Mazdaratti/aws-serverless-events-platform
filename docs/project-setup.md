@@ -272,65 +272,52 @@ deploys Lambda code. Detailed frontend workflow behavior is documented in
 
 ### Lambda Packaging
 
-Provisioning workflows and Lambda code deployment workflows use the same
-packaging path:
+Build the complete Lambda artifact set from the repository root:
 
 ```powershell
 python scripts/package_lambdas.py
 ```
 
-The helper packages all deployed Lambda workloads into:
-
-- `artifacts/lambda/<function-key>.zip`
-
-It also rebuilds the Lambda-compatible RSVP authorizer vendor tree by default.
+Artifacts are written to `artifacts/lambda/<function-key>.zip`. Packaging
+behavior, workload-specific rules, and the RSVP authorizer vendor build are
+documented in [lambdas/README.md](../lambdas/README.md).
 
 ### Lambda Code Deployment Helper
 
-The local Lambda code deployment helper is:
+`scripts/deploy_lambdas.py` packages the deployed workloads, reads the
+remote-backed Terraform outputs, validates the workload-to-function mapping,
+and previews or applies code-only Lambda updates.
 
-- `scripts/deploy_lambdas.py`
-
-Before using the helper, make sure the dev Terraform state is current and
-includes the Lambda deployment outputs:
+It requires these Terraform outputs:
 
 - `aws_region`
 - `lambda_function_names`
 
-Run a safe dry-run first from the repository root:
+Preview a deployment from the repository root:
 
 ```powershell
 python scripts/deploy_lambdas.py --dry-run
 ```
 
-Dry-run mode packages all deployed Lambda workloads, reads
-`terraform output -json`, validates the workload-to-function mapping, validates
-expected ZIP artifacts, and prints the planned
-`aws lambda update-function-code` commands.
-
-For a real local Lambda code deployment, run:
+Apply the code update:
 
 ```powershell
 python scripts/deploy_lambdas.py --apply
 ```
 
-Apply mode uses the same packaging and validation path, then updates existing
-Lambda function code with `aws lambda update-function-code`.
-
-For GitHub Actions, use the manual Lambda deployment apply workflow documented
-in [GitHub Actions Workflows](#github-actions-workflows).
+Dry-run prints the planned `aws lambda update-function-code` commands without
+AWS mutation. Apply mode updates existing function code after running the same
+packaging and validation path.
 
 The helper does not run `terraform plan`, run `terraform apply`, publish Lambda
 versions, manage aliases, use CodeDeploy, or deploy frontend assets.
 
+Use the corresponding manual workflows documented in
+[Lambda Deployment Workflows](#lambda-deployment-workflows) for GitHub Actions.
+
 ### Frontend Operations
 
-Detailed frontend setup, validation, runtime rules, deployment helper behavior,
-and post-deployment checks are documented in:
-
-- `frontend/README.md`
-
-Common local validation commands from `frontend/`:
+Run local validation from `frontend/`:
 
 ```powershell
 npm ci
@@ -340,12 +327,19 @@ npm run test
 npm run test:e2e
 ```
 
-Common frontend deployment commands from the repository root:
+Run frontend deployment previews or updates from the repository root:
 
 ```powershell
 python scripts/deploy_frontend.py --dry-run
 python scripts/deploy_frontend.py --apply
 ```
+
+Detailed frontend setup, runtime rules, helper behavior, and post-deployment
+checks are documented in [frontend/README.md](../frontend/README.md).
+
+Use the corresponding manual workflows documented in
+[Frontend Deployment Workflows](#frontend-deployment-workflows) for GitHub
+Actions.
 
 ### Local Terraform Provisioning Alternative
 

@@ -49,18 +49,18 @@ python scripts/package_lambdas.py --skip-authorizer-vendor-build
 
 Skip mode still validates `lambdas/rsvp_authorizer/vendor/` before packaging.
 
-## Standard Packaging Model
+## Per-Workload Packaging Modes
 
-For ordinary Lambda workloads, the packaging flow is:
+`scripts/package_lambda.py` packages one source directory and supports three
+repository packaging modes:
 
-1. package the selected Lambda source directory
-2. include `lambdas/shared` when the workload imports shared helpers
-3. write the ZIP artifact under `artifacts/lambda/`
+| Mode | ZIP contents | Workloads |
+|---|---|---|
+| Source and shared helpers | Workload files at ZIP root and `lambdas/shared` under `shared/...` | API and business workloads |
+| Source only | Workload files at ZIP root | `notification-planner`, `notification-sender` |
+| Source, shared helpers, and vendor dependencies | Workload files and vendor contents at ZIP root, plus `shared/...` | `rsvp-authorizer` |
 
-This is the default packaging model currently used by the existing business
-Lambdas.
-
-Example:
+### Shared-Helper Example
 
 ```powershell
 python scripts/package_lambda.py `
@@ -68,23 +68,11 @@ python scripts/package_lambda.py `
   artifacts/lambda/get-event.zip
 ```
 
-The resulting ZIP places:
+Shared helpers are included by default.
 
-- the workload source files at ZIP root
-- the shared helpers under `shared/...`
+### Source-Only Example
 
-## Packaging Without Shared Helpers
-
-Worker Lambdas that do not import the shared helper package should skip
-`lambdas/shared` with `--no-shared`.
-
-This keeps small worker artifacts focused on the code they actually execute.
-
-Notification planner/sender worker packaging commands:
-
-The `notification-planner` and `notification-sender` workers use this
-no-shared packaging model because they remain independent from
-`lambdas/shared`.
+Use `--no-shared` for a workload that does not import `lambdas/shared`:
 
 ```powershell
 python scripts/package_lambda.py `
@@ -93,12 +81,9 @@ python scripts/package_lambda.py `
   --no-shared
 ```
 
-```powershell
-python scripts/package_lambda.py `
-  lambdas/notification_sender `
-  artifacts/lambda/notification-sender.zip `
-  --no-shared
-```
+The all-workload orchestrator applies these modes from its canonical workload
+map, so provisioning and deployment automation do not need separate packaging
+commands per function.
 
 ## Mixed-Mode Authorizer Exception
 

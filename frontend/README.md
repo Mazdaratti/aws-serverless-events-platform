@@ -153,35 +153,31 @@ the build. If that file did not exist before the helper ran, it is removed.
 
 ## GitHub Actions Workflows
 
-The frontend deployment dry-run workflow is:
+Frontend deployment workflows are manual-only and run from `main`.
 
-- `Frontend Deployment Dry Run`
+Files:
+
 - `.github/workflows/frontend-deploy-dry-run.yml`
-
-Run it from `main` with:
+- `.github/workflows/frontend-deploy-apply.yml`
 
 ```powershell
 gh workflow run frontend-deploy-dry-run.yml --ref main
-```
-
-The frontend deployment apply workflow is:
-
-- `Frontend Deployment Apply`
-- `.github/workflows/frontend-deploy-apply.yml`
-
-Run it from `main` with the required confirmation input:
-
-```powershell
 gh workflow run frontend-deploy-apply.yml --ref main -f confirm_deploy=deploy-dev
 ```
 
-Both workflows use GitHub OIDC, generate the dev backend configuration from
-repository variables, initialize the remote Terraform backend, check required
-frontend deployment outputs, and then run the frontend deployment helper.
+Both workflows validate the required Terraform outputs and delegate frontend
+build and deployment behavior to `scripts/deploy_frontend.py`.
 
-The manual apply workflow uploads frontend assets and creates the CloudFront
-invalidation, but it does not run `terraform plan`, run `terraform apply`,
-provision infrastructure, package Lambda artifacts, or deploy Lambda code.
+- Dry run: validates and builds the frontend, then previews the S3 sync without
+  uploading assets or invalidating CloudFront.
+- Apply: requires `confirm_deploy=deploy-dev`, uploads `frontend/dist/`, and
+  creates a CloudFront invalidation.
+
+Neither workflow runs Terraform plan/apply, provisions infrastructure, packages
+Lambda artifacts, or deploys Lambda code.
+
+Shared OIDC, backend, and repository-input prerequisites are documented in
+[project-setup.md](../docs/project-setup.md#github-actions-workflows).
 
 ## Post-Deployment Validation
 

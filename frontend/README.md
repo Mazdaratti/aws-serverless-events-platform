@@ -60,39 +60,47 @@ resources.
 
 ## Runtime and Environment Rules
 
-For local browser testing, copy the example environment file and provide the
-public Cognito values for the active environment:
+### Public Frontend Configuration
 
-- `.env.example`
-- `.env`
+For local development, copy the example environment file from `frontend/`:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Provide these public Cognito identifiers:
+
+- `VITE_AWS_REGION`
+- `VITE_COGNITO_USER_POOL_ID`
+- `VITE_COGNITO_USER_POOL_CLIENT_ID`
 
 Only public `VITE_*` values belong in frontend environment files. Do not add API
 Gateway invoke URLs, API Gateway stage URLs, secrets, AWS credentials, or
 non-public configuration.
 
-Runtime routing and API integration rules:
+### Routing and API Integration
 
-- React Router uses `BrowserRouter` with `/app` as the basename
-- Vite must not configure `base: "/app/"`; default base must be used
-- static build assets should resolve as root-relative paths such as
-  `/assets/...`
-- API calls must use same-origin relative paths such as `/events`
-- API calls must not use a direct API Gateway URL
-- API calls must not use a `/api` prefix
+| Concern | Contract |
+|---|---|
+| Browser routes | React Router uses `BrowserRouter` with `basename="/app"` |
+| Build assets | Vite keeps its default base so assets use root-relative `/assets/...` paths |
+| API requests | Use same-origin relative `/events` paths |
+| Disallowed API targets | Direct API Gateway URLs, `/api` prefixes, and `/app/events` |
 
 Local Vite development intentionally keeps the same-origin `/events` API model
 and does not add a development proxy.
 
-Authentication uses Cognito through the frontend Amplify Auth SDK.
+### Authentication and Token Storage
 
-Token rules:
+Authentication uses Cognito through the Amplify Auth SDK. The frontend:
 
-- Cognito auth tokens must use `sessionStorage`
-- Cognito auth tokens must not use `localStorage`
-- the frontend must use the JWT type currently validated by API Gateway and the
-  RSVP authorizer, expected to be the Cognito ID token
-- the anonymous RSVP token may use `localStorage` because it is not an auth
-  token
+- stores Cognito tokens in `sessionStorage`, not `localStorage`
+- sends the Cognito ID token as the bearer token validated by API Gateway and
+  the mixed-mode RSVP authorizer
+- treats a Cognito user session without an ID token as expired
+
+The anonymous RSVP token may use `localStorage` because it is a browser-local
+subject identifier rather than an authentication credential.
 
 ## Deployment Model
 

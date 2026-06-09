@@ -327,110 +327,35 @@ GitHub Actions workflows are documented in
 
 The platform uses **Amazon Cognito** as the sole identity provider.
 
-Authentication is externalized from Lambda business logic, but the routed API
-uses two authorizer modes:
-
-- API Gateway native JWT authorizer for ordinary protected routes
-- a dedicated custom Lambda authorizer for the mixed-mode `rsvp` route
-
-Business Lambdas must consume one normalized caller contract regardless of
-which upstream authorizer mode produced the request context.
+Authentication, route protection, identity normalization, and business
+authorization remain separate responsibilities.
 
 ### Responsibility Split
 
-- Cognito is responsible for:
-  - user registration
-  - user login
-  - token issuance
-  - email verification
-  - password reset and recovery
-  - user group membership such as admin
-- API Gateway is responsible for:
-  - native JWT validation on ordinary protected routes
-  - invoking the dedicated custom Lambda authorizer on the mixed-mode `rsvp` route
-  - rejecting unauthorized requests before they reach business Lambdas
-- shared request/auth normalization is responsible for:
-  - reading the upstream authorizer context shape
-  - supporting multiple upstream authorizer context shapes
-  - mapping authenticated identity into the normalized internal caller shape
-- business Lambda functions:
-  - must not validate JWTs
-  - must not implement login or generic identity logic
-  - must not scatter raw authorizer parsing throughout business logic
-  - must rely on normalized caller context
-  - must enforce only resource- and workflow-specific authorization
-- the dedicated `rsvp` Lambda authorizer:
-  - may validate a presented bearer token
-  - may project normalized caller context for the `rsvp` business Lambda
-  - is part of the platform auth layer, not business logic
+| Layer | Responsibility |
+|---|---|
+| Amazon Cognito | Registration, sign-in, token issuance, email verification, password recovery, and group membership |
+| API Gateway | JWT validation for protected routes and invocation of the mixed-mode RSVP authorizer |
+| RSVP Lambda authorizer | Optional bearer-token validation and caller-context projection for anonymous or authenticated RSVP access |
+| Shared auth normalization | Conversion of upstream authorizer contexts into one internal caller contract |
+| Business Lambdas | Resource ownership, event access, capacity, and workflow-specific authorization |
 
-### Request Identity Contract
+Business Lambdas do not validate JWTs, implement login flows, or infer identity
+from headers and request payloads.
 
-Business Lambdas receive platform identity information via:
-
-- `requestContext.authorizer`
-
-The previous simplified direct platform-boundary assumption:
-
-- `requestContext.authorizer.user_id`
-- `requestContext.authorizer.is_admin`
-
-is now deprecated as the raw platform-boundary truth.
-
-The platform must support multiple upstream authorizer context shapes,
-including:
-
-- native JWT authorizer context
-- custom Lambda authorizer context
-
-For the mixed-mode RSVP route, the real routed HTTP API simple-response Lambda
-authorizer shape observed in AWS is:
-
-- `requestContext.authorizer.lambda`
-
-Business Lambdas must not depend directly on those raw shapes. They must
-consume normalized caller context produced by shared request/auth parsing
-logic.
-
-### Canonical Identity Rule
+### Canonical Identity
 
 The canonical internal user identifier is:
 
 - Cognito user `sub`
 
-Locked raw identity sources:
-
-- authenticated user identity comes from Cognito `sub`
-- admin capability comes from Cognito group membership
-- the locked admin group name is:
-  - `admin`
-
-This canonical identity must be used as:
+It is used as:
 
 - the internal user identifier
 - the basis for ownership checks
 - the key for user-scoped data such as authenticated RSVP subjects
 
 Username and email must not be treated as internal platform identity keys.
-
-### Admin Authorization Rule
-
-Administrative privileges are derived from Cognito group membership.
-
-Locked admin rule:
-
-- `admin`
-
-Normalized caller context must derive:
-
-- `caller.is_admin = true` when Cognito groups include `admin`
-- `caller.is_admin = false` otherwise
-
-Business Lambdas must:
-
-- trust normalized admin context
-- not recompute admin status independently
-- not rely on request payload fields for admin decisions
 
 ### Normalized Caller Context Contract
 
@@ -451,134 +376,53 @@ Rules:
   - `caller.is_authenticated = false`
   - `caller.is_admin = false`
 
-This normalized shape is the internal business-logic contract.
+The shared normalization helper accepts native JWT-authorizer and custom
+Lambda-authorizer contexts. Handlers resolve caller context once at the request
+boundary and use only the normalized values afterward.
 
-Anonymous caller definition:
+For the HTTP API Lambda authorizer, projected values are available under
+`requestContext.authorizer.lambda`. Business handlers must not bind their
+authorization logic directly to that raw upstream shape.
 
-- anonymous is not a Cognito-provided identity
-- anonymous is derived when no authenticated caller context is present
-- upstream authorizers must not fabricate anonymous identity values
+Anonymous access means no authenticated caller context is present. Upstream
+authorizers must not fabricate an anonymous user identity.
 
-### Mapping Helper Rule
+### Admin Authorization
 
-Caller normalization must happen through shared request/auth parsing logic.
+Administrative capability comes from membership in the Cognito group:
 
-Rules:
+- `admin`
 
-- one shared helper normalizes caller context
-- the helper must support:
-  - native JWT-authorizer upstream context
-  - custom Lambda-authorizer upstream context
-  - synthetic direct-invocation test context
-- handlers must resolve caller context once near the request edge
-- downstream business logic must consume only normalized caller values
+Normalization sets `caller.is_admin = true` when the authenticated caller
+belongs to that group. Business Lambdas trust the normalized value and must not
+recompute admin status or accept it from request payloads.
 
-### Sign-In Behavior (v1)
+### Sign-In Behavior
 
-- sign-in is Cognito-managed
-- v1 uses username as the primary sign-in attribute
-- email is required
-- email verification is Cognito-managed
+Sign-in is Cognito-managed. The deployed behavior uses:
 
-This does not lock the platform into permanent username-only login behavior.
+- username as the primary sign-in attribute
+- required email collection
+- Cognito-managed email verification
+- Cognito-managed password recovery
 
-### Explicit Non-Responsibilities of Business Lambdas
-
-Business Lambda functions must not:
-
-- parse or validate JWTs
-- call Cognito to verify identity
-- implement authentication flows
-- infer identity from headers or request payload
-- duplicate ad hoc authorizer parsing logic across handlers
-
-All caller identity used by business Lambdas must come from:
-
-- normalized caller context
+The canonical identity remains Cognito `sub`, so future sign-in changes do not
+need to change ownership or user-scoped data keys.
 
 ### Route Authentication Modes
 
-The platform uses three practical route modes.
+| Mode | Routes | Behavior |
+|---|---|---|
+| Public | `GET /events`, `GET /events/{event_id}` | No authentication required |
+| Mixed | `POST /events/{event_id}/rsvp` | Anonymous access allowed; valid bearer tokens preserve authenticated identity |
+| Authenticated | `POST /events`, `GET /events/mine`, `PATCH /events/{event_id}`, `POST /events/{event_id}/cancel`, `GET /events/{event_id}/rsvps` | API Gateway JWT validation required |
 
-#### Public read route
-
-- route is publicly callable
-- no authentication is required
-- caller context may be anonymous
-
-Current examples:
-
-- `list-events`
-- `get-event`
-
-#### Mixed-mode route
-
-- anonymous access is allowed
-- authenticated access is also allowed
-- authenticated callers must still be recognized as authenticated callers
-- this route requires an upstream authorizer strategy that:
-  - allows anonymous access
-  - preserves authenticated caller identity when present
-
-Current example:
-
-- `rsvp`
-
-#### Authenticated route
-
-- route requires authenticated caller context
-- ordinary protected routes use API Gateway native JWT authorization
-- business Lambdas consume normalized caller context derived from the JWT
-  authorizer input
-
-Current examples:
-
-- `create-event`
-- `list-my-events`
-- `update-event`
-- `cancel-event`
-- `get-event-rsvps`
-
-### Ordinary Routed API Shape
-
-The ordinary routed API shape for the currently implemented handlers is locked
-as:
-
-- `POST /events`
-  - `create-event`
-- `GET /events`
-  - `list-events`
-- `GET /events/mine`
-  - `list-my-events`
-- `GET /events/{event_id}`
-  - `get-event`
-- `PATCH /events/{event_id}`
-  - `update-event`
-- `POST /events/{event_id}/cancel`
-  - `cancel-event`
-- `GET /events/{event_id}/rsvps`
-  - `get-event-rsvps`
-
-The mixed-mode RSVP route is locked as:
-
-- `POST /events/{event_id}/rsvp`
-  - `rsvp`
-
-#### Mixed-mode RSVP authorizer constraint
+### Mixed-Mode RSVP Authorizer
 
 The mixed-mode `rsvp` authorizer must not require anonymous callers to present
 an `Authorization` header before the authorizer is invoked.
 
-Rules:
-
-- anonymous public RSVP requests must still reach the authorizer path
-- absence of `Authorization` must be interpreted as anonymous access, not as an
-  automatic pre-Lambda `401`
-- initial implementation should prefer correctness over caching complexity
-- any future caching strategy must preserve mixed anonymous/authenticated route
-  behavior
-
-Current locked implementation rule for this mixed-mode route:
+The deployed authorizer configuration uses:
 
 - request authorizer `identity_sources` must be omitted
 - `enable_simple_responses` must remain enabled
@@ -591,16 +435,16 @@ This preserves the required mixed-mode behavior:
 - malformed or invalid presented auth is denied instead of silently downgraded
   to anonymous
 
-The current routed implementation is intentionally locked to the HTTP API
-Lambda request-authorizer simple-response path for this route.
+Any future caching change must preserve these anonymous, authenticated, and
+invalid-token outcomes.
 
 ---
 
-## Account Lifecycle Direction
+## Account Lifecycle Behavior
 
-### Cognito-native account behavior
+### Cognito-Owned Identity Lifecycle
 
-The platform expects Cognito to handle:
+Cognito owns:
 
 - account creation
 - account login
@@ -610,19 +454,26 @@ The platform expects Cognito to handle:
 - user-group membership such as admin
 - disabling or deleting the identity itself
 
-### Platform-managed account behavior
+### Platform-Owned Account Lifecycle
 
-The platform still needs application-level decisions for:
+Deleting or disabling a Cognito identity does not by itself define what happens
+to platform-owned data.
+
+The following account-lifecycle behavior remains intentionally undecided:
 
 - account deletion side effects
-- ownership reassignment or retention policy
-- event and RSVP data cleanup strategy
-- future app-specific profile logic if introduced
+- retention, reassignment, anonymization, or deletion of owned events
+- retention, anonymization, or deletion of RSVP records
+- effects on pending or historical notifications
+- whether the first workflow supports deletion, disablement, anonymization, or
+  a staged process
 
-So account deletion is not just an identity-provider action.
+No platform account-deletion API or UI should be implemented until these
+semantics are defined.
 
-It should later be implemented as a platform-controlled workflow plus the
-relevant Cognito action.
+A future account lifecycle workflow must coordinate application-owned data with
+the relevant Cognito identity action. The planned implementation work is tracked
+in [implementation-roadmap.md](implementation-roadmap.md).
 
 ---
 
@@ -2413,14 +2264,3 @@ The following are intentionally deferred:
 
 These features should be introduced only when their behavior is explicitly
 locked in a future implementation step.
-
----
-
-## Current Open Questions
-
-The following behaviors are intentionally not fully locked yet:
-
-- exact account-deletion cleanup semantics
-
-These should be decided in the implementation steps where they become
-immediately relevant.

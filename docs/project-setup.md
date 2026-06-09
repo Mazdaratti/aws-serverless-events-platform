@@ -390,115 +390,38 @@ Detailed ownership rules are documented in:
 
 ## Current Tooling Baseline
 
-The project workflow expects these tools to be available:
+| Tool | Project use |
+|---|---|
+| Python 3.13 | Lambda runtime compatibility, repository helpers, packaging, and handler tests |
+| Docker | Lambda-compatible dependency build for the mixed-mode RSVP authorizer |
+| Terraform | Bootstrap, infrastructure provisioning, validation, and output access |
+| `tflint` | Terraform linting for modules, examples, and `infrastructure/envs/dev` |
+| `terraform-docs` | Generated Terraform README reference sections after interface changes |
+| AWS CLI | Local frontend deployment previews/uploads and Lambda code updates |
+| GitHub CLI | Repository input synchronization and manual workflow execution |
+| Node.js and npm | Frontend dependency installation, validation, testing, and builds |
 
-- Python
-- Docker
-- Terraform
-- `tflint`
-- `terraform-docs`
-- AWS CLI
-- GitHub CLI
-- Node.js
-- npm
+Docker is required only when rebuilding the RSVP authorizer vendor tree; it is
+not required for ordinary Lambda ZIP packaging or Terraform validation. See
+[lambdas/README.md](../lambdas/README.md#lambda-compatible-vendor-build).
 
-Tool usage summary:
+The AWS CLI must be configured for the target AWS account before using local
+deployment helpers. GitHub Actions obtains temporary AWS credentials through
+OIDC instead.
 
-- Python: Lambda runtime alignment, helper scripts, and handler tests
-- Docker: Lambda-compatible RSVP authorizer vendor rebuild
-- Terraform: bootstrap, provisioning, validation, and outputs
-- `tflint`: Terraform linting
-- `terraform-docs`: generated Terraform README sections
-- AWS CLI: local frontend artifact deployment and Lambda code updates
-- GitHub CLI: repository input sync and manual workflow runs
-- Node.js and npm: frontend validation and builds under `frontend/`
+### Local Python Test Environment
 
-## Python
-
-- use Python `3.13` for deployed Lambda runtime compatibility
-- local helper scripts in `scripts/` are also Python-based where practical
-- local Python virtual environments such as `.venv` are recommended for tests,
-  helper scripts, and local dependency installs
-
-Python-based local workflows include Lambda packaging, RSVP authorizer vendor
-builds, repository helper scripts, and focused handler tests.
-
-Local test execution now uses the shared pytest bootstrap under:
-
-- `tests/conftest.py`
-
-That bootstrap aligns local import-path behavior with CI so Lambda handlers can
-be tested locally using the same `shared/...` import layout expected by the
-packaged deployment artifacts.
-
-Install the local Lambda test dependencies into the repository virtual
-environment before running handler tests locally:
+Use a local virtual environment such as `.venv` for helper and test
+dependencies. Install the Lambda test dependencies with:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install pytest boto3
 ```
 
-`boto3` also installs `botocore`, which the tests use for AWS SDK exception
-shapes and mocked client behavior. These dependencies are for local unit tests
-and helper scripts; they do not require AWS credentials for mocked handler
-tests.
+`tests/conftest.py` aligns local imports with the `shared/...` package layout
+used by deployed artifacts. Mocked handler tests do not require AWS
+credentials. Installing `boto3` also installs the `botocore` exception types
+used by the tests.
 
-## Docker
-
-Docker is currently required for the mixed-mode RSVP authorizer packaging flow:
-
-- the authorizer depends on native libraries such as `cryptography` and `cffi`
-- local importability is not the same as Lambda-runtime compatibility
-- the repository now uses a Docker-based rebuild step to generate a
-  Lambda-compatible vendor tree for:
-  - `lambdas/rsvp_authorizer/vendor/`
-
-Docker is not currently required for ordinary Lambda packaging or Terraform
-validation. It is specifically required for the RSVP authorizer vendor rebuild
-flow.
-
-## Terraform
-
-Terraform is the source of truth for infrastructure in this repository. Local
-Terraform usage includes:
-
-- `fmt`
-- `init`
-- `validate`
-- `plan`
-- targeted environment/module verification during implementation
-
-## `tflint`
-
-`tflint` is part of the expected Terraform validation workflow for:
-
-- modules
-- examples
-- `infrastructure/envs/dev`
-
-## `terraform-docs`
-
-`terraform-docs` is part of the expected documentation maintenance workflow
-for:
-
-- Terraform modules
-- `infrastructure/envs/dev`
-
-It is used to refresh generated input/output/reference sections in README files
-after interface changes.
-
-## AWS CLI
-
-The AWS CLI is required for local deployment helpers. It must be configured for
-the same AWS account and dev permissions used by the platform.
-
-The frontend helper uses AWS CLI commands for:
-
-- previewing frontend artifact changes in dry-run mode
-- syncing `frontend/dist/` to the private frontend S3 bucket in apply mode
-- creating a CloudFront cache invalidation after a real frontend upload
-
-The Lambda deployment helper uses AWS CLI commands for:
-
-- updating existing Lambda function code with `aws lambda update-function-code`
-  only when run with `--apply`
+Detailed frontend tooling is documented in
+[frontend/README.md](../frontend/README.md).

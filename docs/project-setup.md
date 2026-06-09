@@ -169,164 +169,102 @@ repository secrets, and `TF_VAR_*` environment variables. The local
 ## GitHub Actions Workflows
 
 GitHub Actions uses the OIDC role created by `infrastructure/bootstrap/dev`.
-The current OIDC trust is branch-scoped to `main`, so these workflows use
-repository variables and do not use a GitHub Environment.
+The repository has two workflow categories:
 
-Before running GitHub Actions workflows, complete the repository variable and
-secret sync described in [GitHub Actions Input Sync](#github-actions-input-sync).
+- `.github/workflows/ci.yml` runs automatically for repository validation.
+- AWS smoke, provisioning, Lambda deployment, and frontend deployment workflows
+  are manually triggered with `workflow_dispatch`.
+
+The operational workflows documented below:
+
+- require `refs/heads/main`
+- use repository variables rather than a GitHub Environment
+- assume the branch-scoped AWS role through OIDC
+- generate `infrastructure/envs/dev/backend.tf`
+- initialize and validate the remote-backed Terraform root
+
+Complete [GitHub Actions Input Sync](#github-actions-input-sync) before running
+these operational workflows.
 
 ### AWS OIDC Smoke Workflow
 
-Workflow file:
-
-- `.github/workflows/aws-oidc-smoke.yml`
-
-Run it from `main` with:
+File: `.github/workflows/aws-oidc-smoke.yml`
 
 ```powershell
 gh workflow run aws-oidc-smoke.yml --ref main
 ```
 
-This workflow validates:
+Validates OIDC role assumption, S3 backend bucket and prefix access, and
+Terraform initialization and validation. It does not plan, apply, package, or
+deploy application artifacts.
 
-- GitHub Actions can request an OIDC token
-- AWS accepts the token for the branch-scoped role
-- the assumed role can access the configured S3 remote state bucket and backend
-  key prefix
-- Terraform can initialize against the generated S3 backend settings
-- Terraform can validate `infrastructure/envs/dev`
+### Provisioning Workflows
 
-It does not run `terraform plan`, run `terraform apply`, package Lambda
-artifacts, deploy Lambda code, or deploy frontend assets.
-
-### Provisioning Dry Run Workflow
-
-Workflow file:
+Files:
 
 - `.github/workflows/provisioning-dry-run.yml`
-
-Run it from `main` with:
+- `.github/workflows/provisioning-apply.yml`
 
 ```powershell
 gh workflow run provisioning-dry-run.yml --ref main
-```
-
-This validation-only provisioning dry run uses synced GitHub variables and
-secrets, generates the dev backend configuration, packages Lambda ZIP artifacts,
-and runs:
-
-- `terraform init`
-- `terraform validate`
-- `terraform plan`
-
-It does not apply infrastructure, deploy Lambda code, or deploy frontend assets.
-
-### Provisioning Apply Workflow
-
-Workflow file:
-
-- `.github/workflows/provisioning-apply.yml`
-
-Run it from `main` with the required confirmation input:
-
-```powershell
 gh workflow run provisioning-apply.yml --ref main -f confirm_apply=apply-dev
 ```
 
-This workflow is the GitHub Actions path for initial `dev` environment
-provisioning after bootstrap and input sync are complete, and for later
-infrastructure changes. It uses synced GitHub variables and secrets, generates
-the dev backend configuration, packages Lambda ZIP artifacts, and runs:
+Both workflows consume the synced dev Terraform inputs and package Lambda ZIP
+artifacts before planning.
 
-- `terraform init`
-- `terraform validate`
-- `terraform plan -out=tfplan`
-- `terraform apply tfplan`
+- Dry run: runs `terraform plan` without applying.
+- Apply: requires `confirm_apply=apply-dev`, saves the plan, and applies that
+  exact plan.
 
-It requires explicit confirmation and applies only the saved Terraform plan. It
-does not deploy Lambda code through `aws lambda update-function-code` or deploy
-frontend assets.
+Provisioning does not call `aws lambda update-function-code` or deploy frontend
+assets.
 
-### Lambda Deployment Dry Run Workflow
+### Lambda Deployment Workflows
 
-Workflow file:
+Files:
 
 - `.github/workflows/lambda-deploy-dry-run.yml`
-
-Run it from `main` with:
+- `.github/workflows/lambda-deploy-apply.yml`
 
 ```powershell
 gh workflow run lambda-deploy-dry-run.yml --ref main
-```
-
-This workflow validates the Lambda code deployment preview lane. It uses GitHub
-OIDC, generates the dev backend configuration from repository variables,
-initializes and validates the remote Terraform backend, checks the required
-Lambda deployment outputs, packages artifacts, previews Lambda code updates,
-and then runs:
-
-```powershell
-python scripts/deploy_lambdas.py --dry-run
-```
-
-It does not run `terraform plan`, run `terraform apply`, call
-`aws lambda update-function-code`, or deploy frontend assets.
-
-### Lambda Deployment Apply Workflow
-
-Workflow file:
-
-- `.github/workflows/lambda-deploy-apply.yml`
-
-Run it from `main` with the required confirmation input:
-
-```powershell
 gh workflow run lambda-deploy-apply.yml --ref main -f confirm_deploy=deploy-lambdas-dev
 ```
 
-This workflow is the GitHub Actions path for code-only Lambda deployment. It
-uses GitHub OIDC, generates the dev backend configuration from repository
-variables, initializes and validates the remote Terraform backend, checks the
-required Lambda deployment outputs, packages artifacts, and then runs:
+Both workflows validate the `aws_region` and `lambda_function_names` Terraform
+outputs and delegate packaging and deployment behavior to
+`scripts/deploy_lambdas.py`.
 
-```powershell
-python scripts/deploy_lambdas.py --apply
-```
+- Dry run: previews workload-to-function code updates without AWS mutation.
+- Apply: requires `confirm_deploy=deploy-lambdas-dev` and updates existing
+  function code with `aws lambda update-function-code --no-publish`.
 
-The helper updates existing Lambda function code with
-`aws lambda update-function-code --no-publish`. The workflow does not call that
-AWS CLI command directly.
-
-It does not run `terraform plan`, run `terraform apply`, deploy frontend
-assets, publish Lambda versions, manage aliases, or use CodeDeploy.
+Neither workflow runs Terraform plan/apply, deploys frontend assets, publishes
+Lambda versions, manages aliases, or uses CodeDeploy.
 
 ### Frontend Deployment Workflows
 
-Workflow files:
+Files:
 
 - `.github/workflows/frontend-deploy-dry-run.yml`
 - `.github/workflows/frontend-deploy-apply.yml`
 
-Run the dry-run workflow from `main` with:
-
 ```powershell
 gh workflow run frontend-deploy-dry-run.yml --ref main
-```
-
-Run the apply workflow from `main` with the required confirmation input:
-
-```powershell
 gh workflow run frontend-deploy-apply.yml --ref main -f confirm_deploy=deploy-dev
 ```
 
-These workflows use GitHub OIDC, generate the dev backend configuration from
-repository variables, initialize the remote Terraform backend, check required
-frontend deployment outputs, and then run the frontend deployment helper.
+Both workflows validate the required frontend Terraform outputs and delegate
+build and deployment behavior to `scripts/deploy_frontend.py`.
 
-The dry-run workflow builds and previews deployment only. The apply workflow
-uploads frontend assets and creates the CloudFront invalidation. Neither
-workflow runs Terraform provisioning, packages Lambda artifacts, or deploys
-Lambda code.
+- Dry run: validates and builds the frontend, then previews the S3 sync.
+- Apply: requires `confirm_deploy=deploy-dev`, uploads the assets, and creates a
+  CloudFront invalidation.
+
+Neither workflow provisions infrastructure, packages Lambda artifacts, or
+deploys Lambda code. Detailed frontend workflow behavior is documented in
+[frontend/README.md](../frontend/README.md#github-actions-workflows).
 
 ---
 

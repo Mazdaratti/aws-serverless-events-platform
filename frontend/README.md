@@ -3,72 +3,60 @@
 This directory contains the React/Vite frontend application served through the
 CloudFront/S3 delivery path.
 
-The frontend uses:
+The application uses React, TypeScript, Vite, React Router, Tailwind CSS, and
+the AWS Amplify Auth SDK.
 
-- Node.js
-- npm
-- React
-- Vite
-- TypeScript
-- React Router
-- Tailwind CSS
+Local frontend tooling requires:
 
-## Local Validation
+- Node.js `20.19.0` or newer
+- npm `10.0.0` or newer
 
-Run frontend validation from this directory:
+## Local Development and Validation
+
+Run frontend commands from this directory.
+
+Install the locked dependency set:
 
 ```powershell
 npm ci
+```
+
+Start the local Vite development server:
+
+```powershell
+npm run dev
+```
+
+Run the complete validation suite:
+
+```powershell
 npm run typecheck
 npm run build
 npm run test
 npm run test:e2e
 ```
 
-Use `npm ci` for PR validation because `package-lock.json` represents the
-reproducible dependency install plan.
-
-For local development:
+Install the Playwright Chromium runtime before the first browser-test run:
 
 ```powershell
-npm run dev
+npx playwright install chromium
 ```
 
-## Automated Testing
+Testing is split into:
 
-Frontend automated testing is a validation-only baseline for the React/Vite
-frontend.
+- Vitest, React Testing Library, `jest-dom`, and `jsdom` for component and
+  page-level behavior
+- Playwright for Chromium browser smoke tests against the local Vite server
 
-The current baseline uses:
-
-- Vitest
-- React Testing Library
-- `@testing-library/jest-dom`
-- `jsdom`
-- Playwright
-- Chromium browser runtime installed from `frontend/` with:
-  - `npx playwright install chromium`
-
-These tests run locally without AWS, Cognito, CloudFront, or backend
-dependencies and should be included in frontend validation for component,
-interaction, and browser smoke changes.
-
-The current baseline is split into:
-
-- Vitest and React Testing Library for component and page-level tests in
-  Node/jsdom
-- Playwright for browser-level Chromium smoke tests against the local Vite dev
-  server
-
-Frontend automated tests do not deploy infrastructure, mutate AWS resources, or
-replace the CloudFront deployment helper.
-
-The current Playwright browser smoke baseline runs locally against the Vite dev
-server and covers:
+The Playwright smoke suite covers:
 
 - app-shell rendering under `/app`
 - public events route shell rendering
 - protected-route prompt rendering for `/app/my-events`
+
+Frontend tests use local mocks where needed and do not require AWS credentials,
+Cognito, CloudFront, or a deployed backend. They do not deploy or mutate
+resources.
 
 ## Runtime and Environment Rules
 

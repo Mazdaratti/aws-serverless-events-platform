@@ -1622,319 +1622,154 @@ Deployment wiring and AWS validation evidence are documented in the
 
 ---
 
-## Post-Commit Async Notification Direction
+## Post-Commit Notification Behavior
 
-The platform uses a transactional core with asynchronous notification
-extensions.
+Notifications extend the transactional business flow after a durable change.
+They do not determine the success or failure of the original API request.
 
-The core synchronous business path remains:
+Detailed service topology is documented in
+[`architecture.md`](architecture.md). Concrete `dev` wiring, IAM, SES
+configuration, and validation evidence are documented in
+[`infrastructure/envs/dev/README.md`](../infrastructure/envs/dev/README.md).
 
-`Client -> CloudFront -> API Gateway -> Lambda -> DynamoDB`
+### Publication Contract
 
-Asynchronous notification work must be added only after durable business state
-changes. It must not become part of the user-facing success or failure outcome
-for the primary API request.
+Event-management write Lambdas publish a compact domain event only after the
+corresponding DynamoDB write succeeds.
 
-### Core async publication rules
+The publication contract is:
 
-Write Lambdas publish compact domain events to EventBridge only after the
-primary DynamoDB business write succeeds.
+- the durable business write completes first
+- each successful business change publishes one domain event
+- EventBridge owns downstream routing and fanout
+- write Lambdas do not publish target-specific notification messages
+- publication or downstream delivery failure does not change the successful API
+  response
+- publication failures are logged without retroactively failing the committed
+  business operation
 
-Locked rules:
-
-- the durable DynamoDB business write must complete first
-- EventBridge publication must happen only after successful durable commit
-- each successful business change publishes exactly one EventBridge domain event
-- write Lambdas must not publish separate events for separate downstream
-  notification targets
-- EventBridge owns fanout to downstream notification targets
-- async publication or downstream delivery failure must not change the
-  synchronous API response
-- API responses must remain independent from EventBridge, SNS, SQS, worker
-  Lambdas, SES, and future notification integrations
-- publication failures should be logged, but they must not retroactively turn a
-  successful business write into an API failure
-
-This direction applies first to these write operations:
+This contract applies to:
 
 - `create-event`
 - `update-event`
 - `cancel-event`
 
-RSVP notification events are intentionally deferred.
+Changes to RSVP records do not currently publish notification events.
 
-### Published v1 domain events
+### Domain Event Contract
 
-The v1 event-management notification domain events are:
+| Event type | Trigger | Current audiences |
+|---|---|---|
+| `event.created` | Successful event creation | Admin |
+| `event.updated` | Successful event update | Admin and authenticated RSVP users |
+| `event.cancelled` | Successful event cancellation | Admin and authenticated RSVP users |
 
-- `event.created`
-- `event.updated`
-- `event.cancelled`
+Domain events describe completed business changes rather than delivery requests
+for a specific notification channel.
 
-These events represent successful event-management business changes, not
-delivery requests for a specific notification target.
-
-### Domain event payload contract
-
-EventBridge domain event payloads should remain compact and
-notification-safe.
-
-Allowed notification-safe v1 fields:
+Allowed notification-safe fields are:
 
 - `event_id`
 - `title`
 - `actor_user_id`
 - `occurred_at`
 - `event_detail_path`
+- `changed_fields` for `event.updated`
 
-For `event.updated`, also include:
+The event detail path uses:
 
-- `changed_fields`
+```text
+/app/events/<event_id>
+```
 
-The frontend event detail path is:
-
-- `/app/events/<event_id>`
-
-Domain events must not include:
+Domain events must not contain:
 
 - email addresses
 - anonymous RSVP tokens
 - raw DynamoDB keys
 - full RSVP lists
 - JWT claims
-- full before/after DynamoDB item snapshots
+- complete before-and-after item snapshots
 
-This keeps EventBridge payloads useful for notification routing while avoiding
-unnecessary personal data spread and storage-model leakage.
+### Admin Notification Behavior
 
-### Admin notification path
+Admin notifications are lightweight platform broadcasts for:
 
-Admin notifications use direct EventBridge-to-SNS fanout.
+- event creation
+- event updates
+- event cancellation
 
-For:
-
-- `event.created`
-- `event.updated`
-- `event.cancelled`
-
-Locked flow:
-
-`Write Lambda -> DynamoDB commit -> EventBridge -> SNS admin topic`
-
-Rules:
-
-- admin notifications are platform/admin broadcast notifications
-- the admin path uses SNS directly
-- no SQS worker is required for admin notifications in v1
-- no Cognito admin-group lookup is required for admin notifications in v1
-- the SNS topic supports confirmed admin or dev email subscriptions, but
-  personal email addresses must not be hardcoded into reusable modules or
-  committed environment configuration
-- dev admin email subscriptions are configured through local untracked tfvars
-- EventBridge target input transformers may format direct SNS admin messages
-  with environment-specific presentation details such as a full browser URL
-- exact direct SNS email rendering is not a business contract; polished admin
-  email formatting can be introduced later through a dedicated formatter if
-  needed
-
-Admin notification messages should be able to include:
+Messages may include:
 
 - event title
 - event type
-- actor user id
-- full event link derived from the published `event_detail_path`
-- changed fields for `event.updated`
+- actor user ID
+- the full event link derived from `event_detail_path`
+- changed fields for event updates
 
-For `event.created` and `event.cancelled`, admin notification messages should
-not include an empty or irrelevant `changed_fields` line.
+Creation and cancellation messages do not include an empty
+`changed_fields` value. Exact SNS email rendering is not a product contract.
 
-### Participant notification path
+### Participant Notification Behavior
 
-Participant notifications are event-specific email notifications for users who
-already have authenticated RSVP records for an event.
-
-For:
+Participant emails are sent for:
 
 - `event.updated`
 - `event.cancelled`
 
-Locked flow:
+Eligible recipients are authenticated users with an RSVP record for the event.
+Both `attending = true` and `attending = false` records are included.
 
-`Write Lambda -> DynamoDB commit -> EventBridge -> notification-dispatch SQS -> notification-planner Lambda -> notification-email SQS -> notification-sender Lambda -> SES`
+Anonymous RSVP subjects are skipped because the anonymous RSVP model does not
+collect a verified email address.
 
-Rules:
+One event-level notification may expand into one recipient-level job per
+eligible user. A failure for one recipient must not cause successfully
+processed recipients from the same batch to be retried.
 
-- participant notifications use the two-queue/two-worker design
-- the existing `notification-dispatch` queue is the event-level planning queue
-- `notification-email` is the recipient-level user-facing email work queue
-  between the planner and sender
-- `notification-planner` is implemented and deployed in the current
-  infrastructure baseline
-- `notification-sender` is implemented and deployed in the current
-  infrastructure baseline
-- the planner and sender have separate least-privilege IAM roles and SQS event
-  source mappings with partial batch responses
-- participant email delivery uses a Terraform-managed SES sender identity and
-  SES templates
-- SQS provides durable buffering, retry isolation, and rate/concurrency control
-- one event-level message can produce many recipient-level messages
-- each recipient-level message represents one authenticated RSVP user recipient
-- one worker must not query all recipients and send all emails in the same
-  invocation
-
-Participant emails are user-facing product emails, not admin/debug messages.
-The planner produces safe recipient-level jobs, and the sender owns final
-presentation through stable templates. EventBridge does not send directly to
-`notification-email`.
-
-The notification worker layer is implemented for update and cancellation
-participant emails. The planner creates recipient-level jobs, and the sender
-resolves the current recipient email through Cognito before sending a
-Terraform-managed SES template.
-
-Participant notification emails include template support for:
+Participant emails support:
 
 - event title
 - event detail link
-- changed fields for `event.updated`
-- cancellation or update wording based on the event type
+- changed fields for event updates
+- notification-specific update or cancellation wording
 
-### SES participant email baseline
+Participant emails use stable templates and must not expose raw EventBridge,
+SQS, DynamoDB, or internal storage payloads.
 
-The current infrastructure baseline uses Amazon SES for participant email
-identity and template management.
+### Notification Worker Contracts
 
-Rules:
+| Worker | Responsibilities | Explicit exclusions |
+|---|---|---|
+| `notification-planner` | Parse supported event notifications, query RSVP records, select authenticated recipients, and enqueue one recipient-level job per user | Does not resolve email addresses or send email |
+| `notification-sender` | Resolve the current Cognito email, select the notification template, construct safe template data, and send the participant email | Does not query RSVP records or publish domain events |
 
-- the sender identity is a dedicated project inbox
-- the sender identity is configured through local untracked `terraform.tfvars`
-- private personal email addresses must not be used as the project sender
-- Terraform creates the SES email identity
-- SES sender identity verification is manual through the dedicated project
-  inbox
-- Terraform manages SES templates for:
-  - `event.updated`
-  - `event.cancelled`
-- SES templates contain the subject, plain-text body, and HTML body
-- `notification-sender` uses `ses:SendTemplatedEmail`
-- sender IAM allows SES templated sending for the configured sender identity,
-  participant templates, and SES recipient identity scope required by sandbox
-  validation
-- SES sandbox assumptions remain explicit in `dev`
-- sandbox email delivery requires verified recipient email addresses
+Both workers use partial SQS batch responses so a failed record can be retried
+without retrying successful records from the same batch.
 
-This baseline does not request SES production access and does not configure a
-domain identity, DKIM, SPF, DMARC, or custom MAIL FROM.
+### Identity and Privacy Boundary
 
-### Participant recipient rules
+Cognito `sub` remains the canonical authenticated user identifier.
 
-For `event.updated` and `event.cancelled`, participant recipients are:
+The notification contract therefore requires:
 
-- authenticated RSVP users for the event
-- RSVP users with `attending = true`
-- RSVP users with `attending = false`
+- RSVP records store the canonical `user_id`, not a copied email address
+- recipient-level jobs contain `recipient_user_id`, not email
+- `notification-sender` resolves the current email from Cognito at send time
+- username and email are not used as internal identity keys
+- dynamic template values are validated and encoded for their text or HTML
+  context
 
-Skipped in v1:
+This avoids stale contact data in RSVP records and limits the spread of
+personal information through asynchronous messages.
 
-- anonymous RSVP subjects
+### Deferred Notification Behavior
 
-Reason:
+The following behavior is not currently implemented:
 
-- the current anonymous RSVP model stores an anonymous token, not a verified
-  email address
-
-### RSVP identity and contact-data rule
-
-Do not store user email addresses in RSVP records.
-
-Locked rules:
-
-- RSVP records remain business membership records
-- RSVP records keep Cognito `sub` as the canonical `user_id`
-- participant recipient messages contain `recipient_user_id`, not email
-- `notification-sender` resolves the current email address at send time through
-  Cognito
-- username and email must not become internal platform identity keys
-
-This avoids stale RSVP email data when a user changes email in Cognito and
-avoids spreading personal contact data into RSVP business rows.
-
-### `notification-planner`
-
-The `notification-planner` Lambda consumes event-level messages from
-`notification-dispatch` and enqueues recipient-level jobs to
-`notification-email`.
-
-The planner IAM role allows it to consume `notification-dispatch`, query RSVP
-records, and send recipient-level jobs to `notification-email`.
-
-Responsibilities:
-
-- parse EventBridge-routed SQS messages for `event.updated` and
-  `event.cancelled`
-- query the RSVP table by `event_id`
-- select authenticated RSVP subjects
-- include both `attending = true` and `attending = false`
-- skip anonymous RSVP subjects
-- enqueue one recipient-level message per authenticated RSVP user to
-  `notification-email`
-- use partial batch responses so successful SQS records are not retried when
-  another record in the same batch fails
-
-Non-responsibilities:
-
-- do not send email
-- do not call SES
-- do not resolve recipient email addresses
-- do not require email stored in RSVP records
-
-### `notification-sender`
-
-The `notification-sender` Lambda consumes recipient-level messages from
-`notification-email` and sends participant emails through SES.
-
-The sender IAM role allows it to consume `notification-email`, call
-`cognito-idp:ListUsers` against the configured Cognito user pool, and call
-`ses:SendTemplatedEmail` for the configured sender address and participant
-templates. The Cognito lookup uses a constrained `ListUsers` lookup by
-canonical `sub`, because participant recipient messages carry
-`recipient_user_id` as the Cognito `sub`.
-
-Responsibilities:
-
-- resolve the current recipient email address from Cognito at send time using
-  the canonical `recipient_user_id`
-- select the correct SES template for the notification type
-- build validated template data with separate text-safe and HTML-safe fields
-  for SES
-- send templated email through SES `SendTemplatedEmail`
-- use partial batch responses so successful SQS records are not retried when
-  another record in the same batch fails
-
-Non-responsibilities:
-
-- do not query the RSVP table
-- do not call EventBridge
-- do not depend on RSVP-stored email addresses
-- do not send raw EventBridge, SQS, or DynamoDB payloads to participants
-- do not treat stale copied email data as the source of truth
-
-### Intentionally deferred notification scope
-
-The following are intentionally deferred:
-
-- RSVP-created notifications
-- RSVP-updated notifications
-- per-event SNS topics
-- subscribe-to-event-notifications feature
-- notification preferences
+- notifications triggered by RSVP creation or updates
+- per-event notification subscriptions
+- user notification preferences
 - anonymous RSVP email collection
-- SES production access request
-- domain identity, DKIM, SPF, DMARC, or custom MAIL FROM
-- Step Functions
-- EventBridge Pipes
-- deployed AWS notification tests in CI
-
-
-These features should be introduced only when their behavior is explicitly
-locked in a future implementation step.
+- participant delivery channels other than email
+- deployed notification integration tests in CI

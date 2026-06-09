@@ -85,35 +85,24 @@ The all-workload orchestrator applies these modes from its canonical workload
 map, so provisioning and deployment automation do not need separate packaging
 commands per function.
 
-## Mixed-Mode Authorizer Exception
+## RSVP Authorizer Dependencies
 
-The dedicated mixed-mode RSVP authorizer has one extra packaging requirement:
+The mixed-mode RSVP authorizer requires third-party JWT dependencies, including
+native packages such as `cryptography` and `cffi`.
 
-- third-party JWT verification dependencies
+| Path | Purpose |
+|---|---|
+| `lambdas/rsvp_authorizer/requirements.txt` | Tracked dependency source |
+| `lambdas/rsvp_authorizer/vendor/` | Generated workload-local dependencies |
+| `lambdas/rsvp_authorizer/Dockerfile.vendor` | Lambda-compatible vendor build |
 
-For this workload, the tracked dependency source of truth is:
+The generated vendor directory is ignored by Git and must not be used as a
+shared dependency directory for other workloads.
 
-- `lambdas/rsvp_authorizer/requirements.txt`
+### Local Test Dependencies
 
-The generated vendor directory is:
-
-- `lambdas/rsvp_authorizer/vendor/`
-
-That vendor directory is:
-
-- generated
-- workload-local
-- ignored by Git
-
-It must not become a shared dependency bucket for other Lambdas.
-
-## Authorizer Local Test Install
-
-For RSVP authorizer local unit tests, dependencies can be installed into the
-workload-local vendor directory so the handler test file can import them
-directly.
-
-Example:
+For local authorizer tests, install dependencies into the workload-local vendor
+directory:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install `
@@ -121,55 +110,34 @@ Example:
   --requirement lambdas/rsvp_authorizer/requirements.txt
 ```
 
-This supports local importability for:
+This installation supports local imports only. It is not necessarily compatible
+with the AWS Lambda Linux runtime.
 
-- `PyJWT`
-- `cryptography`
+### Lambda-Compatible Vendor Build
 
-## Lambda-Compatible Vendor Build
-
-Local importability is not the same as Lambda-runtime compatibility.
-
-The final vendored dependency tree used for deployment must be built for the
-deployed Lambda runtime and architecture.
-
-Current locked deployment target:
-
-- Python `3.13`
-- `x86_64`
-- AWS Lambda Linux runtime
-
-Before rebuilding the vendor tree, remove any previous generated contents so
-platform-specific files do not get mixed together.
-
-```powershell
-Remove-Item -Recurse -Force lambdas/rsvp_authorizer/vendor
-```
-
-The preferred deployment build approach uses the helper script:
-
-- `scripts/build_rsvp_authorizer_vendor.py`
-
-Run:
+Build deployment dependencies with:
 
 ```powershell
 python scripts/build_rsvp_authorizer_vendor.py
 ```
 
-The helper script:
+The helper:
 
-- removes any existing generated `vendor/` directory
+- removes the existing vendor directory
 - builds the workload-local Docker image
-- rebuilds the vendor tree in a Lambda-compatible container
+- installs dependencies in a Linux Python 3.13 container
+- verifies that the rebuilt vendor directory is non-empty
 
-Under the hood it uses the workload-local Docker build file:
+The resulting dependencies target:
 
-- `lambdas/rsvp_authorizer/Dockerfile.vendor`
+- AWS Lambda Linux
+- Python `3.13`
+- `x86_64`
 
-If you need to debug the lower-level Docker flow directly, the equivalent steps
-are:
+This prevents locally built native binaries from being included in the
+deployment artifact.
 
-Build the vendor image:
+For lower-level Docker troubleshooting, run:
 
 ```powershell
 docker build `
@@ -178,33 +146,15 @@ docker build `
   lambdas/rsvp_authorizer
 ```
 
-Rebuild the workload-local vendor directory in a Lambda-compatible container:
-
 ```powershell
 docker run --rm `
   -v "${PWD}\lambdas\rsvp_authorizer:/output" `
   rsvp-authorizer-vendor
 ```
 
-The container installs the pinned dependencies into `/output/vendor` using a
-Linux Python 3.13 environment aligned with the deployed Lambda target.
+### Authorizer Packaging
 
-Why this differs from the local test install:
-
-- local test install only needs the dependencies to import on the local machine
-- deployment build must produce a dependency tree compatible with:
-  - AWS Lambda Linux
-  - Python `3.13`
-  - `x86_64`
-
-Native dependencies such as `cryptography` and `cffi` must match the Lambda
-runtime target. The Docker-based vendor build was added specifically to avoid
-shipping local Windows-built binaries into the Lambda ZIP.
-
-## Authorizer Packaging Command
-
-When the `vendor/` directory contains the correct Lambda-compatible dependency
-build, package the authorizer with:
+After building compatible dependencies, package the authorizer with:
 
 ```powershell
 python scripts/package_lambda.py `
@@ -213,8 +163,9 @@ python scripts/package_lambda.py `
   --vendor-dir lambdas/rsvp_authorizer/vendor
 ```
 
-With `--vendor-dir`, vendored dependency contents are placed at ZIP root so the
-authorizer can import them directly.
+The vendor contents are placed at ZIP root so the authorizer can import them
+directly. The all-workload helper performs this build and packaging sequence
+automatically.
 
 ## Cleanup Notes
 

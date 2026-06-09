@@ -1429,15 +1429,11 @@ Deployment wiring and AWS validation evidence are documented in the
 
 ### `get-event-rsvps`
 
-Routed API shape:
+Route:
 
 - `GET /events/{event_id}/rsvps`
 
-The old monolith/OpenAPI contract exposed this broadly, but the current
-platform deliberately narrows RSVP-read visibility to the operational users who
-actually need subject-level attendee visibility.
-
-#### Access rule
+#### Access Rule
 
 Allowed:
 
@@ -1451,9 +1447,9 @@ Rejected:
 
 Unauthorized access returns `403`, not `404`, when the event exists.
 
-#### Existence and authorization order
+#### Existence and Authorization Order
 
-Use this exact order:
+The handler evaluates the request in this order:
 
 1. resolve and validate `event_id`
 2. `GetItem` on `events`
@@ -1461,18 +1457,12 @@ Use this exact order:
 4. if present but caller not allowed: `403`
 5. if allowed: query `rsvps`
 
-This keeps the handler operationally useful for creators and admin callers
-while matching the current ownership/admin authorization direction used
-elsewhere in the platform.
-
-#### Authorization direction
-
 Caller identity comes from normalized caller context:
 
 - `caller.user_id`
 - `caller.is_admin`
 
-#### Lifecycle behavior
+#### Lifecycle Behavior
 
 Readable:
 
@@ -1483,7 +1473,7 @@ Readable:
 This is a read/reporting operation, not a write path, so cancelled and past
 events still expose RSVP lists to the creator and admins.
 
-#### Request contract
+#### Request Contract
 
 Support both:
 
@@ -1513,23 +1503,18 @@ Validation rules:
 - `limit` is optional
 - `next_cursor` is optional and must be an opaque string when provided
 
-#### Pagination contract
-
-Pagination is included now to avoid later contract churn on an event-scoped
-query path.
-
-Rules:
+#### Pagination Contract
 
 - default limit: `50`
 - max limit: `100`
 - `next_cursor` is an opaque string derived from DynamoDB `LastEvaluatedKey`
 - the public contract must not expose raw DynamoDB key structure directly
 
-Do not add filtering, sorting options, or attendee search in this phase.
+The endpoint does not support filtering, custom sorting, or attendee search.
 
-#### Read model
+#### Read Model
 
-Use this exact read model:
+The read model is:
 
 1. `GetItem` from `events`
 2. authorize against that canonical event
@@ -1537,12 +1522,10 @@ Use this exact read model:
    - `event_pk = EVENT#<event_id>`
 4. paginate using `ExclusiveStartKey`
 
-Ascending default DynamoDB sort order is acceptable for now.
+The query uses the default ascending sort-key order. The existing primary key
+supports event-scoped reads without an additional RSVP GSI.
 
-Do not add an RSVP GSI for this step. The existing RSVP table shape is already
-efficient for per-event reads.
-
-#### Stats source
+#### Stats Source
 
 Global RSVP stats come from the canonical event helper counters:
 
@@ -1555,7 +1538,7 @@ Do not recalculate totals from the queried page.
 This keeps the read efficient and prevents page-local item counts from
 masquerading as global event totals.
 
-#### Empty RSVP behavior
+#### Empty RSVP Behavior
 
 An existing event with zero RSVPs returns:
 
@@ -1568,7 +1551,7 @@ An existing event with zero RSVPs returns:
 
 This is not a not-found or special-case failure.
 
-#### Response contract
+#### Response Contract
 
 The Lambda returns the standard API Gateway-style wrapper.
 
@@ -1579,7 +1562,7 @@ Success body shape:
 - `stats`
 - `next_cursor`
 
-Locked `event` summary fields:
+The `event` summary includes:
 
 - `event_id`
 - `status`
@@ -1614,7 +1597,7 @@ Each RSVP item includes:
 - `attending`
 - `not_attending`
 
-#### Hidden fields
+#### Hidden Fields
 
 Never expose:
 
@@ -1625,37 +1608,17 @@ Never expose:
 - helper GSI attributes
 - internal storage-only fields
 
-#### Status code contract
-
-Locked status codes:
+#### Status Code Contract
 
 - `200` success
 - `400` invalid input
+- `401` missing or invalid authentication rejected at the API edge
 - `403` caller is not allowed to view RSVP subjects for the event
 - `404` event not found
 - `500` unexpected internal/runtime/data issue
 
-#### Current implementation note
-
-The deployed `get-event-rsvps` Lambda now validates the locked RSVP read
-contract in `dev`:
-
-- direct invocation and API Gateway-style request input are both supported
-- event creator can read RSVP subjects for their own events
-- admin can read RSVP subjects for any event
-- anonymous callers return `403`
-- authenticated non-owner non-admin callers return `403`
-- missing events return `404`
-- existing events with zero RSVPs return `200` with empty `items`
-- cancelled events remain readable to the creator and admins
-- past events remain readable to the creator and admins
-- response bodies return the locked public RSVP read contract:
-  - `event`
-  - `items`
-  - `stats`
-  - `next_cursor`
-- internal storage fields remain hidden from the response
-- pagination uses opaque `next_cursor`
+Deployment wiring and AWS validation evidence are documented in the
+[development environment README](../infrastructure/envs/dev/README.md).
 
 ---
 

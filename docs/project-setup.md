@@ -33,13 +33,10 @@ separate operational lanes.
 
 ## Setup Sequence
 
-Use this order when setting up the project from a fresh clone. The sequence
-assumes a `dev` environment and an AWS account where the local AWS CLI identity
-is allowed to create the bootstrap resources.
+Use this sequence for a `dev` environment and an AWS account where the local
+AWS CLI identity can create the bootstrap resources.
 
-Provisioning steps create or update the platform. Deployment steps after
-provisioning are operational paths for application artifacts and code-only
-changes.
+### Required Initial Setup
 
 1. Clone the repository.
 2. Install the required local tools listed in
@@ -85,35 +82,44 @@ changes.
     ```powershell
     gh workflow run provisioning-apply.yml --ref main -f confirm_apply=apply-dev
     ```
-12. After provisioning succeeds, optionally run the manual Lambda deployment
-    dry-run workflow from `main` to preview code-only Lambda updates:
+12. Deploy the frontend required for the usable platform:
     ```powershell
-    gh workflow run lambda-deploy-dry-run.yml --ref main
-    ```
-13. When code-only Lambda changes are ready to deploy, run the manual Lambda
-    deployment apply workflow from `main`:
-    ```powershell
-    gh workflow run lambda-deploy-apply.yml --ref main -f confirm_deploy=deploy-lambdas-dev
-    ```
-14. Deploy or preview frontend artifacts with one of the implemented frontend
-    paths:
-    ```powershell
-    python scripts/deploy_frontend.py --dry-run
-    python scripts/deploy_frontend.py --apply
     gh workflow run frontend-deploy-dry-run.yml --ref main
     gh workflow run frontend-deploy-apply.yml --ref main -f confirm_deploy=deploy-dev
     ```
-15. Validate the CloudFront frontend and `/events` API routes.
+13. Validate the frontend, deep-link routing, and `/events` API separation using
+    the
+    [frontend post-deployment checklist](../frontend/README.md#post-deployment-validation).
 
-    Check the app through the CloudFront domain printed by the deployment
-    helper or available from Terraform outputs:
-    - `/app`
-    - `/app/events`
-    - `/app/my-events`
-    - `/events`
+The provisioning workflow packages the Lambda artifacts required for initial
+function creation. A separate Lambda code deployment is therefore not required
+during initial setup.
 
-    Frontend routes under `/app` should return the SPA. API routes under
-    `/events` should return API responses, not frontend HTML.
+### Ongoing Infrastructure and Application Updates
+
+Use the provisioning workflows for infrastructure changes:
+
+```powershell
+gh workflow run provisioning-dry-run.yml --ref main
+gh workflow run provisioning-apply.yml --ref main -f confirm_apply=apply-dev
+```
+
+Use the Lambda deployment workflows for code-only Lambda updates:
+
+```powershell
+gh workflow run lambda-deploy-dry-run.yml --ref main
+gh workflow run lambda-deploy-apply.yml --ref main -f confirm_deploy=deploy-lambdas-dev
+```
+
+Use the frontend deployment workflows for frontend updates:
+
+```powershell
+gh workflow run frontend-deploy-dry-run.yml --ref main
+gh workflow run frontend-deploy-apply.yml --ref main -f confirm_deploy=deploy-dev
+```
+
+Equivalent local helper and Terraform alternatives are documented in
+[Local Operations](#local-operations).
 
 ---
 

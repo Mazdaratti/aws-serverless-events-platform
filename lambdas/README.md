@@ -1,51 +1,53 @@
 # Lambda Packaging
 
-This directory contains the Python Lambda workload source folders plus the
-shared helper package under `lambdas/shared`.
+This directory contains the Python Lambda workloads and the shared helper
+package under `lambdas/shared`.
 
-Lambda deployment artifacts in this repository are ZIP files built with:
+Lambda workloads are deployed as deterministic ZIP artifacts built by:
 
-- `scripts/package_lambda.py`
-- `scripts/package_lambdas.py`
+| Helper | Purpose |
+|---|---|
+| `scripts/package_lambda.py` | Package one workload with optional shared helpers or vendored dependencies |
+| `scripts/package_lambdas.py` | Package the complete workload set expected by `infrastructure/envs/dev` |
 
-The scripts keep packaging deterministic so repeated builds do not create noisy
-artifact differences when the inputs have not changed. `package_lambda.py`
-packages one workload. `package_lambdas.py` orchestrates all deployed workloads
-expected by `infrastructure/envs/dev`.
+Deterministic metadata and file ordering prevent unchanged source inputs from
+producing noisy artifact differences.
 
-Packaging and deployment are separate responsibilities.
-
-This directory documents how Lambda ZIP artifacts are built. Provisioning
-automation will build these artifacts before Terraform plan/apply. Lambda code
-deployment automation maps packaged workloads to Terraform output function
-names and can update function code with `aws lambda update-function-code`.
-Terraform ownership rules are documented in the infrastructure and setup docs.
+Provisioning and Lambda code deployment both use these artifacts, but packaging
+does not provision infrastructure or update AWS resources. Deployment ownership
+is documented in
+[project-setup.md](../docs/project-setup.md#deployment-boundaries).
 
 ## All-Workload Packaging
 
-Use the orchestration helper when provisioning or deployment automation needs
-the complete Lambda artifact set:
+Build every deployed workload from the repository root:
 
 ```powershell
 python scripts/package_lambdas.py
 ```
 
-The helper packages all deployed workloads into:
+Artifacts are written to:
 
-- `artifacts/lambda/<function-key>.zip`
+```text
+artifacts/lambda/<function-key>.zip
+```
 
-It also rebuilds the Lambda-compatible RSVP authorizer vendor tree by default
-before packaging `rsvp-authorizer`.
+The orchestration helper:
 
-If the vendor tree has already been rebuilt in the current job or local
-session, the rebuild can be skipped:
+- validates every configured workload source directory
+- rebuilds the Lambda-compatible RSVP authorizer vendor tree
+- applies each workload's shared/vendor packaging mode
+- verifies every expected ZIP exists
+- prints the workload-to-artifact summary
+
+Skip the Docker vendor rebuild only when a compatible, non-empty vendor tree
+already exists:
 
 ```powershell
 python scripts/package_lambdas.py --skip-authorizer-vendor-build
 ```
 
-The skip mode still validates that `lambdas/rsvp_authorizer/vendor/` exists and
-is not empty before packaging.
+Skip mode still validates `lambdas/rsvp_authorizer/vendor/` before packaging.
 
 ## Standard Packaging Model
 

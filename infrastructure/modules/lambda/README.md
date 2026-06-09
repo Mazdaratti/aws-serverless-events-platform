@@ -88,7 +88,7 @@ trace segments and telemetry records to X-Ray.
 
 ---
 
-## Current V1 Deployment Shape
+## Current Deployment Shape
 
 Each function definition currently supports:
 

@@ -363,40 +363,28 @@ The final plan should report no changes after a successful apply.
 
 ## Deployment Boundaries
 
-### Terraform Provisioning vs Lambda Code Deployment
+Provisioning and application deployment are separate operational lanes:
 
-Lambda infrastructure ownership is separate from Lambda code deployment, while
-Lambda artifact generation remains available to both automation lanes.
+| Lane | Owns | Does not own |
+|---|---|---|
+| Terraform provisioning | Infrastructure, Lambda configuration, IAM, environment variables, service wiring, and initial Lambda ZIP inputs | Code-only Lambda releases or frontend asset deployment |
+| Lambda code deployment | ZIP packaging, workload-to-function mapping, and existing function-code updates | Terraform plan/apply, infrastructure configuration, versions, aliases, or CodeDeploy |
+| Frontend deployment | Frontend build, S3 asset upload, and CloudFront invalidation | Terraform provisioning, Lambda packaging, or Lambda code deployment |
 
-- Terraform continues to own Lambda infrastructure, configuration, and service
-  wiring.
-- Terraform provisioning builds Lambda ZIP artifacts before Terraform
-  plan/apply so Terraform can create Lambda functions when needed.
-- After Lambda functions exist, Terraform ignores Lambda package-field drift
-  while continuing to detect infrastructure and configuration drift.
-- Lambda code deployment automation builds Lambda ZIP artifacts, maps workloads
-  to existing function names from Terraform outputs, and updates code through
-  `aws lambda update-function-code`.
-- Lambda code deployment workflows may read Terraform outputs, but they must
-  not run `terraform apply`.
+Lambda packaging is shared by provisioning and code deployment. Provisioning
+uses the artifacts to create functions when needed; code deployment updates
+existing functions with `aws lambda update-function-code`.
 
-Config drift such as environment variables, timeout, memory, tracing, IAM,
-event source mappings, and API Gateway wiring must remain visible to Terraform.
+After function creation, Terraform ignores drift in the Lambda package fields
+while continuing to detect configuration and infrastructure drift. Lambda and
+frontend deployment workflows may read Terraform outputs, but they must not run
+`terraform apply`.
 
-### Frontend Deployment Boundary
+Detailed ownership rules are documented in:
 
-Frontend deployment uploads static assets to S3 and creates a CloudFront
-invalidation in apply mode.
-
-Frontend deployment does not:
-
-- run Terraform provisioning
-- package Lambda artifacts
-- deploy Lambda code
-
-Detailed frontend operations are documented in:
-
-- `frontend/README.md`
+- [Lambda module code ownership](../infrastructure/modules/lambda/README.md#lambda-code-ownership-boundary)
+- [Lambda packaging](../lambdas/README.md)
+- [Frontend deployment model](../frontend/README.md#deployment-model)
 
 ---
 

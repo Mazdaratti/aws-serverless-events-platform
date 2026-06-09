@@ -1142,128 +1142,34 @@ RSVP writes reject:
 
 ### `rsvp`
 
-RSVP authorization depends on event type.
+Route:
 
-- public event:
-  - anonymous RSVP allowed
-  - authenticated RSVP allowed
-- protected event:
-  - authenticated user required
-- admin event:
-  - admin user required
+- `POST /events/{event_id}/rsvp`
 
-This decision remains business-driven inside Lambda even after API Gateway and
-Cognito handle generic auth.
+#### Access Behavior
 
-#### Mixed-mode route direction
+| Event type | Allowed callers |
+|---|---|
+| Public | Anonymous and authenticated callers |
+| Protected | Authenticated callers |
+| Admin-only | Authenticated admin callers |
 
-`rsvp` remains one mixed-mode business route.
+The dedicated Lambda authorizer preserves optional authentication at the API
+edge. The business Lambda consumes normalized caller context and decides
+whether that caller may RSVP to the selected event.
 
-Rules:
+Malformed or invalid presented authentication is rejected by the authorizer
+with `403`; the business Lambda is not invoked. Detailed authorizer behavior is
+defined in [Mixed-Mode RSVP Authorizer](#mixed-mode-rsvp-authorizer).
 
-- anonymous RSVP must remain supported for public events
-- authenticated RSVP must remain supported for public events
-- protected-event RSVP requires authenticated caller context
-- admin-event RSVP requires authenticated admin caller context
-- authenticated callers on public events must not be collapsed into anonymous
-  callers
+Authorizer dependency and packaging operations are documented in
+[lambdas/README.md](../lambdas/README.md).
 
-The dedicated `rsvp` Lambda authorizer exists to preserve this mixed-mode
-behavior while keeping JWT parsing and validation out of the business handler.
-
-Current routed direction:
-
-- the real mixed-mode route is:
-  - `POST /events/{event_id}/rsvp`
-- it is wired through API Gateway using the dedicated Lambda request authorizer
-- the business Lambda consumes normalized caller context only
-- the business Lambda must not parse raw authorizer payloads directly
-
-#### Mixed-mode authorizer behavior
-
-The dedicated `rsvp` Lambda authorizer must support both anonymous and
-authenticated callers on the same route.
-
-Rules:
-
-- if no bearer token is present:
-  - allow anonymous route access
-  - project anonymous caller context
-- if a valid Cognito token is present:
-  - allow authenticated route access
-  - project authenticated caller context
-- if a malformed or invalid token is present:
-  - deny the request at the API edge
-  - the observed result is `403`
-  - the business `rsvp` Lambda must not run
-- the projected authorizer context is observed downstream under:
-  - `requestContext.authorizer.lambda`
-
-Locked v1 projected caller fields are:
-
-- `user_id`
-- `is_authenticated`
-- `is_admin`
-
-Observed downstream shape for successful mixed-mode requests:
-
-- anonymous:
-  - `requestContext.authorizer.lambda.user_id = null`
-  - `requestContext.authorizer.lambda.is_authenticated = false`
-  - `requestContext.authorizer.lambda.is_admin = false`
-- authenticated non-admin:
-  - `requestContext.authorizer.lambda.user_id = <Cognito sub>`
-  - `requestContext.authorizer.lambda.is_authenticated = true`
-  - `requestContext.authorizer.lambda.is_admin = false`
-- authenticated admin:
-  - `requestContext.authorizer.lambda.user_id = <Cognito sub>`
-  - `requestContext.authorizer.lambda.is_authenticated = true`
-  - `requestContext.authorizer.lambda.is_admin = true`
-
-Observed typing:
-
-- `is_authenticated` arrives as a real boolean
-- `is_admin` arrives as a real boolean
-- anonymous `user_id` arrives as `null`
-
-#### Vendored dependency direction for the mixed-mode authorizer
-
-The dedicated `rsvp` Lambda authorizer uses a vendored JWT verification stack.
-
-Locked v1 dependency direction:
-
-- `PyJWT`
-- `cryptography`
-
-Vendored dependencies live under:
-
-- `lambdas/rsvp_authorizer/vendor/`
-
-Packaging direction:
-
-- `scripts/package_lambda.py --vendor-dir ...`
-- vendored dependency contents must land at the ZIP archive root so the
-  authorizer can import them directly
-
-Build target direction:
-
-- the vendor tree must be built for the deployed Lambda runtime and
-  architecture
-- current locked build target:
-  - Python `3.13`
-  - `x86_64`
-
-Repository-scoping rule:
-
-- the vendor tree is workload-local to `rsvp_authorizer`
-- it must not become a shared repo-wide dependency bucket
-- this step does not introduce a Lambda layer
-
-#### Anonymous subject strategy
+#### Anonymous Subject Identity
 
 Anonymous RSVP is supported only for public events.
 
-For anonymous RSVP in this phase, the caller must provide:
+Anonymous callers must provide:
 
 - `anonymous_token`
 
@@ -1278,9 +1184,9 @@ Rules:
 - protected and admin-only events reject anonymous callers before token
   handling matters
 
-#### Canonical RSVP key shape
+#### Canonical RSVP Identity
 
-The canonical RSVP storage shape is:
+The canonical storage identity is:
 
 - partition key:
   - `event_pk = EVENT#<event_id>`
@@ -1290,7 +1196,7 @@ The canonical RSVP storage shape is:
   - anonymous subject:
     - `subject_sk = ANON#<anonymous_token>`
 
-Canonical RSVP items should stay minimal and currently include:
+Canonical RSVP items include:
 
 - `event_pk`
 - `subject_sk`
@@ -1301,9 +1207,7 @@ Canonical RSVP items should stay minimal and currently include:
 - `user_id` for authenticated subjects
 - `anonymous_token` for anonymous subjects
 
-No speculative metadata should be added beyond what the current handler needs.
-
-#### Lifecycle and time gating
+#### Lifecycle and Time Gating
 
 RSVP must reject:
 
@@ -1311,7 +1215,7 @@ RSVP must reject:
 - cancelled event with `400`
 - past event with `400`
 
-Locked messages:
+Response messages:
 
 - `Event not found.`
 - `Cancelled events cannot accept RSVPs.`
@@ -1327,13 +1231,11 @@ Rules:
   timestamp
 - if stored `event.date` cannot be parsed, return `500`
 
-#### Write semantics
+#### Write Semantics
 
 The write is an upsert per:
 
 - `(event_id, subject)`
-
-Locked behavior:
 
 - no prior RSVP + `attending = true`:
   - create RSVP item
@@ -1361,7 +1263,7 @@ Timestamp rules:
   - preserve original `created_at`
   - set `updated_at = now`
 
-#### Counter delta rules
+#### Counter Deltas
 
 The helper counters on the event item must remain transactionally correct:
 
@@ -1369,30 +1271,16 @@ The helper counters on the event item must remain transactionally correct:
 - `attending_count`
 - `not_attending_count`
 
-Locked deltas:
+| Previous RSVP | New RSVP | `rsvp_total` | `attending_count` | `not_attending_count` |
+|---|---|---:|---:|---:|
+| None | Attending | +1 | +1 | 0 |
+| None | Not attending | +1 | 0 | +1 |
+| Attending | Attending | 0 | 0 | 0 |
+| Not attending | Not attending | 0 | 0 | 0 |
+| Attending | Not attending | 0 | -1 | +1 |
+| Not attending | Attending | 0 | +1 | -1 |
 
-- no previous RSVP -> new `attending = true`:
-  - `rsvp_total +1`
-  - `attending_count +1`
-  - `not_attending_count +0`
-- no previous RSVP -> new `attending = false`:
-  - `rsvp_total +1`
-  - `attending_count +0`
-  - `not_attending_count +1`
-- previous `attending = true` -> new `attending = true`:
-  - all counters unchanged
-- previous `attending = false` -> new `attending = false`:
-  - all counters unchanged
-- previous `attending = true` -> new `attending = false`:
-  - `rsvp_total +0`
-  - `attending_count -1`
-  - `not_attending_count +1`
-- previous `attending = false` -> new `attending = true`:
-  - `rsvp_total +0`
-  - `attending_count +1`
-  - `not_attending_count -1`
-
-#### Capacity handling
+#### Capacity Handling
 
 Capacity rules are:
 
@@ -1411,7 +1299,7 @@ Full-capacity rejection message:
 
 - `Event is at full capacity.`
 
-#### Concurrent final-slot contention
+#### Concurrent Final-Slot Contention
 
 Concurrent seat consumption must be guarded transactionally.
 
@@ -1422,12 +1310,11 @@ Rules:
 - the event update inside the transaction must enforce capacity availability
   at write time
 
-#### Transactional write model
+#### Transactional Write Model
 
-The current RSVP business write must not be split into best-effort separate
-writes.
+The RSVP business write must not be split into best-effort separate writes.
 
-Locked flow:
+Write flow:
 
 1. `GetItem` on `events`
 2. validate existence, lifecycle, time, and access rules
@@ -1452,10 +1339,7 @@ order:
 - event full for a seat-consuming write -> `400`
 - otherwise unexpected failure -> `500`
 
-Do not re-read the RSVP item unless a later implementation detail makes that
-strictly necessary.
-
-#### Request contract
+#### Request Contract
 
 Support both:
 
@@ -1484,7 +1368,7 @@ Anonymous is defined as:
 
 - `caller.is_authenticated = false`
 
-#### Response contract
+#### Response Contract
 
 The Lambda returns the standard API Gateway-style wrapper.
 
@@ -1531,28 +1415,7 @@ Authenticated success uses:
 - `subject.user_id = <caller.user_id>`
 - `subject.anonymous = false`
 
-#### Internal implementation notes for future async integration
-
-The handler should internally distinguish:
-
-- actor
-- RSVP subject
-
-The handler should also internally classify the change outcome, for example:
-
-- created attending
-- created not attending
-- changed to attending
-- changed to not attending
-- unchanged attending
-- unchanged not attending
-
-This should support later domain-event publication without changing the current
-API contract.
-
-#### Status code contract
-
-Locked status codes:
+#### Status Code Contract
 
 - `200` updated existing RSVP
 - `201` created new RSVP
@@ -1561,42 +1424,8 @@ Locked status codes:
 - `404` event not found
 - `500` unexpected internal/runtime/data issue
 
-#### Current implementation note
-
-The deployed `rsvp` Lambda now validates the locked RSVP write contract in
-`dev`:
-
-- direct and API Gateway-style request input are both supported
-- the handler now consumes shared normalized caller context instead of parsing
-  raw authorizer shapes locally
-- public events allow anonymous and authenticated RSVP
-- protected events require authentication
-- admin-only events require an authenticated admin caller
-- missing events return `404`
-- cancelled events return `400`
-- past events return `400`
-- full-capacity attending writes return `400`
-- same-subject overwrites preserve `created_at`, refresh `updated_at`, and
-  keep counters stable when the RSVP value is unchanged
-- RSVP writes are committed transactionally across the `events` and `rsvps`
-  tables
-- successful responses return the locked public RSVP contract:
-  - `item`
-  - `event_summary`
-  - `operation`
-
-Routed mixed-mode authorizer compatibility is now locked in the business
-handler for:
-
-- anonymous caller context delivered under:
-  - `requestContext.authorizer.lambda`
-- authenticated non-admin caller context delivered under:
-  - `requestContext.authorizer.lambda`
-- authenticated admin caller context delivered under:
-  - `requestContext.authorizer.lambda`
-
-End-to-end AWS validation for the routed `POST /events/{event_id}/rsvp` path
-is now complete for this contract.
+Deployment wiring and AWS validation evidence are documented in the
+[development environment README](../infrastructure/envs/dev/README.md).
 
 ### `get-event-rsvps`
 

@@ -87,8 +87,8 @@ commands per function.
 
 ## RSVP Authorizer Dependencies
 
-The mixed-mode RSVP authorizer requires third-party JWT dependencies, including
-native packages such as `cryptography` and `cffi`.
+The mixed-mode RSVP authorizer directly depends on `PyJWT` and `cryptography`.
+The native dependency chain also includes packages such as `cffi`.
 
 | Path | Purpose |
 |---|---|
@@ -137,7 +137,17 @@ The resulting dependencies target:
 This prevents locally built native binaries from being included in the
 deployment artifact.
 
-For lower-level Docker troubleshooting, run:
+The helper is the preferred build path because it starts from a clean vendor
+directory. For lower-level Docker troubleshooting, reproduce that cleanup
+before running Docker:
+
+```powershell
+Remove-Item `
+  -Recurse `
+  -Force `
+  -ErrorAction SilentlyContinue `
+  lambdas/rsvp_authorizer/vendor
+```
 
 ```powershell
 docker build `

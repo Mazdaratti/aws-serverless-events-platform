@@ -333,123 +333,61 @@ Terraform plan. Supporting evidence is available under
 
 ---
 
-## IAM Roles (Lambda Execution Baseline)
+## Lambda Execution IAM
 
-Defines the Lambda execution IAM baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/iam`](../../modules/iam/README.md)
 
-- `modules/iam`
+Each Lambda workload receives:
 
-This environment currently wires in:
+- a dedicated execution role
+- a Lambda-only trust policy
+- a workload-specific customer-managed policy
+- CloudWatch Logs permissions
+- the minimal X-Ray write permissions required for active tracing
 
-- one execution role for `create-event`
-- one execution role for `get-event`
-- one execution role for `list-events`
-- one execution role for `list-my-events`
-- one execution role for `update-event`
-- one execution role for `cancel-event`
-- one execution role for `rsvp-authorizer`
-- one execution role for `rsvp`
-- one execution role for `get-event-rsvps`
-- one execution role for `notification-planner`
-- one execution role for `notification-sender`
+Workload access is separated by responsibility:
 
-Why this module is wired now:
+| Workload | Scoped access |
+|---|---|
+| `create-event` | Create event records and publish to the custom EventBridge bus |
+| `get-event` | Direct event read |
+| `list-events` | Events-table `Scan` as the current temporary listing access pattern |
+| `list-my-events` | Query the `creator-events` GSI |
+| `update-event` | Read and update event records; publish to the custom EventBridge bus |
+| `cancel-event` | Read and update event records; publish to the custom EventBridge bus |
+| `rsvp-authorizer` | Logs and tracing only; no DynamoDB, SQS, or Cognito API access |
+| `rsvp` | Read event and RSVP state; transact across the `events` and `rsvps` tables |
+| `get-event-rsvps` | Read the event and query its RSVP records |
+| `notification-planner` | Consume `notification-dispatch`, query RSVP records, and send to `notification-email` |
+| `notification-sender` | Consume `notification-email`, resolve users in Cognito, and send approved SES templates |
 
-- workload execution roles must exist before Lambda functions can be deployed cleanly
-- the platform now has real DynamoDB and SQS resources available for least-privilege IAM binding
-- the platform now has a real EventBridge bus ARN available for scoped domain-event publish permissions
-- the environment can now validate workload-specific execution roles against concrete AWS resource ARNs
+EventBridge publishing is granted only to `create-event`, `update-event`, and
+`cancel-event`, scoped to the custom `dev` event bus.
 
-Important design notes:
+The notification sender’s SES permission is constrained to the configured
+sender identity and participant templates. Its `From` address is restricted by
+an IAM condition. The sender has no DynamoDB or EventBridge permissions.
 
-- each workload gets its own least-privilege execution role and
-  customer-managed policy
-- API/business workload permissions are scoped by access pattern:
-  - `create-event` can create canonical event records in `events`
-  - `get-event` can read one event directly with `GetItem`
-  - `list-events` currently has temporary `Scan` access as a short-term
-    access-pattern accommodation
-  - `list-my-events` can query the `creator-events` GSI
-  - `update-event` and `cancel-event` can read and update canonical event
-    records with narrow `GetItem` and `UpdateItem` access
-- RSVP workload permissions are scoped separately:
-  - `rsvp` can read current event and RSVP state and perform the transactional
-    write across `events` and `rsvps`
-  - `get-event-rsvps` can read the event with `GetItem` and query RSVP records
-    from `rsvps`
-- `rsvp-authorizer` uses a logs-only execution profile because Cognito token
-  validation and JWKS retrieval happen without direct Cognito IAM access
-- EventBridge publishing is limited to write workloads:
-  - only `create-event`, `update-event`, and `cancel-event` receive
-    `events:PutEvents`
-  - publish access is scoped to the custom dev event bus ARN
-  - the matching `EVENTBRIDGE_EVENT_BUS_NAME` environment variable is wired in
-    the Lambda module composition
-  - `create-event` publishes `event.created` after durable creation
-  - `update-event` publishes `event.updated` after durable updates
-  - `cancel-event` publishes `event.cancelled` after durable cancellation
-- notification worker permissions are split by queue responsibility:
-  - `notification-planner` can consume `notification-dispatch`, query RSVP
-    records, and send recipient-level jobs to `notification-email`
-  - `notification-sender` can consume `notification-email`, resolve recipient
-    email addresses with Cognito `ListUsers`, and send templated participant
-    emails through SES
-- `notification-sender` SES access is constrained to the resources required for
-  templated sending, with the configured sender `From` address constrained by
-  IAM condition
-- `notification-sender` does not receive DynamoDB or EventBridge permissions
-- all current Lambda workload roles include the minimal X-Ray write
-  permissions required for active Lambda tracing:
-  - `xray:PutTraceSegments`
-  - `xray:PutTelemetryRecords`
+The X-Ray permission set contains only:
 
-The environment should stay thin:
+- `xray:PutTraceSegments`
+- `xray:PutTelemetryRecords`
 
-- reusable AWS resource logic belongs in modules
-- `envs/dev` should focus on composition and environment-level identity and placement inputs
+Role names and ARNs are exported for Lambda composition and deployment
+inspection.
 
-Validation:
+### IAM Validation
 
-- validated via `terraform apply`, AWS inspection, and a clean post-apply `terraform plan` for the original IAM baseline
-- the EventBridge publish permission update and notification planner/sender IAM
-  split were validated with `terraform apply`, AWS inspection, and a clean
-  post-apply `terraform plan`
-- confirmed all wired workload roles were created with Lambda-only trust relationships
-- confirmed the planned IAM policy updates are limited to `create-event`, `update-event`, and `cancel-event`
-- confirmed the IAM update did not include Lambda environment variable or Lambda
-  code changes
-- confirmed `get-event` has narrow direct-read access for the events table
-- confirmed `list-events` has temporary `Scan` access for the events table only
-- confirmed `list-my-events` has narrow `Query` access for the `creator-events` GSI
-- confirmed `update-event` has narrow read/write access for the events table
-- confirmed `cancel-event` has narrow read/write access for the events table
-- confirmed `rsvp-authorizer` has the logs-only execution profile and no DynamoDB or SQS permissions
-- confirmed the RSVP policy includes transactional DynamoDB access across both business tables
-- confirmed `get-event-rsvps` has read-only DynamoDB access across the two business tables:
-  - `GetItem` on `events`
-  - `Query` on `rsvps`
-- confirmed `notification-planner` has SQS consumer permissions for
-  `notification-dispatch`
-- confirmed `notification-planner` can query RSVP records and send messages to
-  `notification-email`
-- confirmed `notification-sender` has SQS consumer permissions for
-  `notification-email`
-- confirmed `notification-sender` can list users in the dev Cognito user pool
-- confirmed `notification-sender` can call `ses:SendTemplatedEmail` for the
-  configured sender address, participant notification templates, and verified
-  sandbox recipient identity scope required by SES authorization
-- confirmed `notification-sender` has no DynamoDB or EventBridge permissions
-- confirmed the Lambda X-Ray baseline updates IAM policies in place without
-  replacing roles or changing workload-specific permissions
-- confirmed a representative workload policy includes only the minimal
-  `XRayWrite` actions:
-  - `xray:PutTraceSegments`
-  - `xray:PutTelemetryRecords`
-- confirmed Terraform outputs match the created IAM role identities
-- see evidence screenshots under `docs/assets/iam/`
-- see Lambda X-Ray validation screenshots under `docs/assets/observability/`
+Deployment validation confirmed role creation, Lambda trust relationships,
+workload-specific resource access, EventBridge publishing boundaries,
+notification-worker separation, SES sender constraints, X-Ray permissions,
+exported role identities, and a clean post-apply Terraform plan. Supporting
+evidence is available under:
+
+- [`docs/assets/iam/`](../../../docs/assets/iam/)
+- [`docs/assets/observability/`](../../../docs/assets/observability/)
 
 ---
 

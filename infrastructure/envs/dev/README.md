@@ -391,65 +391,52 @@ evidence is available under:
 
 ---
 
-## Cognito Identity Baseline
+## Cognito Identity
 
-Creates the initial managed identity baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/cognito`](../../modules/cognito/README.md)
 
-- `modules/cognito`
+The environment deploys:
 
-This environment currently wires in:
+| Resource | Configuration |
+|---|---|
+| User Pool | `aws-serverless-events-platform-dev-users` |
+| Public app client | `aws-serverless-events-platform-dev-app-client`; no client secret |
+| User group | `admin` |
 
-- one Cognito User Pool
-- one public Cognito User Pool Client
-- one Cognito User Group: `admin`
+The `dev` identity configuration uses:
 
-Why this module is wired now:
+- case-insensitive usernames as the primary sign-in attribute
+- required, Cognito-verified email
+- self-service sign-up
+- verified-email account recovery
+- an eight-character minimum password with uppercase, lowercase, and numeric
+  requirements
+- password, SRP, and refresh-token authentication flows
+- token revocation and user-existence error protection
+- deletion protection disabled for this non-production environment
 
-- the platform has already locked Cognito as the managed identity provider
-- `envs/dev` now needs a real identity baseline before routed authenticated API behavior can be introduced
+The client is Cognito-only and does not use a generated secret. Hosted UI,
+OAuth configuration, social identity providers, Lambda triggers, and MFA are
+not configured.
 
-Important design notes:
+The User Pool ID, ARN, client ID, issuer, endpoint, and admin group name are
+exported for API Gateway, Lambda authorizer, frontend, and deployment-helper
+configuration.
 
-- Cognito owns identity lifecycle
-- the routed API uses a hybrid auth model:
-  - native JWT authorization for ordinary protected routes
-  - a dedicated custom Lambda authorizer for the mixed-mode `rsvp` route
-- business Lambda handlers remain free of generic authentication logic
-- business Lambda handlers consume normalized caller context rather than depending directly on a single raw authorizer shape
-- the canonical identity baseline remains:
-  - Cognito `sub` for user identity
-  - Cognito `admin` group membership for admin capability
-- the current baseline intentionally stays small:
-  - username is the primary sign-in attribute in v1
-  - email is required
-  - email verification is Cognito-managed
-  - self sign-up is enabled
-  - MFA is disabled in this phase
-  - hosted UI, social login, triggers, scopes, domains, and user seeding are not part of this step
-- `envs/dev` explicitly sets Cognito deletion protection to disabled for this non-production environment
+Identity ownership, canonical user identity, admin projection, and route
+authorization behavior are documented in:
 
-The environment should stay thin:
+- [Architecture](../../../docs/architecture.md#identity-and-authentication)
+- [Platform behavior](../../../docs/platform-behavior.md#identity-and-authentication-contract)
 
-- reusable AWS resource logic belongs in modules
-- `envs/dev` should focus on composition and environment-level identity and placement inputs
+### Cognito Validation
 
-Validation:
-
-- validated via `terraform apply`, AWS Console inspection, Terraform output verification, and a clean post-apply `terraform plan`
-- confirmed the Cognito User Pool was created in `eu-central-1`
-- confirmed the rendered User Pool name is `aws-serverless-events-platform-dev-users`
-- confirmed the rendered public app client name is `aws-serverless-events-platform-dev-app-client`
-- confirmed the `admin` Cognito group was created
-- confirmed the app client is public and has no client secret
-- confirmed the app client enables:
-  - username/password auth
-  - refresh token auth
-  - SRP auth
-- confirmed token revocation and prevent-user-existence hardening are enabled
-- confirmed Terraform outputs match the created User Pool, app client, issuer, and admin group identities
-- see evidence screenshots under `docs/assets/cognito/`
+Deployment validation confirmed the User Pool, public app client, admin group,
+authentication flows, client hardening, exported identities, and a clean
+post-apply Terraform plan. Supporting evidence is available under
+[`docs/assets/cognito/`](../../../docs/assets/cognito/).
 
 ---
 

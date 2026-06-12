@@ -111,45 +111,41 @@ this file provides the exact module, resource, input, and output inventory.
 
 ## DynamoDB Data Layer
 
-Creates the initial DynamoDB business data baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/dynamodb_data_layer`](../../modules/dynamodb_data_layer/README.md)
 
-- `modules/dynamodb_data_layer`
+The environment deploys:
 
-This environment currently wires in:
+| Table | Primary key | Secondary indexes |
+|---|---|---|
+| `events` | Partition key: `event_pk` | `public-upcoming-events`, `creator-events` |
+| `rsvps` | Partition key: `event_pk`; sort key: `subject_sk` | None |
 
-- the `events` table for canonical event records
-- the `rsvps` table for canonical RSVP membership records
-- the first approved GSIs on the `events` table for future query-based listing patterns
+Both tables use:
 
-Why this module is wired first:
+- `PAY_PER_REQUEST` billing
+- `STANDARD` table class
+- environment-level point-in-time recovery configuration
 
-- the platform needs a durable business data layer before API and compute layers can be composed above it
-- the DynamoDB design establishes the canonical write model for events and RSVPs
-- later IAM, Lambda, and API wiring will consume the table names and ARNs exported here
+Point-in-time recovery defaults to disabled in `dev` to reduce steady
+non-production cost. The reusable module supports enabling it through
+`dynamodb_point_in_time_recovery_enabled`.
 
-Important design notes:
+Table names and ARNs are exported for IAM, Lambda configuration, deployment
+inspection, and other environment composition.
 
-- the primary RSVP business write remains synchronous through DynamoDB durable commit
-- asynchronous services such as SQS are reserved for downstream side effects after commit
-- the `rsvps` table is the source of truth for attendance membership
-- event-level counters are helper fields, not the source of truth
-- point-in-time recovery is disabled by default in `dev` to reduce always-on non-production cost
-- the reusable module still supports PITR, but this environment now treats it as an explicit environment-level behavior choice
+Data ownership, key conventions, transactional RSVP behavior, and query
+patterns are documented in:
 
-The environment should stay thin:
+- [Architecture](../../../docs/architecture.md#data-layer)
+- [Platform behavior](../../../docs/platform-behavior.md)
 
-- reusable AWS resource logic belongs in modules
-- `envs/dev` should focus on composition and environment-level identity and placement inputs
+### DynamoDB Validation
 
-Validation:
-
-- validated via `terraform apply`, AWS inspection, and a clean post-apply `terraform plan`
-- confirmed table creation, approved GSIs, `PAY_PER_REQUEST`, and table class `STANDARD`
-- `dev` now defaults point-in-time recovery to disabled as a cost-saving environment override
-- optional CLI data validation was also completed
-- see evidence screenshots under `docs/assets/dynamodb/`
+Deployment validation confirmed table creation, indexes, billing mode, table
+class, data access, and a clean post-apply Terraform plan. Supporting evidence
+is available under [`docs/assets/dynamodb/`](../../../docs/assets/dynamodb/).
 
 ---
 

@@ -240,83 +240,47 @@ clean post-apply Terraform plan.
 
 ---
 
-## SNS Admin Notification Topic Baseline
+## SNS Admin Notifications
 
-Creates the SNS admin notification topic baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/sns`](../../modules/sns/README.md)
+- `resource_policies.tf`
 
-- `modules/sns`
+The environment deploys:
 
-This environment currently wires in:
+- the `aws-serverless-events-platform-dev-admin-notifications` topic
+- configurable email subscriptions from `sns_admin_email_subscriptions`
+- an environment-owned topic policy for EventBridge delivery
 
-- one SNS admin notification topic
-- configurable SNS email subscriptions for dev admin notification validation
-- one confirmed dev SNS email subscription when local untracked tfvars provide
-  an email endpoint
-- one environment-owned topic policy that allows the EventBridge admin
-  lifecycle and update notification rules to publish to the topic
+Email endpoints come from the untracked local `terraform.tfvars` file or the
+corresponding GitHub Actions secret. Personal email addresses are not stored in
+committed Terraform.
 
-Why this module is wired now:
+The topic policy permits `sns:Publish` only from:
 
-- the platform has locked SNS as the direct admin/platform broadcast path
-- the real `dev` environment now has a concrete SNS admin topic for the locked
-  v1 write-Lambda domain events
-- the topic is now connected to the EventBridge admin notification route through
-  a scoped topic policy
-- the confirmed dev email subscription proves the direct admin notification
-  path before Step 20 participant email workers are introduced
+- EventBridge as the service principal
+- the concrete `admin_lifecycle_notifications` and
+  `admin_update_notifications` rule ARNs
+- the current AWS account through `aws:SourceAccount`
 
-Important design notes:
+Admin notifications are routed directly from EventBridge. Its input
+transformers produce lightweight email content containing the CloudFront event
+URL and, for update events, `changed_fields`. Participant notifications use the
+separate SQS and SES path.
 
-- the topic is intended for platform/admin broadcast notifications
-- SNS email subscriptions are configured through local untracked tfvars
-- no personal email addresses are hardcoded in committed Terraform
-- the SNS topic policy is scoped to the concrete EventBridge
-  `admin_lifecycle_notifications` and `admin_update_notifications` rule ARNs
-- admin notifications are routed directly from EventBridge to SNS
-- admin SNS email text is formatted by EventBridge input transformers and
-  includes a full CloudFront event URL
-- direct EventBridge-to-SNS email delivery is intentionally lightweight and may
-  show AWS/SNS line quoting artifacts
-- participant notifications do not use this topic
-- write Lambda `events:PutEvents` permissions are configured through the IAM module
-- the SNS topic policy is also scoped to the current AWS account through
-  `aws:SourceAccount`
-- write Lambdas receive the custom event bus name through
-  `EVENTBRIDGE_EVENT_BUS_NAME`
-- `cancel-event` now publishes `event.cancelled` after successful durable
-  cancellation
-- `create-event` now publishes `event.created` after successful durable
-  creation
-- `update-event` now publishes `event.updated` after successful durable updates
-- the synchronous API and DynamoDB business write path remain unchanged
+Notification routing and admin-message behavior are documented in:
 
-The environment should stay thin:
+- [Architecture](../../../docs/architecture.md#admin-notification-path)
+- [Platform behavior](../../../docs/platform-behavior.md#admin-notification-behavior)
 
-- reusable AWS resource logic belongs in modules
-- `envs/dev` should focus on composition and environment-level identity and
-  placement inputs
+### SNS Validation
 
-Validation:
-
-- validated via `terraform apply`, confirmed SNS email subscription, received
-  admin emails, EventBridge-routed SQS checks, and a clean post-apply
-  `terraform plan`
-- confirmed the SNS admin topic name is:
-  - `aws-serverless-events-platform-dev-admin-notifications`
-- confirmed the configured dev email subscription is confirmed, not pending
-- confirmed the topic policy principal is `events.amazonaws.com`
-- confirmed `event.created`, `event.updated`, and `event.cancelled` each
-  deliver an admin SNS email
-- confirmed all admin SNS emails contain the full CloudFront event URL
-- confirmed `event.updated` email includes `changed_fields`
-- confirmed `event.created` and `event.cancelled` emails do not include an
-  empty or irrelevant `changed_fields` line
-- confirmed `event.created` does not route to `notification-dispatch`
-- confirmed `event.updated` and `event.cancelled` still route to
-  `notification-dispatch`
-- see evidence screenshots under `docs/assets/lambda_api/`
+Deployment validation confirmed topic creation, subscription confirmation,
+scoped EventBridge publishing, admin email delivery for all supported lifecycle
+events, message content, route separation, and a clean post-apply Terraform
+plan. Supporting evidence is available under
+[`docs/assets/lambda_api/`](../../../docs/assets/lambda_api/).
 
 ---
 

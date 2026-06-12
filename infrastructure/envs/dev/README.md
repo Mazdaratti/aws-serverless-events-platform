@@ -57,52 +57,26 @@ The configured backend uses:
 
 ---
 
-## How To Use This Environment
+## Operating This Environment
 
-### 1. Create your local tfvars file
+The primary provisioning paths are the manual GitHub Actions dry-run and apply
+workflows. Local Terraform provisioning remains available for operator-driven
+validation or recovery.
 
-Use the example file as your starting point:
+Before planning or applying this root:
 
-```bash
-cp terraform.tfvars.example terraform.tfvars
-```
+- bootstrap must have created the remote backend and generated `backend.tf`
+- local runs require an untracked `terraform.tfvars` created from
+  `terraform.tfvars.example`
+- GitHub Actions runs receive the same inputs through `TF_VAR_*` environment
+  variables
+- Lambda ZIP artifacts must exist under `artifacts/lambda/` before Terraform
+  plans fresh function creation
+- the active AWS identity must have the required provisioning permissions
 
-Then review and adjust:
-
-- `project_name`
-- `environment`
-- `aws_region`
-- `dynamodb_point_in_time_recovery_enabled`
-- `enable_waf`
-- `sns_admin_email_subscriptions`
-- `ses_sender_email`
-
-### 2. Initialize Terraform
-
-```bash
-terraform init
-```
-
-Terraform reads the generated `backend.tf` file and initializes this root with
-the configured S3 backend.
-
-### 3. Review the plan
-
-```bash
-terraform plan
-```
-
-The plan will show the creation of real AWS resources from wired modules.
-
-The plan is useful to:
-
-- validate provider authentication
-- validate variable wiring
-- validate remote backend initialization
-- validate the evaluation graph for the environment root
-- validate real env/module composition before apply
-
----
+Provisioning workflows, input synchronization, Lambda packaging, and the full
+local Terraform command sequence are documented in
+[Project setup](../../../docs/project-setup.md).
 
 ## File Overview
 

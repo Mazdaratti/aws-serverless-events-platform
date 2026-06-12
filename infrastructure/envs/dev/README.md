@@ -284,83 +284,52 @@ plan. Supporting evidence is available under
 
 ---
 
-## SES Participant Email Baseline
+## SES Participant Email
 
-Creates the SES sender identity and participant notification template baseline
-for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/ses`](../../modules/ses/README.md)
 
-- `modules/ses`
+The environment deploys:
 
-This environment currently wires in:
+| Resource | Purpose |
+|---|---|
+| Email identity | Dedicated participant-notification sender |
+| `event.updated` template | Participant event-update email |
+| `event.cancelled` template | Participant event-cancellation email |
 
-- one SES email identity for the dedicated project sender inbox
-- one SES template for `event.updated` participant emails
-- one SES template for `event.cancelled` participant emails
+The sender address comes from the untracked local `terraform.tfvars` file or the
+corresponding GitHub Actions secret. It must use a dedicated project inbox;
+private addresses are not stored in committed Terraform, application code, or
+documentation.
 
-Why this module is wired now:
+Terraform creates the email identity, but the inbox owner must complete the SES
+verification email before the identity can send. The verified identity becomes
+the visible participant-email `From` address.
 
-- participant emails are user-facing product emails, not admin/debug messages
-- SES gives the deployed `notification-sender` an AWS-native templated email
-  delivery baseline
-- SES templates keep reusable subject, plain-text, and HTML email definitions
-  in AWS-managed template resources instead of Lambda code
-- wiring the identity and templates separately lets the sender inbox be verified
-  before any Lambda is allowed to send email
+Each Terraform-managed template contains a subject, plain-text body, and HTML
+body. The `notification-sender` selects the template and supplies separately
+validated text-safe and HTML-safe dynamic values.
 
-Important design notes:
+The `dev` environment remains in the SES sandbox:
 
-- the sender email is configured through local untracked `terraform.tfvars`
-- the sender email must be a dedicated project inbox, not a private personal
-  email address
-- private sender addresses must not be hardcoded in committed application code,
-  Terraform configuration, or documentation
-- Terraform creates the SES email identity, but inbox verification is manual
-- the dedicated project inbox is the visible participant email `From` address
-- Terraform manages templates for:
-  - `event.updated`
-  - `event.cancelled`
-- SES templates contain:
-  - subject
-  - plain-text body
-  - HTML body
-- `notification-sender` chooses the correct Terraform-managed SES template and
-  provides safe template data
-- `notification-sender` validates URL inputs and uses separate text-safe and
-  HTML-safe template data fields before passing dynamic values to SES
-- SES sandbox assumptions remain explicit for `dev`
-- sandbox sending requires verified recipient email addresses
-- participant emails are sent from the verified project sender identity through
-  SES templated email delivery
-- no SES production access request has been made yet
-- domain identity, DKIM, SPF, DMARC, and custom MAIL FROM remain future
-  deliverability hardening work
+- sender and recipient identities must be verified
+- Terraform does not request production access
+- domain identity, DKIM, SPF, DMARC, and custom MAIL FROM are not configured
 
-The environment should stay thin:
+Participant notification topology, recipient selection, and message behavior
+are documented in:
 
-- reusable AWS resource logic belongs in modules
-- `envs/dev` should focus on composition and environment-level identity and
-  placement inputs
+- [Architecture](../../../docs/architecture.md#participant-notification-path)
+- [Platform behavior](../../../docs/platform-behavior.md#participant-notification-behavior)
 
-Validation:
+### SES Validation
 
-- validated via `terraform apply`, SES identity inspection, SES template
-  inspection, manual sender identity verification, and a clean post-apply
-  `terraform plan`
-- confirmed the SES sender identity exists
-- confirmed the SES sender identity is verified through the dedicated project
-  inbox
-- confirmed the `event.updated` SES template exists
-- confirmed the `event.cancelled` SES template exists
-- confirmed Terraform outputs expose the SES sender identity ARN and template
-  identifiers
-- confirmed `notification-sender` sends templated SES email for controlled
-  `event.updated` and `event.cancelled` recipient jobs
-- confirmed SES sandbox validation uses verified recipient addresses
-- confirmed the rendered participant emails do not expose internal platform
-  fields
-- see evidence screenshots under `docs/assets/ses/`
+Deployment validation confirmed identity creation and verification, both
+templates, exported identifiers, controlled participant-email delivery,
+sandbox recipient requirements, safe rendered content, and a clean post-apply
+Terraform plan. Supporting evidence is available under
+[`docs/assets/ses/`](../../../docs/assets/ses/).
 
 ---
 

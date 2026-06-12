@@ -149,68 +149,52 @@ is available under [`docs/assets/dynamodb/`](../../../docs/assets/dynamodb/).
 
 ---
 
-## SQS Messaging Baseline
+## SQS Messaging
 
-Creates the initial SQS messaging baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/sqs`](../../modules/sqs/README.md)
+- `event_source_mappings.tf`
+- `resource_policies.tf`
 
-- `modules/sqs`
+The environment deploys:
 
-This environment currently wires in:
+| Queue | Purpose | Consumer |
+|---|---|---|
+| `notification-dispatch` | Event-level participant notification planning | `notification-planner` |
+| `notification-email` | Recipient-level email delivery | `notification-sender` |
 
-- two standard queues:
-  - `notification-dispatch`
-  - `notification-email`
-- one dedicated dead-letter queue for each source queue
-- one environment-owned queue policy that allows the EventBridge participant
-  dispatch rule to send messages to `notification-dispatch`
-- Lambda-ready queue timing for `notification-dispatch` with a 60 second
-  visibility timeout and 20 second long polling
+Each standard queue has:
 
-Why this module is wired now:
+- a dedicated dead-letter queue
+- a 60-second visibility timeout
+- four-day message retention
+- 20-second long polling
+- a redrive threshold of five receives
 
-- the platform already reserves SQS for asynchronous work after durable state changes
-- notification dispatch is the clearest first async side effect to separate from API response time
-- the email queue establishes the recipient-level user-facing email work buffer
-  between the participant notification planner and sender
-- the queues and DLQs establish concrete messaging extension points without
-  changing the synchronous RSVP write path
+The environment-owned queue policy permits only the concrete EventBridge
+participant-dispatch rule in the current AWS account to send messages to
+`notification-dispatch`. EventBridge does not send directly to
+`notification-email`.
 
-Important design notes:
+The Lambda event source mappings use:
 
-- `notification-dispatch` is intended for event-level participant notification
-  planning work from EventBridge
-- `notification-email` is intended for recipient-level user-facing email jobs
-  produced by the notification planner
-- participant emails are user-facing product emails, not admin/debug messages
-- the planner produces safe recipient-level jobs, and the sender owns final
-  presentation through stable templates
-- EventBridge does not send directly to `notification-email`
-- `notification-planner` is implemented and consumes `notification-dispatch`
-  through a Lambda event source mapping
-- `notification-sender` is implemented and consumes `notification-email`
-  through a Lambda event source mapping
-- both notification event source mappings use `ReportBatchItemFailures`
-- `notification-sender` resolves the current recipient email from Cognito by
-  canonical `sub` and sends SES templated participant emails
-- the primary RSVP business write remains synchronous through DynamoDB durable commit
-- the EventBridge-to-SQS queue policy is scoped to the concrete participant
-  dispatch rule ARN and the current AWS account through `aws:SourceAccount`
-- Lambda consumer permissions remain separate from the queue resource policy and
-  are not changed by the EventBridge routing step
+- batch size `10`
+- no batching window
+- `ReportBatchItemFailures` partial batch responses
 
-The environment should stay thin:
+Notification topology, worker responsibilities, and message behavior are
+documented in:
 
-- reusable AWS resource logic belongs in modules
-- `envs/dev` should focus on composition and environment-level identity and placement inputs
+- [Architecture](../../../docs/architecture.md#event-driven-notification-architecture)
+- [Platform behavior](../../../docs/platform-behavior.md#post-commit-notification-behavior)
 
-Validation:
+### SQS Validation
 
-- validated via `terraform apply -target="module.sqs"`, AWS inspection, and a clean post-apply `terraform plan`
-- confirmed source queue creation, DLQ creation, redrive configuration, and queue attribute values
-- confirmed Terraform outputs match the created queue and DLQ identities
-- see evidence screenshots under `docs/assets/sqs/`
+Deployment validation confirmed source queues, dedicated DLQs, redrive
+configuration, queue attributes, exported identities, and a clean post-apply
+Terraform plan. Supporting evidence is available under
+[`docs/assets/sqs/`](../../../docs/assets/sqs/).
 
 ---
 

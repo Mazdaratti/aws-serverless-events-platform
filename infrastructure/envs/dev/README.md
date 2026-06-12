@@ -1,24 +1,36 @@
 # Development Environment (`envs/dev`)
 
-This folder contains the Terraform root module for the `dev` environment.
+This directory contains the Terraform root module for the deployed `dev`
+environment.
 
-The root module stays intentionally thin and composition-focused.
-It defines shared Terraform, provider, naming, and tagging baselines
-and wires reusable infrastructure modules as the platform is implemented step by step.
+The root remains composition-focused: it configures the environment, wires
+reusable Terraform modules, and owns policies that connect concrete deployed
+resources.
 
 ---
 
-## What This Environment Does Right Now
+## Documentation Ownership
 
-The current `dev` root module is responsible for:
+This document owns:
 
-- defining Terraform and AWS provider version constraints
-- configuring the AWS provider for the selected region
-- establishing shared environment naming and baseline tags
-- declaring the required input values for local use
-- composing reusable infrastructure modules for the dev environment
+- the concrete Terraform composition deployed in `dev`
+- environment-specific configuration and resource relationships
+- operational constraints that apply specifically to this environment
+- validation notes for the deployed infrastructure
 
-This keeps the environment root clean and composition-only while the platform is implemented step by step.
+Related documentation:
+
+- [Project setup](../../../docs/project-setup.md) covers bootstrap, provisioning,
+  deployment workflows, and local operator commands.
+- [Architecture](../../../docs/architecture.md) explains the platform design and
+  service relationships.
+- [Platform behavior](../../../docs/platform-behavior.md) defines runtime,
+  authorization, and API contracts.
+- [Implementation roadmap](../../../docs/implementation-roadmap.md) records
+  delivery history and future direction.
+
+The generated Terraform requirements, providers, modules, resources, inputs,
+and outputs reference remains at the end of this file.
 
 ---
 

@@ -198,93 +198,45 @@ Terraform plan. Supporting evidence is available under
 
 ---
 
-## EventBridge Async Event Bus Baseline
+## EventBridge Routing
 
-Creates the custom EventBridge event bus and notification routing baseline for
-the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/eventbridge`](../../modules/eventbridge/README.md)
+- `resource_policies.tf`
 
-- `modules/eventbridge`
+The environment deploys the custom event bus:
 
-This environment currently wires in:
+- `aws-serverless-events-platform-dev-events`
 
-- one custom EventBridge event bus
-- one admin lifecycle notification rule: `admin_lifecycle_notifications`
-- one admin update notification rule: `admin_update_notifications`
-- one participant dispatch rule: `participant_notification_dispatch`
-- two SNS targets for formatted admin notifications
-- one SQS target for participant notification planning
+Routing is configured as follows:
 
-Why this module is wired now:
+| Rule | Domain events | Target |
+|---|---|---|
+| `admin_lifecycle_notifications` | `event.created`, `event.cancelled` | SNS admin notification topic |
+| `admin_update_notifications` | `event.updated` | SNS admin notification topic |
+| `participant_notification_dispatch` | `event.updated`, `event.cancelled` | SQS `notification-dispatch` |
 
-- the platform has locked EventBridge as the post-commit domain event router
-- the real `dev` environment now has concrete fanout routes for the locked v1
-  event-management domain events
-- routing through EventBridge keeps write Lambdas from publishing separate
-  messages for separate downstream targets
+The SNS targets use input transformers to render admin-readable messages with
+the CloudFront event URL. Update notifications also include
+`changed_fields`.
 
-Important design notes:
+Environment-owned SNS and SQS resource policies permit delivery only from the
+corresponding concrete EventBridge rule ARNs and the current AWS account.
+Lambda permissions to publish with `events:PutEvents` remain in the IAM module.
 
-- the event bus is intended for compact domain events after durable business
-  writes
-- EventBridge owns fanout to the current admin and participant notification
-  paths
-- `event.created` and `event.cancelled` are routed to the SNS admin
-  notification topic through the lifecycle admin rule
-- `event.updated` is routed to the SNS admin notification topic through the
-  update admin rule
-- `event.updated` and `event.cancelled` are routed to the existing
-  `notification-dispatch` SQS queue
-- admin SNS targets use EventBridge input transformers to render lightweight
-  email text with the CloudFront event URL
-- direct EventBridge-to-SNS email delivery still shows AWS/SNS line quoting
-  artifacts, so polished email formatting remains a future formatter concern
-- SNS and SQS target resource policies are owned by `envs/dev` in
-  `resource_policies.tf` because they bind concrete rules to concrete targets
-- write Lambda `events:PutEvents` permissions are configured through the IAM module
-- write Lambdas receive the custom event bus name through
-  `EVENTBRIDGE_EVENT_BUS_NAME`
-- `cancel-event` now publishes `event.cancelled` after successful durable
-  cancellation
-- `create-event` now publishes `event.created` after successful durable
-  creation
-- `update-event` now publishes `event.updated` after successful durable updates
-- the synchronous API and DynamoDB business write path remain unchanged
+The event-management write Lambdas receive the bus name through
+`EVENTBRIDGE_EVENT_BUS_NAME`. Domain-event publication and downstream
+notification behavior are documented in:
 
-The environment should stay thin:
+- [Architecture](../../../docs/architecture.md#event-driven-notification-architecture)
+- [Platform behavior](../../../docs/platform-behavior.md#post-commit-notification-behavior)
 
-- reusable EventBridge resource logic belongs in `modules/eventbridge`
-- concrete target policies belong in the environment because they connect
-  environment-specific resources
-- `envs/dev` should focus on composition and environment-level identity and
-  placement inputs
+### EventBridge Validation
 
-Validation:
-
-- validated via `terraform apply`, AWS inspection, EventBridge-routed SQS
-  message receipt, and a clean post-apply `terraform plan`
-- confirmed the deployed EventBridge bus name is:
-  - `aws-serverless-events-platform-dev-events`
-- confirmed deployed EventBridge rules are:
-  - `admin_lifecycle_notifications`
-  - `admin_update_notifications`
-  - `participant_notification_dispatch`
-- confirmed `event.created`, `event.updated`, and `event.cancelled` deliver
-  admin SNS emails to a confirmed dev email subscription
-- confirmed admin SNS emails include the full CloudFront event URL
-- confirmed `event.updated` admin email includes `changed_fields`
-- confirmed `event.created` and `event.cancelled` admin emails do not include
-  an empty or irrelevant `changed_fields` line
-- confirmed `event.created` from `create-event` is published after durable
-  creation
-- confirmed `event.created` does not route to the existing
-  `notification-dispatch` SQS queue
-- confirmed `event.updated` from `update-event` routes to the existing
-  `notification-dispatch` SQS queue with compact notification-safe detail and
-  `changed_fields`
-- confirmed `event.cancelled` from `cancel-event` routes to the existing
-  `notification-dispatch` SQS queue with compact notification-safe detail
+Deployment validation confirmed the event bus, rules, targets, transformed SNS
+messages, SQS delivery for participant notifications, route exclusions, and a
+clean post-apply Terraform plan.
 
 ---
 

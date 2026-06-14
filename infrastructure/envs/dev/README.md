@@ -515,308 +515,90 @@ post-apply Terraform plan. Detailed routed behavior evidence is available under
 
 ---
 
-## Lambda Compute Baseline
+## Lambda Compute
 
-Defines the current Lambda compute baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/lambda`](../../modules/lambda/README.md)
+- `module.lambda` for API, business, and authorizer workloads
+- `module.notification_lambdas` for asynchronous notification workers
+- `event_source_mappings.tf` for SQS-triggered workers
 
-- `modules/lambda`
-- two environment module calls:
-  - `module.lambda` for API/business workloads
-  - `module.notification_lambdas` for asynchronous notification workers
+### Workload Inventory
 
-### Lambda workloads
+| Workload | Invocation source | Responsibility |
+|---|---|---|
+| `create-event` | API Gateway | Create canonical event records |
+| `list-events` | API Gateway | List events through the current public read path |
+| `get-event` | API Gateway | Read one event by public identifier |
+| `list-my-events` | API Gateway | List creator-owned events |
+| `update-event` | API Gateway | Update mutable event fields |
+| `cancel-event` | API Gateway | Cancel an event |
+| `rsvp-authorizer` | API Gateway | Validate optional RSVP authentication and project caller context |
+| `rsvp` | API Gateway | Perform transactional RSVP writes |
+| `get-event-rsvps` | API Gateway | Read event RSVP membership |
+| `notification-planner` | SQS `notification-dispatch` | Expand event-level notifications into recipient jobs |
+| `notification-sender` | SQS `notification-email` | Resolve recipients and send SES participant emails |
 
-This environment currently wires in these deployed Lambda workloads:
+Notification workers use a separate module call after CloudFront creation so
+`notification-sender` can receive the deployed frontend URL without introducing
+a Lambda/API Gateway/CloudFront dependency cycle.
 
-- `create-event`
-- `list-events`
-- `get-event`
-- `update-event`
-- `cancel-event`
-- `rsvp`
-- `get-event-rsvps`
-- `list-my-events`
-- `rsvp-authorizer`
-- `notification-planner`
-- `notification-sender`
+### Shared Configuration
 
-Why this module is wired now:
+All functions use:
 
-- the platform now has the minimum supporting layers needed for real compute:
-  - DynamoDB business tables
-  - workload IAM roles
-- the platform can now validate synchronous write paths and both public and authenticated read paths end to end in AWS
-- packaging stays outside Terraform
-- Terraform uses prepared ZIP artifacts for fresh Lambda creation while
-  tolerating external code-only updates after functions exist
-- notification workers are deployed through a separate Lambda module call after
-  CloudFront so `notification-sender` can receive the CloudFront frontend base
-  URL without creating a Lambda/API Gateway/CloudFront dependency cycle
+- Python `3.13`
+- handler `handler.lambda_handler`
+- `256` MB memory
+- a `10` second timeout
+- 14-day CloudWatch log retention
+- active X-Ray tracing
+- a dedicated workload execution role
+- ZIP artifacts under `artifacts/lambda/<workload>.zip`
 
-Important design notes:
+Workload-specific environment configuration is:
 
-- the Lambda module remains infrastructure-focused and consumes prepared ZIP
-  artifacts
-- packaging is prepared before Terraform so fresh Lambda functions can be
-  created from the expected ZIP artifacts
-- Terraform manages Lambda infrastructure, configuration, and wiring while
-  tolerating external code-only updates without planning to revert code
-- `envs/dev` stays thin and composition-only while reusable Lambda resource
-  logic stays in `modules/lambda`
-- API Gateway invoke ARN wiring and SQS event source mappings stay unchanged in
-  this deployment ownership split
-- each deployed function uses its matching least-privilege IAM role
-- environment variables are workload-specific:
-  - event API workloads receive `EVENTS_TABLE_NAME`
-  - RSVP workloads also receive `RSVPS_TABLE_NAME`
-  - write workloads receive `EVENTBRIDGE_EVENT_BUS_NAME` for post-commit
-    domain-event publishing
-  - `rsvp-authorizer` receives only Cognito/JWT verification settings:
-    `COGNITO_ISSUER`, `COGNITO_APP_CLIENT_ID`, and
-    `COGNITO_ADMIN_GROUP_NAME`
-  - `notification-planner` receives `RSVPS_TABLE_NAME` and
-    `NOTIFICATION_EMAIL_QUEUE_URL`
-  - `notification-sender` receives Cognito, SES sender/template, and
-    CloudFront frontend URL settings
-- `create-event`, `update-event`, and `cancel-event` publish compact
-  EventBridge domain events only after durable DynamoDB writes
-- all currently deployed Lambda workloads use active X-Ray tracing in `dev`
-  through the Lambda module's per-function `tracing_mode = "Active"` setting
-- notification workers are not API Gateway integrations; they are triggered by
-  SQS event source mappings
-- API-facing deployed functions return API Gateway-style wrapped responses
+| Workloads | Configuration |
+|---|---|
+| Event API workloads | `EVENTS_TABLE_NAME` |
+| `rsvp`, `get-event-rsvps` | `RSVPS_TABLE_NAME` |
+| `create-event`, `update-event`, `cancel-event` | `EVENTBRIDGE_EVENT_BUS_NAME` |
+| `rsvp-authorizer` | Cognito issuer, app client ID, and admin group |
+| `notification-planner` | RSVP table and notification-email queue URL |
+| `notification-sender` | Cognito User Pool, SES sender/templates, and CloudFront frontend URL |
 
-Current business behavior validated in this environment:
+### Code Ownership
 
-- `create-event`
-  - protected routed invocation via `POST /events` succeeds for authenticated callers
-  - anonymous routed invocation is rejected at the API edge
-  - non-admin admin-only creation is rejected
-  - admin admin-only creation succeeds
-  - canonical event items are written with `status = ACTIVE`
-  - request-body `creator_id` spoofing is ignored in favor of caller-context ownership
-  - public events populate the public upcoming GSI, while non-public events omit those helper attributes
-  - successful durable creation publishes `event.created` to EventBridge
-  - EventBridge-routed `event.created` does not reach `notification-dispatch`
-    SQS
-  - validation, authentication, and admin-only authorization failures do not
-    publish `event.created`
-- `list-events`
-  - broad public listing succeeds
-  - this is a public (unauthenticated) listing workload
-  - no caller context is required or consumed
-  - returned items use the locked public event DTO and hide internal storage helper fields
-  - broad listing excludes cancelled events during the current scan-based phase
-  - due to the temporary scan-based access path, active non-public and past events may still appear in the current contract
-- `list-my-events`
-  - authenticated creator-scoped listing succeeds
-  - routed invocation via `GET /events/mine` is JWT-protected at API Gateway
-  - anonymous routed invocation is rejected at the API edge
-  - returned items use the same locked public event DTO as `list-events` and `get-event`
-  - creator-scoped listing includes cancelled and past creator-owned events
-  - pagination works through:
-    - `limit`
-    - opaque `next_cursor`
-  - the current read path uses the `creator-events` GSI
-- `get-event`
-  - public routed invocation via `GET /events/{event_id}` succeeds without authentication
-  - successful single-item lookup returns `200`
-  - missing event returns `404`
-  - single-item reads do not require caller context
-  - returned items use the locked public event DTO under `item`
-  - direct DynamoDB `GetItem` lookup is used by canonical `event_pk`
-  - cancelled events remain readable by ID
-  - non-public events remain readable by ID
-- `update-event`
-  - protected routed invocation via `PATCH /events/{event_id}` succeeds for authenticated owners
-  - protected routed invocation via `PATCH /events/{event_id}` succeeds for authenticated admins
-  - authenticated non-owner routed invocation returns `403`
-  - cancelled-event routed invocation returns `400`
-  - invalid update input returns `400`
-  - capacity reductions below current `attending_count` return `400`
-  - cancelled events cannot be updated
-  - direct invocation and API Gateway-style body input both work
-  - partial updates preserve omitted mutable fields
-  - returned updated items use the locked public event DTO under `item`
-  - successful durable updates publish `event.updated` to EventBridge
-  - `event.updated` messages include compact notification-safe detail and
-    `changed_fields`
-  - EventBridge-routed `event.updated` messages reach `notification-dispatch`
-    SQS
-  - valid no-op updates return `200` without writing to DynamoDB or publishing
-    `event.updated`
-  - unauthorized and cancelled-event update attempts do not publish
-    `event.updated`
-- `cancel-event`
-  - protected routed invocation via `POST /events/{event_id}/cancel` succeeds for authenticated owners
-  - protected routed invocation via `POST /events/{event_id}/cancel` succeeds for authenticated admins
-  - authenticated non-owner routed invocation returns `403`
-  - repeated routed invocation returns `200` idempotently
-  - anonymous routed invocation is rejected at the API edge
-  - cancelled items use the locked public event DTO under `item`
-  - successful durable cancellation publishes `event.cancelled` to EventBridge
-  - repeated idempotent cancellation does not publish another `event.cancelled`
-  - EventBridge-routed `event.cancelled` messages reach `notification-dispatch`
-    SQS with compact notification-safe detail
-  - `status = CANCELLED` is returned
-  - public GSI helper attributes are removed while creator visibility helpers remain in storage
-- `rsvp`
-  - public events allow anonymous and authenticated RSVP
-  - protected events require authentication
-  - admin-only events require an authenticated admin caller
-  - successful anonymous RSVP to a public event returns `201`
-  - same-subject overwrite returns `200` with `operation = "updated"`
-  - protected-event anonymous RSVP returns `403`
-  - admin-only RSVP by a non-admin caller returns `403`
-  - full-capacity attending RSVP returns `400`
-  - full-capacity not-attending RSVP still succeeds
-  - cancelled events reject RSVP with `400`
-  - RSVP writes remain synchronous and transactional across the `events` and `rsvps` tables
-  - responses expose the locked public RSVP contract:
-    - `item`
-    - `event_summary`
-    - `operation`
-- `get-event-rsvps`
-  - protected routed invocation via `GET /events/{event_id}/rsvps` succeeds for authenticated creators
-  - protected routed invocation via `GET /events/{event_id}/rsvps` succeeds for authenticated admins
-  - authenticated non-owner routed invocation returns `403`
-  - missing-event routed invocation returns `404`
-  - empty-RSVP routed invocation returns `200` with `items = []`
-  - anonymous routed invocation is rejected at the API edge
-  - request resolution supports:
-    - direct invocation input
-    - API Gateway-style `pathParameters` and `queryStringParameters`
-  - response body uses the locked public RSVP read contract:
-    - `event`
-    - `items`
-    - `stats`
-    - `next_cursor`
-  - internal storage fields stay hidden from the response
-  - cancelled and past events remain readable for the creator and admins
-  - pagination works through opaque `next_cursor`
-- `notification-planner`
-  - consumes `event.updated` and `event.cancelled` planning messages from
-    `notification-dispatch`
-  - uses a Lambda event source mapping with `ReportBatchItemFailures`
-  - queries RSVP records for the affected event
-  - includes authenticated RSVP users with both `attending = true` and
-    `attending = false`
-  - skips anonymous RSVP subjects
-  - creates one recipient-level job per authenticated RSVP user in
-    `notification-email`
-  - recipient-level jobs contain `recipient_user_id`, not email or username
-  - recipient-level jobs do not expose anonymous tokens or internal DynamoDB keys
-  - unsupported event types are ignored successfully
-  - malformed supported messages fail only the affected SQS record
-- `notification-sender`
-  - consumes recipient-level jobs from `notification-email`
-  - uses a Lambda event source mapping with `ReportBatchItemFailures`
-  - resolves the current recipient email through Cognito `ListUsers` using the
-    canonical Cognito `sub`
-  - ignores any email value in the SQS message body
-  - requires exactly one matching Cognito user with an email address
-  - selects the SES template by `notification_type`
-  - sends `event.updated` and `event.cancelled` participant emails through
-    `ses:SendTemplatedEmail`
-  - uses the Terraform-managed SES templates and verified project sender
-    identity
-  - validates event detail paths and frontend URL construction before using
-    links in template data
-  - provides separate text-safe and HTML-safe template data fields
-  - malformed or unsendable messages fail only the affected SQS record
-  - does not query DynamoDB, call EventBridge, or inspect RSVP records
-- notification preferences, anonymous email collection, and RSVP-created
-  participant notifications remain outside the current environment behavior
+Terraform manages function resources, runtime configuration, IAM attachment,
+environment variables, log groups, tracing, API Gateway integrations,
+permissions, and event source mappings.
 
-Public event DTO behavior validated across the event read/update/cancel flows:
+Fresh function creation requires prepared ZIP artifacts. After creation,
+Terraform ignores package-field drift so external code deployment with
+`aws lambda update-function-code` does not cause a planned code rollback.
+Infrastructure and configuration drift remain visible to Terraform.
 
-- returned event items use the locked public DTO contract:
-  - `event_id`
-  - `status`
-  - `title`
-  - `date`
-  - `description`
-  - `location`
-  - `capacity`
-  - `is_public`
-  - `requires_admin`
-  - `created_by`
-  - `created_at`
-  - `rsvp_count`
-  - `attending_count`
-- internal GSI helper fields and `not_attending_count` stay hidden from the public event response shape
-- `capacity = null` is preserved for unlimited-capacity events
-- frontend is expected to render user-friendly timestamp formatting from backend-provided ISO UTC timestamps
+Packaging and deployment operations are documented in:
 
-Validation:
+- [Lambda packaging](../../../lambdas/README.md)
+- [Project setup](../../../docs/project-setup.md)
 
-- validated via external artifact packaging, `terraform apply`, Lambda invocation, DynamoDB inspection, CloudWatch logs inspection, and a clean post-apply `terraform plan`
-- the EventBridge bus-name environment variable update was validated with local
-  `terraform plan`
-- confirmed only `create-event`, `update-event`, and `cancel-event` receive `EVENTBRIDGE_EVENT_BUS_NAME`
-- confirmed `create-event` publishes `event.created` after durable creation
-- confirmed created event records remain `ACTIVE` in DynamoDB
-- confirmed EventBridge-routed `event.created` does not reach the existing
-  `notification-dispatch` SQS queue
-- confirmed invalid, anonymous, and unauthorized admin-only create attempts do
-  not publish `event.created`
-- confirmed `update-event` publishes `event.updated` after durable updates
-- confirmed updated event records remain `ACTIVE` in DynamoDB
-- confirmed EventBridge-routed `event.updated` reaches the existing
-  `notification-dispatch` SQS queue with compact notification-safe detail and
-  `changed_fields`
-- confirmed unauthorized, cancelled-event, and no-op update attempts do not
-  publish `event.updated`
-- confirmed `cancel-event` publishes `event.cancelled` after durable
-  cancellation
-- confirmed EventBridge publication does not change the successful API response
-- confirmed repeated `cancel-event` invocation stays idempotent and does not
-  publish a second `event.cancelled`
-- confirmed unauthorized `cancel-event` invocation returns `403` and does not
-  publish `event.cancelled`
-- confirmed the EventBridge-routed `event.cancelled` message reaches the
-  existing `notification-dispatch` SQS queue
-- confirmed deployed function names and log groups for:
-  - `create-event`
-  - `get-event`
-  - `list-events`
-  - `list-my-events`
-  - `update-event`
-  - `cancel-event`
-  - `rsvp`
-  - `get-event-rsvps`
-  - `rsvp-authorizer`
-  - `notification-planner`
-- `notification-sender`
-- confirmed Terraform outputs match the created Lambda and log group identities
-- confirmed `notification-planner` has an enabled event source mapping from
-  `notification-dispatch` with `ReportBatchItemFailures`
-- confirmed `event.updated` and `event.cancelled` messages create
-  recipient-level jobs in `notification-email`
-- confirmed anonymous RSVP records are skipped while authenticated attending
-  and not-attending RSVP records are included
-- confirmed `notification-sender` has an enabled event source mapping from
-  `notification-email` with `ReportBatchItemFailures`
-- confirmed controlled `event.updated` and `event.cancelled` recipient jobs are
-  consumed from `notification-email`
-- confirmed controlled `event.updated` and `event.cancelled` recipient jobs
-  produce templated SES emails for a verified sandbox recipient
-- confirmed successful sender invocations drain the SQS message and complete
-  with zero failed records
-- confirmed participant emails do not expose raw EventBridge, SQS, DynamoDB, or
-  internal identity fields
-- confirmed the Lambda X-Ray baseline updates all current Lambda functions in
-  place from `PassThrough` to `Active`
-- confirmed representative functions from both Lambda module calls report
-  `TracingConfig.Mode = Active`
-- confirmed a lightweight `list-events` invocation produces an X-Ray trace
-  summary without faults or errors
-- see evidence screenshots under `docs/assets/lambda/`
-- see create-event, update-event, and cancel-event EventBridge validation screenshots under
-  `docs/assets/lambda_api/`
-- see Lambda X-Ray validation screenshots under `docs/assets/observability/`
+Handler behavior, API contracts, authorization, data rules, and notification
+worker contracts are documented in
+[Platform behavior](../../../docs/platform-behavior.md).
+
+### Lambda Validation
+
+Deployment validation confirmed all function and log-group identities,
+workload-specific configuration, API and SQS invocation paths, EventBridge
+publication, notification processing, SES delivery, active tracing, exported
+outputs, and a clean post-apply Terraform plan. Supporting evidence is available
+under:
+
+- [`docs/assets/lambda/`](../../../docs/assets/lambda/)
+- [`docs/assets/lambda_api/`](../../../docs/assets/lambda_api/)
+- [`docs/assets/observability/`](../../../docs/assets/observability/)
 
 ---
 

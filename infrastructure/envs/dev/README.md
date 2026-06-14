@@ -602,57 +602,43 @@ under:
 
 ---
 
-## S3 Frontend Origin Bucket Baseline
+## S3 Frontend Origin
 
-Creates the initial private frontend-origin storage baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/s3_frontend_bucket`](../../modules/s3_frontend_bucket/README.md)
+- `resource_policies.tf`
 
-- `modules/s3_frontend_bucket`
+The environment deploys the private bucket:
 
-This environment currently wires in:
+- `aws-serverless-events-platform-dev-frontend`
 
-- one private S3 bucket for frontend asset storage behind CloudFront
+The bucket is configured with:
 
-Why this module is wired now:
+- all S3 public-access block settings enabled
+- `BucketOwnerEnforced` object ownership
+- default SSE-S3 encryption with `AES256`
+- S3 website hosting disabled
+- versioning suspended
+- `force_destroy = true`
 
-- the platform needed a real frontend-origin bucket before CloudFront and WAF could be added cleanly
-- the edge-delivery rollout is intentionally being implemented in small module-first and env-wiring-second slices
-- a private S3 origin bucket is the storage dependency for the browser-facing CloudFront edge layer
+Versioning remains disabled and force-destroy remains enabled so this
+non-production environment can be reset without retaining frontend artifacts.
 
-Important design notes:
+The environment-owned bucket policy grants `s3:GetObject` only to the CloudFront
+service principal when the request originates from the deployed distribution
+ARN. Direct public object access remains blocked.
 
-- this bucket is an origin bucket, not a public website bucket
-- direct public access is intentionally blocked
-- S3 website hosting is intentionally not used
-- `envs/dev` currently keeps bucket versioning disabled to keep this non-production environment lean
-- `envs/dev` currently sets `force_destroy = true` so the bucket stays easy to tear down and recreate during iterative edge rollout work
-- one tiny placeholder frontend file can now be uploaded for validation without introducing a real frontend implementation yet
-- the CloudFront distribution now uses this bucket as its private frontend origin
-- reusable AWS resource logic belongs in modules while `envs/dev` stays composition-oriented
+Frontend build and deployment operations are documented in
+[Frontend operations](../../../frontend/README.md).
 
-Validation:
+### S3 Validation
 
-- validated via `terraform apply`, Terraform output verification, AWS Console inspection, AWS CLI inspection, placeholder object upload, direct public-access check, and a clean post-apply `terraform plan`
-- confirmed the bucket was created in `eu-central-1`
-- confirmed the rendered bucket name is:
-  - `aws-serverless-events-platform-dev-frontend`
-- confirmed Terraform outputs match the created bucket identity:
-  - `frontend_bucket_arn`
-  - `frontend_bucket_id`
-  - `frontend_bucket_name`
-  - `frontend_bucket_regional_domain_name`
-- confirmed bucket-level public access blocking is fully enabled
-- confirmed ownership controls use:
-  - `BucketOwnerEnforced`
-- confirmed default server-side encryption uses:
-  - `AES256`
-- confirmed bucket versioning is not enabled in `dev`:
-  - `Status = Suspended`
-- confirmed placeholder `index.html` upload succeeds
-- confirmed direct public object access returns:
-  - `403 AccessDenied`
-- see evidence screenshots under `docs/assets/s3_frontend_bucket/`
+Deployment validation confirmed bucket creation, exported identifiers, public
+access blocking, ownership controls, encryption, versioning state, object
+upload, CloudFront-only read access, direct-access denial, and a clean
+post-apply Terraform plan. Supporting evidence is available under
+[`docs/assets/s3_frontend_bucket/`](../../../docs/assets/s3_frontend_bucket/).
 
 ---
 

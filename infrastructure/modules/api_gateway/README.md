@@ -1,21 +1,23 @@
-# HTTP API Backend Baseline
+# HTTP API Gateway Module
 
-This module creates the reusable HTTP API backend baseline for the serverless
+This module creates the HTTP API Gateway resources for the serverless
 events platform.
 
-It is intentionally platform-specific. The goal is not to provide a generic API
-Gateway framework or a broad abstraction over every API Gateway feature.
-Instead, this module defines the concrete HTTP API delivery layer that the
-current Lambda workloads, Cognito identity baseline, and later environment
-composition depend on.
+It is intentionally platform-specific rather than a general abstraction over
+every API Gateway feature. The module owns one HTTP API, its stage,
+authorizers, Lambda proxy integrations, routes, and invoke permissions.
 
-This module is HTTP-API-backend-only in v1.
+Each environment root supplies the concrete Lambda functions, route
+definitions, identity values, log destination, and operational settings. The
+platform-wide API and authorization contracts are documented in the
+[architecture guide](../../../docs/architecture.md) and
+[platform behavior contract](../../../docs/platform-behavior.md).
 
 ---
 
 ## What This Module Creates
 
-This module currently creates:
+This module creates:
 
 - one HTTP API
 - one stage
@@ -34,15 +36,14 @@ It can also configure:
 - optional default stage throttling
 - optional per-route throttling overrides
 
-This keeps the routed API baseline small, reviewable, and aligned with the
-current platform rollout.
+The caller controls the stage name, route definitions, authorization modes,
+logging, throttling, and optional CORS configuration.
 
 ---
 
-## Why This Module Stays HTTP API-Focused
+## Module Boundary
 
-This step is focused on the reusable API Gateway backend layer the platform
-clearly needs next:
+The module owns:
 
 - HTTP API creation
 - stage creation
@@ -52,18 +53,18 @@ clearly needs next:
 - stage and route throttling configuration
 - optional API-level CORS
 
-The module does not create CloudFront distributions, WAF resources, custom
-domains, Route 53 records, API Gateway REST API resources, API Gateway X-Ray
-tracing, or Lambda log groups. Those concerns may become relevant later, but
-they are intentionally outside the scope of this module baseline.
+It does not own:
 
-Keeping the module limited to HTTP API backend delivery makes the design easier
-to understand and preserves the current ownership boundaries:
+- Lambda functions, execution roles, or log groups
+- Cognito User Pools or application clients
+- caller-owned API Gateway access log groups
+- CloudFront distributions or WAF resources
+- custom domains or Route 53 records
+- REST API resources
+- application request validation or authorization behavior
 
-- Cognito identity stays in `modules/cognito`
-- Lambda deployment and Lambda log groups stay in `modules/lambda`
-- edge delivery concerns stay outside this module
-- `envs/dev` stays thin and composition-focused
+Those responsibilities belong to callers and the modules that own the
+corresponding resources.
 
 ---
 
@@ -73,7 +74,7 @@ Route keys in this module use the form:
 
 - `METHOD /path`
 
-The currently allowed HTTP methods are intentionally narrow:
+The supported HTTP methods are intentionally narrow:
 
 - `GET`
 - `POST`
@@ -81,30 +82,22 @@ The currently allowed HTTP methods are intentionally narrow:
 - `DELETE`
 - `OPTIONS`
 
-That is deliberate.
+These methods cover the platform's read, create, partial-update, delete, and
+browser preflight route shapes.
 
-- `GET`, `POST`, and `PATCH` match the platform's current routed API shape.
-- `DELETE` is allowed now because hard-delete or cleanup-style admin endpoints
-  are a plausible future extension for this platform, even though they are not
-  part of the current routed baseline yet.
-- `OPTIONS` is allowed now because browser-based frontend traffic will later
-  need CORS preflight support when the frontend delivery layer is introduced.
-
-The module does not currently allow broader HTTP API method values such as:
+The module does not allow:
 
 - `PUT`
 - `HEAD`
 - `ANY`
 
-This keeps the reusable module aligned with the platform's current routed API
-shape and avoids widening the public module surface before those methods are
-actually needed.
+Supporting another method requires an explicit module-interface change.
 
 ---
 
 ## Supported Authorization Modes
 
-This module currently supports three practical route authorization modes:
+This module supports three route authorization modes:
 
 - `NONE`
 - `JWT`
@@ -112,28 +105,20 @@ This module currently supports three practical route authorization modes:
 
 ### Public routes
 
-Routes with `authorization_type = "NONE"` stay publicly callable.
-
-This is the current fit for routes such as:
-
-- broad public event listing
-- public single-event reads
+Routes with `authorization_type = "NONE"` are publicly callable.
 
 ### JWT-protected routes
 
 Routes with `authorization_type = "JWT"` use the built-in HTTP API JWT
-authorizer.
-
-This is the current fit for ordinary authenticated routes where API Gateway can
-enforce the authentication boundary before Lambda runs.
+authorizer configured from the caller-supplied issuer and audience.
 
 ### Lambda request-authorized routes
 
 Routes with `authorization_type = "CUSTOM"` use one declared Lambda request
 authorizer from `var.request_authorizers`.
 
-This keeps the module flexible enough to express mixed-mode routed behavior
-without hardcoding RSVP-specific assumptions into the reusable module itself.
+This supports request-specific authorization without hardcoding application
+behavior into the module.
 
 ---
 
@@ -144,17 +129,16 @@ This module uses HTTP API Lambda proxy integrations with payload format version
 
 That is intentional:
 
-- the platform's current routed Lambda workloads already use the HTTP API proxy
-  request/response shape
+- callers receive the standard HTTP API proxy request and response shape
 - JWT and Lambda authorizer context can flow through without custom mapping
-- the integration layer stays simple and close to the real deployed backend
+- the integration layer remains small and predictable
 
 The module does not implement mapping templates, transformation layers, or
 REST-API-style resource trees.
 
 ---
 
-## Stage Operations Baseline
+## Stage Operations
 
 This module can optionally configure several stage-level operational controls.
 
@@ -180,8 +164,7 @@ stage through:
 - `default_throttling_burst_limit`
 - `default_throttling_rate_limit`
 
-This gives the platform one reusable backend throttling baseline before the
-later edge-delivery layer is introduced.
+This gives callers one default protection level for the API stage.
 
 ### Per-route throttling overrides
 
@@ -201,12 +184,12 @@ When `cors_configuration` is `null`, the module leaves CORS behavior untouched.
 When it is set, API Gateway manages browser preflight behavior and attaches the
 configured CORS headers for the HTTP API.
 
-This keeps the module ready for later browser-based frontend traffic without
-forcing CORS behavior into the current backend-only environment rollout.
+The caller remains responsible for choosing origins, methods, headers, and
+credential behavior appropriate to its delivery topology.
 
 ---
 
-## Input Validation Direction
+## Input Validation
 
 This module intentionally validates its interface strictly so invalid route or
 authorizer definitions fail early.
@@ -214,7 +197,7 @@ authorizer definitions fail early.
 Examples of guarded behavior include:
 
 - route keys must use the expected `METHOD /path` shape
-- only the currently approved platform methods are accepted:
+- only the supported platform methods are accepted:
   - `GET`
   - `POST`
   - `PATCH`
@@ -231,15 +214,14 @@ Examples of guarded behavior include:
 - request authorizer payload format stays pinned to HTTP API payload version
   `2.0`
 
-This keeps the reusable module precise enough to support the current routed API
-contract safely without baking application-specific behavior into the module.
+This keeps the module precise without baking application-specific route
+behavior into its implementation.
 
 ---
 
 ## Outputs
 
-The module exposes the API, stage, authorizer, and route identifiers later
-layers are most likely to need:
+The module exposes:
 
 - API identifiers and invoke values
 - stage name and stage invoke URL
@@ -247,9 +229,8 @@ layers are most likely to need:
 - Lambda request authorizer IDs
 - route IDs and route keys
 
-These outputs matter because later environment composition and validation work
-often need stable API Gateway identifiers without depending on Terraform
-resource internals directly.
+Callers can use these values for edge routing, validation, and operational
+integration without depending on Terraform resource internals.
 
 ---
 
@@ -279,20 +260,8 @@ The example shows how to:
 The example intentionally does not create CloudFront, WAF, custom domains,
 Route 53 records, or frontend hosting resources.
 
----
-
-## Out Of Scope
-
-The following concerns intentionally remain outside this module:
-
-- CloudFront
-- WAF
-- custom domains
-- Route 53 DNS records
-- API Gateway REST API resources
-- API Gateway X-Ray tracing
-- Lambda deployment packaging workflows
-- Lambda log groups
+Applying the example creates real API Gateway, Lambda, IAM, and CloudWatch Logs
+resources and should be reviewed before use in an AWS account.
 
 ---
 

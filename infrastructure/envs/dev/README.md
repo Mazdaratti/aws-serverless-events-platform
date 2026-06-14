@@ -440,184 +440,78 @@ post-apply Terraform plan. Supporting evidence is available under
 
 ---
 
-## API Gateway Routed API Baseline
+## API Gateway HTTP API
 
-This is the current end-to-end validated routed backend baseline in the platform:
-Cognito → API Gateway → Lambda → DynamoDB.
+Implemented by:
 
-This section documents the routed API baseline currently deployed in `envs/dev`.
+- [`modules/api_gateway`](../../modules/api_gateway/README.md)
+- the environment-owned API Gateway access-log group in `main.tf`
 
-Implemented via:
+The environment deploys:
 
-- `modules/api_gateway`
+- HTTP API `aws-serverless-events-platform-dev-http-api`
+- stage `dev`
+- Cognito JWT authorization
+- one Lambda request authorizer for mixed-mode RSVP
+- Lambda proxy integrations
+- stage access logging and throttling
 
-This environment currently wires in:
+### Route Matrix
 
-- one HTTP API
-- one stage
-- one environment-owned CloudWatch Logs log group for API Gateway stage access logs
-- one JWT authorizer (Cognito-based)
-- one Lambda request authorizer for the mixed-mode RSVP route
-- stage access logging for the HTTP API
-- default stage throttling
-- eight routed API endpoints:
-  - `POST /events`
-  - `PATCH /events/{event_id}`
-  - `POST /events/{event_id}/cancel`
-  - `POST /events/{event_id}/rsvp`
-  - `GET /events/{event_id}/rsvps`
-  - `GET /events`
-  - `GET /events/mine`
-  - `GET /events/{event_id}`
-- eight Lambda integrations:
-  - `create-event`
-  - `update-event`
-  - `cancel-event`
-  - `rsvp`
-  - `get-event-rsvps`
-  - `list-events`
-  - `list-my-events`
-  - `get-event`
+| Route | Lambda integration | Authorization |
+|---|---|---|
+| `GET /events` | `list-events` | Public |
+| `GET /events/{event_id}` | `get-event` | Public |
+| `GET /events/mine` | `list-my-events` | Cognito JWT |
+| `POST /events` | `create-event` | Cognito JWT |
+| `PATCH /events/{event_id}` | `update-event` | Cognito JWT |
+| `POST /events/{event_id}/cancel` | `cancel-event` | Cognito JWT |
+| `GET /events/{event_id}/rsvps` | `get-event-rsvps` | Cognito JWT |
+| `POST /events/{event_id}/rsvp` | `rsvp` | Mixed-mode Lambda request authorizer |
 
-Why this module is wired now:
+The request authorizer uses payload format `2.0`, simple responses, no identity
+source, and a result TTL of `0`. This permits anonymous requests while
+validating any presented bearer token.
 
-- the platform needed to validate public and JWT-protected Lambda handlers end to end through API Gateway
-- the routed API rollout was implemented incrementally, adding and validating one path per Lambda
-- currently implemented and validated routes are:
-  - `POST /events`
-  - `PATCH /events/{event_id}`
-  - `POST /events/{event_id}/cancel`
-  - `POST /events/{event_id}/rsvp`
-  - `GET /events/{event_id}/rsvps`
-  - `GET /events`
-  - `GET /events/mine`
-  - `GET /events/{event_id}`
+### Stage Controls
 
-Important design notes:
+Default stage throttling is:
 
-- this remains the routed backend baseline behind the CloudFront edge layer
-- the stage-qualified API Gateway invoke URL remains useful for direct backend
-  testing and diagnostics, but it is not the intended browser-facing product
-  entry point
-- CloudFront preserves the existing routed backend path contract instead of
-  introducing a separate translated browser-facing API path family
-- API Gateway stage access logs are now enabled in `dev`
-- the API Gateway access-log log group is owned by `envs/dev`, while the reusable module owns the stage logging configuration
-- stage throttling is configured in `dev` as a backend protection baseline
-  behind CloudFront
-- stricter per-route throttling is now applied to the more write-sensitive routes:
-  - `POST /events`
-  - `PATCH /events/{event_id}`
-  - `POST /events/{event_id}/cancel`
-  - `POST /events/{event_id}/rsvp`
-- API Gateway X-Ray tracing is not enabled in `dev` because this platform uses
-  HTTP API, while API Gateway active tracing applies to REST APIs
-- CORS remains intentionally disabled in `dev` because normal browser traffic
-  is expected to enter through the same-origin CloudFront path
-- `GET /events` is intentionally a public route with `authorization_type = NONE`
-- ordinary protected routes use native JWT authorization at API Gateway
-- `GET /events/mine` is intentionally JWT-protected so API Gateway enforces the creator-route authentication boundary
-- the mixed-mode RSVP authorizer is now implemented as a Lambda request authorizer
-- the real mixed-mode `rsvp` business route is now validated through API Gateway using that authorizer
-- the business `create-event`, `list-my-events`, `update-event`, `cancel-event`, and `get-event-rsvps` Lambdas consume normalized caller context instead of parsing JWTs directly
-- the business `rsvp` Lambda now also consumes normalized caller context instead of parsing raw authorizer payloads directly
-- reusable API Gateway logic belongs in modules while `envs/dev` stays composition-oriented
+- burst limit: `100`
+- rate limit: `50` requests per second
 
-Validation:
+Write-sensitive route overrides are:
 
-- validated via `terraform apply`, AWS Console inspection, Terraform output verification, real Cognito token acquisition, routed API invocation, Lambda execution verification, and a clean post-apply `terraform plan`
-- confirmed the HTTP API was created in `eu-central-1`
-- confirmed the rendered API name is `aws-serverless-events-platform-dev-http-api`
-- confirmed the stage name is `dev`
-- confirmed the API Gateway stage access-log log group is owned by the environment and separate from Lambda log groups
-- confirmed stage access logging is configured on the deployed API Gateway stage
-- confirmed the deployed stage access-log destination is:
-  - `/aws/apigateway/aws-serverless-events-platform-dev-http-api-access`
-- confirmed default stage throttling is configured on the deployed API Gateway stage
-- confirmed stricter per-route throttling overrides are configured for:
-  - `POST /events`
-  - `PATCH /events/{event_id}`
-  - `POST /events/{event_id}/cancel`
-  - `POST /events/{event_id}/rsvp`
-- confirmed CORS remains disabled in `dev`
-- confirmed the mixed-mode request authorizer remains configured with:
-  - payload format version `2.0`
-  - simple responses enabled
-  - TTL `0`
-  - identity sources omitted
-- confirmed the route keys are:
-  - `POST /events`
-  - `PATCH /events/{event_id}`
-  - `POST /events/{event_id}/cancel`
-  - `POST /events/{event_id}/rsvp`
-  - `GET /events/{event_id}/rsvps`
-  - `GET /events`
-  - `GET /events/mine`
-  - `GET /events/{event_id}`
-- confirmed JWT authorization is attached to the protected routes
-- confirmed anonymous requests are rejected at the API edge for JWT-protected routes
-- confirmed authenticated `create-event` invocation succeeds through API Gateway with JWT validation
-- confirmed admin-only creation behavior is enforced correctly by the Lambda through the routed path
-- confirmed event items are successfully written to DynamoDB through the routed path
-- confirmed authenticated owner `update-event` invocation succeeds through API Gateway with JWT validation
-- confirmed authenticated admin `update-event` invocation succeeds through API Gateway with JWT validation
-- confirmed authenticated non-owner `update-event` invocation returns `403`
-- confirmed cancelled-event `update-event` invocation returns `400`
-- confirmed immutable-field and malformed-body validation still work through the routed `update-event` path
-- confirmed event updates are successfully applied through the routed path
-- confirmed authenticated owner `cancel-event` invocation succeeds through API Gateway with JWT validation
-- confirmed authenticated admin `cancel-event` invocation succeeds through API Gateway with JWT validation
-- confirmed authenticated non-owner `cancel-event` invocation returns `403`
-- confirmed repeated routed `cancel-event` invocation remains idempotent and returns `200`
-- confirmed successful routed cancel removes public discovery helpers while keeping creator visibility helpers in storage
-- confirmed event cancellation is successfully applied through the routed path
-- confirmed authenticated creator `get-event-rsvps` invocation succeeds through API Gateway with JWT validation
-- confirmed authenticated admin `get-event-rsvps` invocation succeeds through API Gateway with JWT validation
-- confirmed authenticated non-owner `get-event-rsvps` invocation returns `403`
-- confirmed missing-event routed `get-event-rsvps` invocation returns `404`
-- confirmed empty-RSVP routed `get-event-rsvps` invocation returns `200` with an empty `items` array
-- confirmed RSVP-read results are successfully returned through the routed path
-- confirmed routed `get-event-rsvps` responses expose the locked RSVP-read contract:
-  - `event`
-  - `items`
-  - `stats`
-  - `next_cursor`
-- confirmed `GET /events` is public and has no attached authorizer
-- confirmed unauthenticated `GET /events` succeeds through API Gateway with `200`
-- confirmed routed public `GET /events` responses filter cancelled events during the current temporary scan-based phase
-- confirmed due to the temporary scan-based access path, routed public `GET /events` responses may still include active non-public and past events in the current contract
-- confirmed unauthenticated `GET /events/mine` is rejected at the API edge with `401`
-- confirmed authenticated creator `GET /events/mine` succeeds through API Gateway with JWT validation
-- confirmed authenticated admin `GET /events/mine` succeeds through API Gateway with JWT validation and returns only the admin caller's own events
-- confirmed API Gateway access-log entries are written to the dedicated API Gateway access-log group for:
-  - `GET /events`
-  - `GET /events/mine`
-  - `POST /events/{event_id}/rsvp`
-- confirmed `GET /events/{event_id}` is public and has no attached authorizer
-- confirmed unauthenticated `GET /events/{event_id}` succeeds through API Gateway with `200`
-- confirmed routed `GET /events/{event_id}` still returns cancelled events by ID
-- confirmed routed `GET /events/{event_id}` still returns non-public events by ID
-- confirmed missing-event routed `get-event` invocation returns `404`
-- confirmed routed `GET /events/mine` responses include creator-owned cancelled events
-- confirmed routed `GET /events/mine` pagination works through:
-  - `limit`
-  - opaque `next_cursor`
-- confirmed normalized caller context is correctly resolved inside business Lambdas from JWT authorizer input
-- confirmed the mixed-mode RSVP authorizer is attached to routed `POST /events/{event_id}/rsvp`
-- confirmed anonymous public `POST /events/{event_id}/rsvp` succeeds through API Gateway with `201`
-- confirmed authenticated user `POST /events/{event_id}/rsvp` succeeds through API Gateway where allowed
-- confirmed authenticated admin `POST /events/{event_id}/rsvp` succeeds through API Gateway where allowed
-- confirmed an earlier malformed RSVP validation request returned `400` because the request body was not valid JSON, not because of an API Gateway routing or authorizer regression
-- confirmed malformed or invalid presented auth for routed `POST /events/{event_id}/rsvp` is denied at the API edge with `403`
-- confirmed anonymous routed `POST /events/{event_id}/rsvp` to a protected event returns `403`
-- confirmed non-admin routed `POST /events/{event_id}/rsvp` to an admin-only event returns `403`
-- confirmed full-capacity routed `POST /events/{event_id}/rsvp` with `attending = true` returns `400`
-- confirmed full-capacity routed `POST /events/{event_id}/rsvp` with `attending = false` still succeeds
-- confirmed cancelled-event routed `POST /events/{event_id}/rsvp` returns `400`
-- confirmed past-event routed `POST /events/{event_id}/rsvp` returns `400`
-- confirmed normalized caller context is correctly resolved inside the `rsvp` Lambda from the mixed-mode request authorizer input
-- confirmed Terraform outputs match the deployed API ID, stage URL, authorizer ID, and route wiring
-- see evidence screenshots under `docs/assets/lambda_api/`
+| Routes | Burst | Rate |
+|---|---:|---:|
+| `POST /events`, `PATCH /events/{event_id}` | `20` | `10` |
+| `POST /events/{event_id}/cancel`, `POST /events/{event_id}/rsvp` | `15` | `8` |
+
+Access logs are retained for 14 days in:
+
+- `/aws/apigateway/aws-serverless-events-platform-dev-http-api-access`
+
+The access-log record includes request ID, route key, status, and source IP.
+CORS remains disabled because browser traffic uses same-origin CloudFront
+routing. API Gateway X-Ray tracing is not available for HTTP APIs; Lambda
+tracing remains active.
+
+CloudFront is the intended browser-facing entry point. The stage-qualified API
+Gateway URL remains available for direct backend diagnostics.
+
+Route contracts, authorization behavior, request and response schemas, and
+status-code semantics are documented in:
+
+- [Architecture](../../../docs/architecture.md#api-layer)
+- [Platform behavior](../../../docs/platform-behavior.md#routed-api-path-contract)
+
+### API Gateway Validation
+
+Deployment validation confirmed the API and stage, route integrations,
+authorization modes, throttling, access logging, public and authenticated
+invocations, mixed-mode RSVP behavior, exported identifiers, and a clean
+post-apply Terraform plan. Detailed routed behavior evidence is available under
+[`docs/assets/lambda_api/`](../../../docs/assets/lambda_api/).
 
 ---
 

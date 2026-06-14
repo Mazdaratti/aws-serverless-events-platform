@@ -1,18 +1,21 @@
-# Remote Backend Baseline
+# Persistent Remote Backend Module
 
-This module creates a reusable S3 bucket baseline for Terraform remote state.
+This module creates a reusable, persistent S3 bucket for Terraform remote
+state.
 
-It is intentionally focused on the persistent backend bucket only. The module
-does not write `backend.tf`, does not migrate local state, and does not create
-GitHub OIDC roles or deployment workflow permissions.
+It owns only the backend bucket and its protections. It does not generate
+backend configuration, migrate Terraform state, or create GitHub Actions
+authentication and deployment permissions.
 
-Those concerns belong to environment bootstrap roots and migration runbooks.
+The current `dev` environment uses a separate, teardown-friendly
+[bootstrap root](../../bootstrap/dev/README.md). The complete setup sequence is
+documented in the [project setup guide](../../../docs/project-setup.md).
 
 ---
 
 ## What This Module Creates
 
-This module currently creates:
+This module creates:
 
 - one S3 bucket for Terraform state
 - one bucket versioning configuration
@@ -20,19 +23,19 @@ This module currently creates:
 - one bucket public access block configuration
 - one bucket ownership-controls configuration using `BucketOwnerEnforced`
 
-It also exposes the core bucket identifiers later bootstrap or environment
-layers are most likely to need:
+It exposes the bucket identifiers required by a composing bootstrap or
+environment root:
 
 - state bucket name
 - state bucket ARN
 - state bucket regional domain name
 
-This keeps the reusable backend baseline small, reviewable, and separate from
-environment-specific backend migration work.
+This keeps persistent state storage small, reviewable, and separate from
+environment-specific backend configuration and migration.
 
 ---
 
-## Persistent Backend Direction
+## Persistence Model
 
 This module is designed for persistent Terraform state backends.
 
@@ -48,10 +51,10 @@ The `prevent_destroy` setting is deliberate. Terraform lifecycle settings must
 be literal values, so this module does not expose a toggle for switching between
 persistent and teardown-friendly behavior.
 
-For short-lived `dev` bootstrap flows, use a dedicated bootstrap root that owns
-its backend bucket directly. That keeps the reusable module suitable for
-longer-lived environments while allowing `dev` bootstrap infrastructure to be
-destroyed and recreated when needed.
+The current [`dev` bootstrap](../../bootstrap/dev/README.md) therefore owns its
+backend bucket directly with teardown-friendly lifecycle behavior. This module
+is reserved for roots where accidental backend-bucket destruction must be
+blocked.
 
 ---
 
@@ -75,15 +78,10 @@ That split is intentional:
 - backend config generation belongs to bootstrap
 - state migration is an operator action that should be validated separately
 
-For this project, the `dev` environment uses `infrastructure/bootstrap/dev` to
-create a teardown-friendly backend bucket directly and generate the environment
-backend configuration.
-
-Persistent environment bootstrap roots should use this module instead. For
-example, a production bootstrap root such as `infrastructure/bootstrap/prod`
-could compose `infrastructure/modules/remote_backend` for the state bucket, then
-own production-specific backend config generation, state migration instructions,
-and GitHub OIDC deployment permissions separately.
+For this project, [`infrastructure/bootstrap/dev`](../../bootstrap/dev/README.md)
+creates its backend bucket directly and generates the ignored
+`infrastructure/envs/dev/backend.tf` file. The reusable module is not composed
+by that root.
 
 ---
 
@@ -101,8 +99,8 @@ The derived name shape is:
 ```
 
 S3 bucket names are globally unique. The random suffix keeps the default path
-usable across accounts without asking every caller to invent a unique name
-before trying the module.
+usable across accounts without requiring every caller to provide a globally
+unique name.
 
 When `state_bucket_name` is provided, the module validates the value against
 the current S3 general purpose bucket naming rules, including reserved prefixes
@@ -123,8 +121,8 @@ The custom bucket example shows how a caller can provide an explicit bucket
 name for a persistent environment that follows an account or organization naming
 standard.
 
-Both examples create real S3 resources if applied. They are validation-oriented
-and should be reviewed before use in a real account.
+Both examples create real S3 resources when applied and should be reviewed
+before use in an AWS account.
 
 ---
 

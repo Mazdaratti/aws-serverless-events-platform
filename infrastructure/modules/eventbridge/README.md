@@ -6,9 +6,9 @@ platform domain events.
 It owns EventBridge routing resources only. Target resources, resource
 policies, event publishers, and consumers remain outside the module.
 
-The deployed event topology is documented in the
-[`dev` environment guide](../../envs/dev/README.md) and
-[architecture guide](../../../docs/architecture.md).
+Each environment root documents its concrete rules, event patterns, targets,
+and resource policies. The platform-wide event-driven model is documented in
+the [architecture guide](../../../docs/architecture.md).
 
 ---
 
@@ -54,48 +54,45 @@ It does not own:
 - CloudWatch alarms and dashboards
 
 Those responsibilities belong to target modules, IAM, workload code,
-observability, or environment composition.
+observability, or the composing root.
 
 ---
 
-## Deployed Routing
+## Routing Contract
 
-The platform uses the custom bus as its post-commit domain-event router.
+The custom bus provides a shared routing surface for domain events published by
+application workloads.
 
-The `dev` environment composes these rules:
+Callers define the concrete:
 
-| Rule key | Matched detail types | Target |
-| --- | --- | --- |
-| `admin_lifecycle_notifications` | `event.created`, `event.cancelled` | Admin SNS topic |
-| `admin_update_notifications` | `event.updated` | Admin SNS topic |
-| `participant_notification_dispatch` | `event.updated`, `event.cancelled` | SQS `notification-dispatch` |
+- event sources and detail types
+- rule event patterns
+- SNS, SQS, Lambda, or other supported target resources
+- target input transformations
+- permissions required by each target
 
-The event-management workloads publish:
-
-- `event.created`
-- `event.updated`
-- `event.cancelled`
-
-The module routes these events but does not publish them or process target
-deliveries.
+The module creates routing resources from that configuration but does not
+publish domain events or process target deliveries.
 
 ---
 
 ## Target Permission Boundary
 
-EventBridge targets often need resource policies before delivery can work.
+EventBridge targets may require resource policies or invocation permissions
+before delivery can work.
 
-The current environment owns:
+Examples include:
 
-- the SNS topic policy allowing the two admin rules to publish
-- the SQS queue policy allowing the participant dispatch rule to send messages
+- an SNS topic policy allowing `events.amazonaws.com` to publish
+- an SQS queue policy allowing `events.amazonaws.com` to send messages
+- a Lambda permission allowing EventBridge to invoke a function
 
 Those permissions are intentionally outside this module.
 
-Each policy protects a concrete target resource and is scoped to the deployed
-source rule ARN and AWS account. The environment root owns those cross-resource
-relationships. This module accepts target ARNs without mutating resources it
-does not own.
+Each permission protects a target resource and should be scoped to the concrete
+source rule ARN and AWS account where supported. The target owner or composing
+root owns that relationship. This module accepts target ARNs without mutating
+resources it does not own.
 
 ---
 
@@ -124,9 +121,9 @@ Targets are nested under each rule in the input because that is easiest for a
 caller to read. The module flattens them internally so Terraform can create one
 `aws_cloudwatch_event_target` resource per target.
 
-Targets may define an optional EventBridge input transformer. The deployed
-admin SNS targets use transformers to create readable email messages while the
-participant SQS target receives the domain event without a transformer.
+Targets may define an optional EventBridge input transformer. This allows a
+caller to format a target-specific payload without changing the domain event
+published to the bus.
 
 ---
 

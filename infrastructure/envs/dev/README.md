@@ -642,65 +642,51 @@ post-apply Terraform plan. Supporting evidence is available under
 
 ---
 
-## Optional WAF Edge Protection Baseline
+## Optional WAF Edge Protection
 
-Optionally creates the CloudFront-scoped WAF protection baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/waf`](../../modules/waf/README.md)
 
-- `modules/waf`
+WAF is controlled by `enable_waf` and defaults to disabled in `dev` to avoid
+steady non-production Web ACL and managed-rule charges.
 
-When `enable_waf = true`, this environment wires in:
+When enabled, the environment deploys:
 
-- one CloudFront-scoped WAFv2 Web ACL
-- a fixed AWS managed-rule baseline
-- one simple IP-based rate-limit rule
+- the CloudFront-scoped Web ACL
+  `aws-serverless-events-platform-dev-edge`
+- default action `allow`
+- three AWS managed rule groups
+- one IP-based rate-limit rule
+- CloudWatch metrics and sampled-request visibility for the Web ACL and every
+  rule
 
-Why this module is wired now:
+The managed rule groups are:
 
-- the platform has private frontend-origin storage and a CloudFront distribution that can attach edge protection when needed
-- WAF remains part of the target architecture, but dev can disable it while the frontend is not actively used
-- the edge-delivery rollout remains split into small module-first and env-wiring-second slices
+- `AWSManagedRulesCommonRuleSet`
+- `AWSManagedRulesKnownBadInputsRuleSet`
+- `AWSManagedRulesAmazonIpReputationList`
 
-Important design notes:
+The rate-limit rule blocks a source IP after `2000` requests in the WAF
+evaluation window.
 
-- the Web ACL is CloudFront-scoped, so it is managed through the `us-east-1` AWS provider alias
-- `enable_waf` defaults to `false` in dev to avoid steady Web ACL and rule charges before the browser application needs active edge filtering
-- when enabled, the Web ACL is associated with the dev CloudFront distribution through the CloudFront module wiring
-- when disabled, the WAF outputs return `null` and CloudFront receives no Web ACL ARN
-- the default Web ACL action is `allow`
-- the managed-rule baseline includes:
-  - `AWSManagedRulesCommonRuleSet`
-  - `AWSManagedRulesKnownBadInputsRuleSet`
-  - `AWSManagedRulesAmazonIpReputationList`
-- the rate-limit rule blocks requests when one source IP exceeds the configured threshold
-- when enabled, `dev` uses a simple rate limit of `2000` requests per five-minute evaluation window
-- visibility configuration is enabled for the Web ACL and every rule so metrics and sampled requests are available
-- reusable AWS resource logic belongs in modules while `envs/dev` stays composition-oriented
+Because the Web ACL has CloudFront scope, Terraform manages it through the
+`us-east-1` AWS provider alias. When enabled, its ARN is passed to the
+CloudFront module. When disabled, WAF outputs are `null` and the distribution
+has no Web ACL association.
 
-Validation:
+The broader edge security model is documented in
+[Architecture](../../../docs/architecture.md#edge-layer-global-entry-point).
 
-- validated via `terraform apply`, Terraform output verification, AWS CLI inspection, AWS Console inspection, tag inspection, and a clean post-apply `terraform plan`
-- confirmed the CloudFront-scoped Web ACL was created in `us-east-1`
-- confirmed the rendered Web ACL name is:
-  - `aws-serverless-events-platform-dev-edge`
-- confirmed Terraform outputs match the created Web ACL identity:
-  - `waf_web_acl_arn`
-  - `waf_web_acl_id`
-  - `waf_web_acl_name`
-- confirmed the Web ACL scope is:
-  - `CLOUDFRONT`
-- confirmed the default action is:
-  - `allow`
-- confirmed the managed-rule baseline is present
-- confirmed the rate-limit rule uses:
-  - `Limit = 2000`
-  - `AggregateKeyType = IP`
-  - `Action = Block`
-- confirmed Web ACL and rule visibility configuration is enabled
-- confirmed expected project, environment, management, and name tags are applied
-- confirmed a clean post-apply `terraform plan`
-- see evidence screenshots under `docs/assets/waf/`
+### WAF Validation
+
+Deployment validation with WAF enabled confirmed the Web ACL identity and
+CloudFront scope, managed rules, IP rate limit, visibility configuration, tags,
+CloudFront association, exported outputs, and a clean post-apply Terraform
+plan. Supporting evidence is available under:
+
+- [`docs/assets/waf/`](../../../docs/assets/waf/)
+- [`docs/assets/cloudfront/`](../../../docs/assets/cloudfront/)
 
 ---
 

@@ -4,12 +4,12 @@ This module creates the DynamoDB business data layer for the serverless events
 platform.
 
 It is intentionally platform-specific rather than a generic table factory. The
-module owns the two canonical business tables and the indexes required by the
-deployed Lambda workloads.
+module owns the two canonical business tables and indexes required by the
+platform's data-access model.
 
-Environment composition, workload permissions, and runtime behavior are
-documented in the [`dev` environment guide](../../envs/dev/README.md),
-[architecture guide](../../../docs/architecture.md), and
+Concrete environment composition is documented by each environment root. The
+platform-wide data model and runtime contracts are documented in the
+[architecture guide](../../../docs/architecture.md) and
 [platform behavior contract](../../../docs/platform-behavior.md).
 
 ---
@@ -70,13 +70,17 @@ event_pk = EVENT#<event_id>
 Event items contain event metadata, lifecycle state, creator ownership,
 visibility attributes, and aggregate RSVP helper counters.
 
-The aggregate counters are useful for efficient reads, but they are not the source of truth for who has RSVP'd.
+The aggregate counters support efficient reads, but they are not the source of
+truth for individual RSVP membership.
 
 ### `rsvps`
 
 The `rsvps` table stores the canonical RSVP membership records for each event.
 
-This table is the source of truth for attendance membership. It uses an event-scoped partition and a subject-scoped sort key so the platform can efficiently query all RSVP records for one event while still supporting both authenticated and anonymous RSVP subjects.
+This table is the source of truth for attendance membership. It uses an
+event-scoped partition and a subject-scoped sort key so callers can query all
+RSVP records for one event while supporting authenticated and anonymous
+subjects.
 
 The key patterns are:
 
@@ -90,16 +94,11 @@ subject_sk = ANON#<anonymous_token>
 
 ## Key Design Decisions
 
-### RSVP remains synchronous through durable commit
+### RSVP membership and counters share a transaction boundary
 
-The primary RSVP write path is:
-
-```text
-Client -> CloudFront -> API Gateway -> Lambda -> DynamoDB transaction
-```
-
-The business write commits synchronously to DynamoDB. Notification processing
-is asynchronous and remains outside the RSVP acceptance transaction.
+The table design supports transactional writes across the canonical RSVP
+membership record and aggregate event counters. Runtime transaction handling
+belongs to application code rather than this infrastructure module.
 
 ### Event counters are helper fields
 
@@ -117,9 +116,9 @@ The module does not create an RSVP-by-user index.
 
 That is intentional:
 
-- the base key supports the required per-event RSVP queries
-- the platform does not expose an RSVP-by-user listing operation
-- the notification planner also queries RSVP membership by event partition
+- the base key supports event-scoped RSVP queries
+- the module has no subject-centric query requirement
+- speculative indexes would add write and maintenance overhead
 
 ### Sparse GSI behavior is application-driven
 
@@ -127,15 +126,15 @@ The `events` GSIs are intended to behave sparsely.
 
 That sparse behavior depends on the application writing the GSI key attributes only on qualifying event items. If a record should not appear in a given index, the corresponding GSI key attributes should be omitted entirely.
 
-### Public event listing currently uses `Scan`
+### Event indexes support query-oriented reads
 
-The deployed `list-events` workload currently scans the `events` table and
-applies the public-listing contract in application code.
-
-The two event indexes support these query-oriented access patterns:
+The two sparse event indexes support:
 
 - public upcoming event discovery
-- creator-owned event listing, which is used by `list-my-events`
+- creator-owned event listing
+
+The module creates the indexes but does not control which application workloads
+use them or whether another access path performs a table scan.
 
 ---
 
@@ -147,7 +146,8 @@ This module keeps its public input surface intentionally small:
 - `tags`
 - billing and durability settings
 
-This keeps naming and tagging aligned with the environment root while avoiding a premature generic-table abstraction.
+This keeps naming and tagging aligned with the composing root without turning
+the module into a generic table abstraction.
 
 ---
 
@@ -158,8 +158,8 @@ The module exposes:
 - events table name and ARN
 - RSVP table name and ARN
 
-The environment root passes these identifiers to IAM and Lambda composition
-without exposing table implementation details through the public API.
+Callers can pass these identifiers into IAM and compute composition without
+requiring the module to own those integrations.
 
 ---
 

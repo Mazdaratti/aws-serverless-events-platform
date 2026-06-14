@@ -1,37 +1,57 @@
-# DynamoDB Data Layer Module
+# DynamoDB Business Data Module
 
-This module creates the initial DynamoDB business data layer for the serverless events platform.
+This module creates the DynamoDB business data layer for the serverless events
+platform.
 
-It is intentionally platform-specific. The goal is not to provide a generic "create any DynamoDB table" abstraction. Instead, this module defines the concrete data-layer baseline that the later API and Lambda layers will depend on.
+It is intentionally platform-specific rather than a generic table factory. The
+module owns the two canonical business tables and the indexes required by the
+deployed Lambda workloads.
+
+Environment composition, workload permissions, and runtime behavior are
+documented in the [`dev` environment guide](../../envs/dev/README.md),
+[architecture guide](../../../docs/architecture.md), and
+[platform behavior contract](../../../docs/platform-behavior.md).
 
 ---
 
 ## What This Module Creates
 
-This module currently creates two business tables:
+This module creates two business tables:
 
 - `events`
+  - partition key: `event_pk`
 - `rsvps`
+  - partition key: `event_pk`
+  - sort key: `subject_sk`
 
 It also creates two approved global secondary indexes on the `events` table:
 
 - `public-upcoming-events`
 - `creator-events`
 
-This keeps the first data-layer implementation small, reviewable, and aligned with the current API and architecture decisions.
+The tables use configurable billing mode, table class, and point-in-time
+recovery settings supplied by the composing environment.
 
 ---
 
-## Why There Are Only Two Tables
+## Module Boundary
 
-This step is focused on the business data that the platform needs first:
+The module owns:
 
-- event records
-- RSVP membership records
+- table creation and primary-key definitions
+- the two approved event indexes
+- billing, table-class, and recovery configuration
+- table names, tags, and outputs
 
-The module does not create extra operational tables for retry tracking, idempotency, outbox state, or worker state. Those concerns may become relevant later, but they are intentionally outside the scope of this first DynamoDB layer.
+It does not own:
 
-Keeping the module limited to the two core business tables makes the design easier to understand and avoids pretending that downstream asynchronous processing requirements are already finalized.
+- Lambda workload permissions
+- application item schemas beyond required key attributes
+- runtime transactions or conditional expressions
+- retry, idempotency, outbox, or worker-state tables
+- API and event-driven integration wiring
+
+Those responsibilities belong to IAM, Lambda code, or environment composition.
 
 ---
 
@@ -41,12 +61,14 @@ Keeping the module limited to the two core business tables makes the design easi
 
 The `events` table stores the canonical event records for the platform.
 
-It is intended to hold:
+Its partition key uses:
 
-- event identity and metadata
-- organizer information
-- visibility and access-control flags
-- aggregate RSVP helper counters
+```text
+event_pk = EVENT#<event_id>
+```
+
+Event items contain event metadata, lifecycle state, creator ownership,
+visibility attributes, and aggregate RSVP helper counters.
 
 The aggregate counters are useful for efficient reads, but they are not the source of truth for who has RSVP'd.
 
@@ -56,17 +78,28 @@ The `rsvps` table stores the canonical RSVP membership records for each event.
 
 This table is the source of truth for attendance membership. It uses an event-scoped partition and a subject-scoped sort key so the platform can efficiently query all RSVP records for one event while still supporting both authenticated and anonymous RSVP subjects.
 
+The key patterns are:
+
+```text
+event_pk  = EVENT#<event_id>
+subject_sk = USER#<user_id>
+subject_sk = ANON#<anonymous_token>
+```
+
 ---
 
 ## Key Design Decisions
 
 ### RSVP remains synchronous through durable commit
 
-This module is aligned with the locked architecture decision that the primary RSVP write path is:
+The primary RSVP write path is:
 
-`Client -> API Gateway -> Lambda -> DynamoDB transaction -> EventBridge -> downstream async consumers`
+```text
+Client -> CloudFront -> API Gateway -> Lambda -> DynamoDB transaction
+```
 
-The important boundary in this step is that the business write is completed synchronously through DynamoDB first. Asynchronous consumers come after the durable commit and are not part of the core RSVP acceptance path.
+The business write commits synchronously to DynamoDB. Notification processing
+is asynchronous and remains outside the RSVP acceptance transaction.
 
 ### Event counters are helper fields
 
@@ -78,15 +111,15 @@ The `events` table is allowed to store aggregate helper counters such as:
 
 Those values improve read efficiency, but the `rsvps` table remains the source of truth for individual RSVP membership and attendance state.
 
-### No RSVP GSI yet
+### No RSVP-by-user GSI
 
-This first implementation does not create an RSVP-by-user index.
+The module does not create an RSVP-by-user index.
 
 That is intentional:
 
-- the current contract requires efficient per-event RSVP access, which the base key already supports
-- there is no current requirement to list RSVPs by user
-- adding speculative indexes too early would make the module larger without solving a current problem
+- the base key supports the required per-event RSVP queries
+- the platform does not expose an RSVP-by-user listing operation
+- the notification planner also queries RSVP membership by event partition
 
 ### Sparse GSI behavior is application-driven
 
@@ -94,16 +127,15 @@ The `events` GSIs are intended to behave sparsely.
 
 That sparse behavior depends on the application writing the GSI key attributes only on qualifying event items. If a record should not appear in a given index, the corresponding GSI key attributes should be omitted entirely.
 
-### `/api/events` may still use `Scan` in dev
+### Public event listing currently uses `Scan`
 
-The current API contract still describes `/api/events` broadly as a "get all events" endpoint.
+The deployed `list-events` workload currently scans the `events` table and
+applies the public-listing contract in application code.
 
-For the dev baseline, a table `Scan` is acceptable for that endpoint. This is a short-term compromise for the current contract, not the intended long-term production query strategy.
-
-The two `events` GSIs exist to support the next step toward query-based reads:
+The two event indexes support these query-oriented access patterns:
 
 - public upcoming event discovery
-- creator/organizer event listing
+- creator-owned event listing, which is used by `list-my-events`
 
 ---
 
@@ -121,12 +153,13 @@ This keeps naming and tagging aligned with the environment root while avoiding a
 
 ## Outputs
 
-The module exposes only the names and ARNs that later layers are likely to need:
+The module exposes:
 
 - events table name and ARN
 - RSVP table name and ARN
 
-This gives future API, Lambda, and IAM wiring the identifiers they need without over-exposing internal implementation details.
+The environment root passes these identifiers to IAM and Lambda composition
+without exposing table implementation details through the public API.
 
 ---
 

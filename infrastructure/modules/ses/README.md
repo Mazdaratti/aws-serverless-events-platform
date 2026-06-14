@@ -1,41 +1,40 @@
-# SES Participant Email Baseline
+# SES Participant Email Module
 
-This module creates the reusable Amazon SES participant email baseline for the
-serverless events platform.
+This module creates the Amazon SES resources used for participant email
+notifications in the serverless events platform.
 
-It is intentionally platform-specific. The goal is not to provide a generic SES
-factory or broad email-delivery abstraction. Instead, this module defines the
-sender identity and reusable participant notification templates that the
-notification sender worker composes around.
+It is intentionally platform-specific rather than a generic email-delivery
+factory. The module owns one sender identity and the approved participant
+notification templates.
 
-This module manages SES identity and template infrastructure only.
+Each environment root supplies its sender address and composes the templates
+with IAM, queues, and email-delivery workloads. The platform-wide notification
+model is documented in the [architecture guide](../../../docs/architecture.md).
 
 ---
 
 ## What This Module Creates
 
-This module currently creates:
+This module creates:
 
 - one SES email identity for the participant notification sender
 - one SES template for `event.updated`
 - one SES template for `event.cancelled`
 
-It also exposes the core outputs later platform layers need, including:
+It exposes:
 
 - sender email
 - sender identity ARN
 - template names
 - template ARNs
 
-This keeps the first SES implementation small, reviewable, and aligned with the
-locked participant notification delivery contract.
+The template names are derived from the caller's shared name prefix.
 
 ---
 
 ## Sender Identity Strategy
 
-The development baseline uses a dedicated project inbox as the SES sender
-identity.
+Callers provide a dedicated project inbox as the SES sender identity.
 
 That inbox is the visible participant email `From` address. It must not be a
 private personal email address.
@@ -45,14 +44,14 @@ sends a verification email to the configured inbox, and the inbox owner must
 click the verification link before SES can send from that address.
 
 Do not commit real sender email addresses in reusable module code, examples, or
-environment documentation. Environment wiring should pass the real sender email
-through local untracked configuration such as `terraform.tfvars`.
+tracked configuration. Environment roots should receive the real sender address
+through an appropriate private input mechanism.
 
 ---
 
 ## Participant Notification Templates
 
-SES templates own the stable user-facing email wording for participant
+The SES templates own the stable user-facing wording for participant
 notifications.
 
 This module creates templates for:
@@ -66,9 +65,9 @@ Each template includes:
 - plain-text body
 - HTML body
 
-The notification sender worker chooses the template and provides safe template
-data. It does not send raw EventBridge payloads or DynamoDB storage fields to
-participants.
+The calling email-delivery workload chooses a template and provides its template
+data. Message production, recipient lookup, and email sending remain outside
+this module.
 
 SES template rendering does not make dynamic HTML-safe content safe by itself.
 Any dynamic values provided by the sender must be validated and escaped before
@@ -87,23 +86,29 @@ calling SES.
 
 ---
 
-## SES Sandbox Boundary
+## SES Account Boundary
 
 This module does not request SES production access.
 
-In SES sandbox mode, AWS requires both:
+When the target AWS account remains in the SES sandbox, sending is restricted
+to verified identities. Operational verification and production-access requests
+remain account-level responsibilities outside Terraform module composition.
 
-- a verified sender identity
-- verified recipient email addresses
-
-That means development validation must use recipient addresses that are verified
-in SES, unless the account has already been moved out of the sandbox.
+The module creates the sender identity resource, but successful email delivery
+still depends on the identity verification state and the account's SES sending
+status.
 
 ---
 
 ## Module Boundary
 
-This module does not create:
+The module owns:
+
+- one SES email identity
+- the `event.updated` and `event.cancelled` templates
+- sender and template outputs
+
+It does not own:
 
 - IAM permissions
 - Lambda functions
@@ -115,8 +120,8 @@ This module does not create:
 - MAIL FROM configuration
 - actual email sending behavior
 
-Those concerns belong to environment wiring and notification sender
-implementation outside this module.
+Those concerns belong to callers, account operations, and the email-delivery
+implementation.
 
 ---
 

@@ -690,104 +690,60 @@ plan. Supporting evidence is available under:
 
 ---
 
-## CloudFront Edge Distribution Baseline
+## CloudFront Edge Distribution
 
-Creates the initial public edge entry-point baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/cloudfront`](../../modules/cloudfront/README.md)
+- `resource_policies.tf`
 
-- `modules/cloudfront`
+CloudFront is the public browser entry point for the `dev` platform. The
+distribution uses:
 
-This environment currently wires in:
+- default root object `index.html`
+- `PriceClass_100`
+- HTTP-to-HTTPS redirects
+- optional WAF attachment through `enable_waf`
+- AWS Shield Standard protection provided automatically by CloudFront
 
-- one CloudFront distribution
-- one S3 Origin Access Control for the private frontend origin bucket
-- one CloudFront Function for frontend SPA navigation rewrites
-- one default static asset behavior backed by the private S3 bucket
-- two ordered frontend SPA behaviors for:
-  - `/app`
-  - `/app/*`
-- two ordered API behaviors for:
-  - `/events`
-  - `/events/*`
-- one API Gateway origin using the existing `dev` stage path
-- optional attachment for the CloudFront-scoped WAF Web ACL
-- one environment-owned S3 bucket policy in `resource_policies.tf` that allows
-  CloudFront read access to the private frontend bucket
+### Origins
 
-Why this module is wired now:
+| Origin | Configuration |
+|---|---|
+| `s3-frontend-origin` | Private S3 frontend bucket accessed through Origin Access Control |
+| `api-gateway-origin` | API Gateway domain with origin path `/dev` |
 
-- the private frontend origin bucket already exists in `dev`
-- the platform now needs CloudFront to become the intended public entry point
-- the edge-delivery baseline must prove both static delivery and backend API routing before real frontend implementation starts
+The environment-owned S3 bucket policy grants this distribution read access to
+frontend objects. Legacy Origin Access Identity is not used.
 
-Important design notes:
+### Cache Behaviors
 
-- CloudFront serves `index.html` and future static frontend assets from the private S3 origin bucket
-- S3 direct public access remains denied
-- CloudFront accesses S3 through Origin Access Control, not legacy Origin Access Identity
-- the S3 bucket policy is owned by `envs/dev` in `resource_policies.tf` because
-  it binds this concrete bucket to this concrete distribution ARN
-- `resource_policies.tf` also owns the current SNS and SQS EventBridge target policies
-- API Gateway remains the backend route/auth/integration layer
-- CloudFront forwards the existing backend route family through:
-  - `/events`
-  - `/events/*`
-- CloudFront serves frontend application routes under:
-  - `/app`
-  - `/app/*`
-- the `/app` and `/app/*` behaviors use a viewer-request CloudFront Function
-  to rewrite eligible browser HTML navigations to `/index.html`
-- missing static assets under `/app/*` are not rewritten to the SPA entrypoint
-- CloudFront uses the API Gateway domain as the origin and supplies the stage path through `origin_path = /dev`
-- WAF can be associated with the distribution at the CloudFront edge by setting `enable_waf = true`
-- static traffic uses the managed caching-optimized policy
-- API traffic uses the managed caching-disabled policy and forwards viewer request details needed by API Gateway
-- custom domains, Route 53, ACM certificates, logging buckets, broad custom error response fallbacks, and frontend deployment automation remain out of scope for this environment step
-- reusable AWS resource logic belongs in modules while `envs/dev` stays composition-oriented
+| Path | Origin | Cache policy | Edge behavior |
+|---|---|---|---|
+| Default | S3 | `Managed-CachingOptimized` | Static frontend assets |
+| `/app`, `/app/*` | S3 | `Managed-CachingOptimized` | Viewer-request SPA rewrite |
+| `/events`, `/events/*` | API Gateway | `Managed-CachingDisabled` | Forward viewer request details |
 
-Validation:
+The CloudFront Function rewrites eligible frontend navigation requests under
+`/app` to `/index.html`. Requests for missing static assets are not rewritten,
+and API behaviors never invoke the SPA rewrite function.
 
-- validated via `terraform apply`, AWS Console inspection, AWS CLI inspection, runtime curl checks, and a clean post-apply `terraform plan`
-- confirmed the CloudFront distribution was created and deployed
-- confirmed the rendered CloudFront distribution name is:
-  - `aws-serverless-events-platform-dev-edge`
-- confirmed the CloudFront distribution domain name was created and is exposed via:
-  - `cloudfront_distribution_domain_name`
-- confirmed Terraform outputs match the created distribution identity:
-  - `cloudfront_distribution_id`
-  - `cloudfront_distribution_arn`
-  - `cloudfront_distribution_domain_name`
-  - `cloudfront_distribution_hosted_zone_id`
-  - `cloudfront_s3_origin_access_control_id`
-  - `cloudfront_spa_rewrite_function_arn`
-  - `cloudfront_spa_rewrite_function_name`
-- confirmed the distribution has two origins:
-  - `s3-frontend-origin`
-  - `api-gateway-origin`
-- confirmed the S3 origin uses Origin Access Control
-- confirmed the API Gateway origin uses the API Gateway domain with origin path:
-  - `/dev`
-- confirmed behaviors are configured for:
-  - default static frontend traffic
-  - `/app`
-  - `/app/*`
-  - `/events`
-  - `/events/*`
-- confirmed the SPA rewrite CloudFront Function is deployed and attached only to:
-  - `/app`
-  - `/app/*`
-- confirmed WAF is associated with the distribution
-- confirmed direct S3 public access to `index.html` returns `403 AccessDenied`
-- confirmed CloudFront serves `index.html` successfully
-- confirmed CloudFront rewrites eligible `/app` browser HTML navigations to `/index.html`
-- confirmed CloudFront rewrites eligible `/app/events/example` browser HTML navigations to `/index.html`
-- confirmed missing static assets under `/app/*` return real S3 or CloudFront errors instead of the SPA entrypoint
-- confirmed CloudFront routes `/events` to API Gateway successfully
-- confirmed CloudFront routes `/events/not-a-real-event` to API Gateway and returns API JSON
-- confirmed HTTP requests redirect to HTTPS at CloudFront
-- confirmed a clean post-apply `terraform plan`
-- see evidence screenshots under `docs/assets/cloudfront/`
+The distribution currently uses its generated CloudFront domain. Route 53,
+custom domains, ACM certificates, and CloudFront access-log storage are not
+configured.
+
+Edge routing and frontend deployment operations are documented in:
+
+- [Architecture](../../../docs/architecture.md#edge-layer-global-entry-point)
+- [Frontend operations](../../../frontend/README.md)
+
+### CloudFront Validation
+
+Deployment validation confirmed the distribution, origins, OAC, bucket policy,
+cache behaviors, SPA rewrite function, optional WAF association, HTTPS redirect,
+frontend delivery, API routing, exported identifiers, and a clean post-apply
+Terraform plan. Supporting evidence is available under
+[`docs/assets/cloudfront/`](../../../docs/assets/cloudfront/).
 
 ---
 

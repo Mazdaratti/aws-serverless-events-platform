@@ -747,97 +747,72 @@ Terraform plan. Supporting evidence is available under
 
 ---
 
-## CloudWatch Observability Baseline
+## CloudWatch Observability
 
-Creates the dev CloudWatch observability baseline for the platform's core
-runtime surfaces.
+Implemented by:
 
-Implemented via:
+- [`modules/observability`](../../modules/observability/README.md)
 
-- `modules/observability`
+The environment deploys 32 native CloudWatch metric alarms and the dashboard:
 
-This environment currently wires in:
+- `aws-serverless-events-platform-dev-observability`
 
-- CloudWatch metric alarms for all current Lambda workloads:
-  - errors
-  - throttles
-- CloudWatch metric alarms for the HTTP API:
-  - API Gateway 5xx responses
-- CloudWatch metric alarms for the notification SQS queues:
-  - source queue visible messages
-  - source queue oldest message age
-  - DLQ visible messages
-- CloudWatch metric alarms for the custom EventBridge rules:
-  - failed target invocations
-- one compact CloudWatch dashboard:
-  - `aws-serverless-events-platform-dev-observability`
+### Alarm Coverage
 
-Why this module is wired now:
+| Surface | Alarm signal | Threshold |
+|---|---|---:|
+| Every Lambda workload | Errors | `1` |
+| Every Lambda workload | Throttles | `1` |
+| API Gateway `dev` stage | 5xx responses | `1` |
+| Each notification source queue | Visible messages | `10` |
+| Each notification source queue | Oldest message age | `300` seconds |
+| Each notification DLQ | Visible messages | `1` |
+| Each EventBridge rule | Failed target invocations | `1` |
 
-- the platform now has enough deployed runtime surfaces to benefit from a
-  shared operational baseline
-- the alarms cover high-signal service-level failure indicators without adding
-  custom application log parsing
-- the dashboard gives one compact CloudWatch view across Lambda, API Gateway,
-  SQS, and EventBridge
-- alert delivery can be added later without redesigning the module interface
+All alarms use:
 
-Important design notes:
+- one-minute metric periods
+- two evaluation periods
+- one datapoint to alarm
+- `treat_missing_data = "notBreaching"`
 
-- alert actions are intentionally disabled in `dev`:
-  - `alarm_actions = []`
-  - `ok_actions = []`
-- alarms are based on native AWS service metrics only
-- no CloudWatch log metric filters are created
-- no SNS alert topic, subscription, or production routing is created
-- no CloudFront, WAF, SES, cost, or X-Ray dashboard widgets are created by
-  this baseline
-- Lambda duration is included on the dashboard for visibility, but no duration
-  alarm is created in this baseline
-- API Gateway 4xx responses are included on the dashboard, but no 4xx alarm is
-  created because normal authentication and authorization behavior can produce
-  expected 401 and 403 responses
-- reusable CloudWatch alarm and dashboard design belongs in
-  `modules/observability`
-- `envs/dev` stays composition-oriented and passes deployed resource names and
-  identifiers into the module
+Alert delivery is intentionally disabled through empty `alarm_actions` and
+`ok_actions`. The alarms detect conditions but do not publish notifications to
+an incident channel.
 
-Validation:
+### Dashboard Coverage
 
-- validated via `terraform apply tfplan`, AWS CLI inspection, CloudWatch
-  dashboard inspection, and a clean post-apply `terraform plan`
-- confirmed Terraform created:
-  - 32 CloudWatch metric alarms
-  - 1 CloudWatch dashboard
-- confirmed the apply created only observability resources:
-  - no Lambda changes
-  - no IAM changes
-  - no API Gateway route or stage changes
-  - no SQS queue changes
-  - no EventBridge rule or target changes
-  - no SES, Cognito, CloudFront, or WAF changes
-- confirmed representative Lambda, API Gateway, SQS, and EventBridge alarms
-  exist with:
-  - `EvaluationPeriods = 2`
-  - `DatapointsToAlarm = 1`
-  - `TreatMissingData = notBreaching`
-  - `ActionsEnabled = False`
-- confirmed the dashboard contains 8 widgets covering:
-  - Lambda invocations
-  - Lambda errors and throttles
-  - Lambda duration p95
-  - API Gateway traffic and errors
-  - API Gateway latency
-  - SQS visible messages
-  - SQS oldest message age
-  - EventBridge invocations
-- confirmed Terraform outputs expose:
-  - `observability_alarm_names`
-  - `observability_alarm_arns`
-  - `observability_dashboard_name`
-  - `observability_dashboard_arn`
-- see CloudWatch observability validation screenshots under
-  `docs/assets/observability/`
+The dashboard contains eight widgets covering:
+
+- Lambda invocations
+- Lambda errors and throttles
+- Lambda duration p95
+- API Gateway traffic and errors
+- API Gateway latency
+- SQS visible messages
+- SQS oldest message age
+- EventBridge invocations
+
+API Gateway 4xx responses and Lambda duration remain dashboard signals rather
+than alarms. Expected authentication and authorization failures can produce 4xx
+responses, while duration currently needs observation before an actionable
+threshold is selected.
+
+This baseline uses native AWS service metrics only. It does not create custom
+metrics, log metric filters, CloudFront/WAF/SES/cost widgets, or X-Ray dashboard
+widgets. Lambda X-Ray tracing is configured separately through the Lambda and
+IAM modules.
+
+The broader observability architecture is documented in
+[Architecture](../../../docs/architecture.md#observability-layer).
+
+### Observability Validation
+
+Deployment validation confirmed the 32 alarms, eight dashboard widgets, shared
+alarm evaluation settings, disabled actions, exported alarm and dashboard
+identities, isolated observability-only infrastructure changes, and a clean
+post-apply Terraform plan. Supporting evidence is available under
+[`docs/assets/observability/`](../../../docs/assets/observability/).
 
 ---
 

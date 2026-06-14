@@ -428,8 +428,8 @@ configuration.
 Identity ownership, canonical user identity, admin projection, and route
 authorization behavior are documented in:
 
-- [Architecture](../../../docs/architecture.md#identity-and-authentication)
-- [Platform behavior](../../../docs/platform-behavior.md#identity-and-authentication-contract)
+- [Architecture](../../../docs/architecture.md#authentication-layer)
+- [Platform behavior](../../../docs/platform-behavior.md#authentication-behavior)
 
 ### Cognito Validation
 
@@ -798,10 +798,10 @@ than alarms. Expected authentication and authorization failures can produce 4xx
 responses, while duration currently needs observation before an actionable
 threshold is selected.
 
-This baseline uses native AWS service metrics only. It does not create custom
-metrics, log metric filters, CloudFront/WAF/SES/cost widgets, or X-Ray dashboard
-widgets. Lambda X-Ray tracing is configured separately through the Lambda and
-IAM modules.
+This observability configuration uses native AWS service metrics only. It does
+not create custom metrics, log metric filters, CloudFront/WAF/SES/cost widgets,
+or X-Ray dashboard widgets. Lambda X-Ray tracing is configured separately
+through the Lambda and IAM modules.
 
 The broader observability architecture is documented in
 [Architecture](../../../docs/architecture.md#observability-layer).

@@ -6,8 +6,8 @@ queues for the serverless events platform.
 It is intentionally focused on queue infrastructure rather than application
 routing or consumer behavior.
 
-The deployed queue topology, event-source mappings, and notification path are
-documented in the [`dev` environment guide](../../envs/dev/README.md) and
+Each environment root documents its concrete queues, producers, consumers, and
+event-source mappings. The platform-wide messaging model is documented in the
 [architecture guide](../../../docs/architecture.md).
 
 ---
@@ -23,8 +23,8 @@ For each logical queue definition, it can create:
 - a redrive policy on the source queue when a DLQ is enabled
 - a redrive allow policy on the DLQ
 
-The composing environment controls each queue's visibility timeout, message
-retention, long-polling wait time, and redrive threshold.
+The caller controls each queue's visibility timeout, message retention,
+long-polling wait time, and redrive threshold.
 
 ---
 
@@ -47,43 +47,30 @@ It does not own:
 - message schemas or consumer behavior
 - CloudWatch alarms and dashboards
 
-Those responsibilities belong to environment composition, workload code, IAM,
-or observability.
+Those responsibilities belong to callers, workload code, IAM, or observability.
 
 ---
 
-## Queue Responsibilities
+## Queue Behavior
 
 ### Primary queues
 
-Primary queues buffer asynchronous work for platform consumers.
-
-The current `dev` environment composes:
-
-| Queue key | Responsibility | Lambda consumer |
-| --- | --- | --- |
-| `notification-dispatch` | Event-level participant notification planning | `notification-planner` |
-| `notification-email` | Recipient-level email delivery | `notification-sender` |
-
-They are not part of the primary synchronous RSVP acceptance path.
+Primary queues buffer asynchronous work for consumers defined by the composing
+root. The module does not prescribe producers, consumers, message schemas, or
+event-source mappings.
 
 ### Dead-letter queues
 
-Dedicated DLQs isolate failed messages per workload.
+Dedicated DLQs isolate failed messages per logical queue.
 
-If a queue enables `create_dlq`, the module creates a dedicated DLQ for that queue and attaches the corresponding redrive and redrive-allow policies. This keeps failure handling explicit and avoids mixing unrelated failed messages into one shared queue.
+If a queue enables `create_dlq`, the module creates a dedicated DLQ and attaches
+the corresponding redrive and redrive-allow policies. This keeps failure
+handling explicit and avoids mixing unrelated failed messages into one shared
+queue.
 
 ---
 
 ## Key Design Decisions
-
-### SQS remains outside the primary RSVP write path
-
-The primary RSVP write path remains synchronous through the durable DynamoDB
-transaction.
-
-SQS is used by the separate participant-notification pipeline after event
-updates and cancellations. Queue delivery is not part of RSVP acceptance.
 
 ### Standard queues only
 
@@ -91,9 +78,10 @@ The module supports standard queues only.
 
 That is intentional:
 
-- the current notification workloads do not require ordered delivery
-- standard queues support the required retry and buffering behavior
+- the module's supported use cases require retry and buffering rather than
+  ordering guarantees
 - the module does not expose unused FIFO or deduplication configuration
+- callers that require FIFO semantics need a separate, explicit module contract
 
 ### Dedicated DLQs are per queue
 
@@ -130,7 +118,8 @@ This module keeps its public input surface intentionally small:
 - `tags`
 - `queues`
 
-This keeps naming and tagging aligned with the environment root while avoiding a premature over-generic abstraction.
+This keeps naming and tagging aligned with the composing root without turning
+the module into an unrestricted queue factory.
 
 ---
 
@@ -148,9 +137,9 @@ For queues that create dedicated DLQs, it also exposes:
 - `dlq_arns`
 - `dlq_urls`
 
-The environment root uses these identifiers for IAM policies, EventBridge
-delivery, Lambda event source mappings, workload environment variables, and
-observability.
+Callers can use these identifiers for IAM policies, resource policies,
+producers, consumers, event-source mappings, and observability without requiring
+the module to own those integrations.
 
 ---
 

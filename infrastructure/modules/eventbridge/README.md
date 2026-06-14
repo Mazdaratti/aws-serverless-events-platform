@@ -1,26 +1,27 @@
-# EventBridge Routing Baseline
+# EventBridge Routing Module
 
-This module creates the reusable EventBridge routing baseline for the
-serverless events platform.
+This module creates the custom EventBridge bus, rules, and targets used to route
+platform domain events.
 
-It is intentionally platform-specific. The goal is not to provide a generic
-EventBridge framework or a broad event integration factory. Instead, this
-module defines the concrete EventBridge bus, rule, and target primitives that
-later SNS, SQS, IAM, Lambda, and environment wiring will compose around.
+It owns EventBridge routing resources only. Target resources, resource
+policies, event publishers, and consumers remain outside the module.
 
-This module manages EventBridge resources only.
+The deployed event topology is documented in the
+[`dev` environment guide](../../envs/dev/README.md) and
+[architecture guide](../../../docs/architecture.md).
 
 ---
 
 ## What This Module Creates
 
-This module currently creates:
+This module creates:
 
 - one custom EventBridge event bus
 - zero or more EventBridge rules on that bus
-- one or more EventBridge targets per declared rule, with optional input transformers
+- one or more targets per declared rule
+- optional target-level input transformers
 
-It also exposes the core outputs later platform layers need, including:
+It exposes:
 
 - event bus name
 - event bus ARN
@@ -28,50 +29,55 @@ It also exposes the core outputs later platform layers need, including:
 - rule names and ARNs
 - target IDs and target ARNs
 
-This keeps the first EventBridge implementation small, reviewable, and aligned
-with the locked async notification routing contract.
+Rules receive structured Terraform event patterns, which the module encodes as
+the JSON required by EventBridge.
 
 ---
 
-## Why This Module Stays EventBridge-Focused
+## Module Boundary
 
-This step is focused on the reusable EventBridge routing primitives the
-platform clearly needs next:
+The module owns:
 
-- custom event bus creation
-- rule creation from caller-supplied event patterns
-- target attachment for matched events
-- multiple targets per rule
-- optional target-level input transformers for formatted downstream messages
+- custom event bus creation and tagging
+- rules built from caller-supplied event patterns
+- target attachments and optional target roles
+- target input transformers
+- bus, rule, and target outputs
 
-The module does not create SNS topics, SQS queues, SQS queue policies, SNS topic
-policies, Lambda publishing permissions, Lambda environment variables, Lambda
-code, or environment wiring. Those resources either belong to their own modules
-or to the environment composition layer that owns the concrete target resources.
+It does not own:
 
-Keeping this module limited to EventBridge resource logic makes the design
-easier to understand while preserving thin `envs/dev` composition later.
+- SNS topics or SQS queues
+- target resource policies
+- Lambda IAM permissions or environment variables
+- domain-event publishing code
+- target consumer behavior
+- CloudWatch alarms and dashboards
+
+Those responsibilities belong to target modules, IAM, workload code,
+observability, or environment composition.
 
 ---
 
-## Routing Direction
+## Deployed Routing
 
-The platform's locked async notification direction uses EventBridge as the
-post-commit domain event router.
+The platform uses the custom bus as its post-commit domain-event router.
 
-Later environment wiring is expected to compose rules for:
+The `dev` environment composes these rules:
 
-- admin/platform notification fanout to SNS
-- participant-notification planning fanout to SQS
+| Rule key | Matched detail types | Target |
+| --- | --- | --- |
+| `admin_lifecycle_notifications` | `event.created`, `event.cancelled` | Admin SNS topic |
+| `admin_update_notifications` | `event.updated` | Admin SNS topic |
+| `participant_notification_dispatch` | `event.updated`, `event.cancelled` | SQS `notification-dispatch` |
 
-The current locked v1 event-management domain events are:
+The event-management workloads publish:
 
 - `event.created`
 - `event.updated`
 - `event.cancelled`
 
-This module does not publish those events. It only creates the EventBridge
-resources that later publishing and routing work will use.
+The module routes these events but does not publish them or process target
+deliveries.
 
 ---
 
@@ -79,18 +85,17 @@ resources that later publishing and routing work will use.
 
 EventBridge targets often need resource policies before delivery can work.
 
-Examples:
+The current environment owns:
 
-- an SQS queue policy allowing `events.amazonaws.com` to send messages
-- an SNS topic policy allowing `events.amazonaws.com` to publish messages
-- a Lambda permission allowing EventBridge to invoke a function
+- the SNS topic policy allowing the two admin rules to publish
+- the SQS queue policy allowing the participant dispatch rule to send messages
 
 Those permissions are intentionally outside this module.
 
-That is because the policy protects the target resource, and the target owner
-or environment composition layer has the clearest view of the correct scope.
-This module accepts target ARNs and creates EventBridge target attachments, but
-it does not mutate target resources it does not own.
+Each policy protects a concrete target resource and is scoped to the deployed
+source rule ARN and AWS account. The environment root owns those cross-resource
+relationships. This module accepts target ARNs without mutating resources it
+does not own.
 
 ---
 
@@ -119,9 +124,9 @@ Targets are nested under each rule in the input because that is easiest for a
 caller to read. The module flattens them internally so Terraform can create one
 `aws_cloudwatch_event_target` resource per target.
 
-Targets may also define an optional EventBridge input transformer. This is
-useful when a downstream target, such as an SNS topic, needs a readable message
-shape without changing the compact domain event payload published by Lambdas.
+Targets may define an optional EventBridge input transformer. The deployed
+admin SNS targets use transformers to create readable email messages while the
+participant SQS target receives the domain event without a transformer.
 
 ---
 
@@ -138,11 +143,10 @@ The example shows how to:
 - attach an SNS target with an input transformer
 - attach an SQS target without an input transformer
 - keep SNS topic and SQS queue policies outside the EventBridge module while
-  still making
-  the example runnable
+  keeping the example runnable
 
-The example is safe to validate with local state and does not require
-environment wiring.
+Applying the example creates real EventBridge, SNS, and SQS resources and
+should be reviewed before use in an AWS account.
 
 ---
 

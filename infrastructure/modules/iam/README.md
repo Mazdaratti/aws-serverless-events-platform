@@ -437,11 +437,9 @@ EventBridge resources and should be reviewed before use in an AWS account.
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.45.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
 
-## Modules
 
-No modules.
 
 ## Resources
 
@@ -461,7 +459,6 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_cognito_user_pool_arn"></a> [cognito\_user\_pool\_arn](#input\_cognito\_user\_pool\_arn) | ARN of the Cognito User Pool used by the notification sender to resolve recipient email addresses by canonical user ID. | `string` | n/a | yes |
-| <a name="input_eventbridge_publish_event_bus_arn"></a> [eventbridge\_publish\_event\_bus\_arn](#input\_eventbridge\_publish\_event\_bus\_arn) | ARN of the EventBridge event bus write workloads may publish domain events to. When null, no EventBridge publish permissions are granted. | `string` | `null` | no |
 | <a name="input_events_table_arn"></a> [events\_table\_arn](#input\_events\_table\_arn) | ARN of the DynamoDB events table used by workload-specific IAM policies. | `string` | n/a | yes |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Shared environment naming prefix used to derive IAM role and policy names. | `string` | n/a | yes |
 | <a name="input_notification_dispatch_queue_arn"></a> [notification\_dispatch\_queue\_arn](#input\_notification\_dispatch\_queue\_arn) | ARN of the notification-dispatch SQS queue consumed by the notification planner. | `string` | n/a | yes |
@@ -470,7 +467,8 @@ No modules.
 | <a name="input_ses_sender_identity_arn"></a> [ses\_sender\_identity\_arn](#input\_ses\_sender\_identity\_arn) | ARN of the SES sender identity used by the notification sender to send participant email through SES templates. | `string` | n/a | yes |
 | <a name="input_ses_template_arns"></a> [ses\_template\_arns](#input\_ses\_template\_arns) | Map of SES participant notification template ARNs used by the notification sender. | `map(string)` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
-| <a name="input_workloads"></a> [workloads](#input\_workloads) | Map of Lambda workload role definitions keyed by logical workload name.<br/><br/>Supported workload keys in v1:<br/>- create-event<br/>- get-event<br/>- list-events<br/>- list-my-events<br/>- update-event<br/>- cancel-event<br/>- rsvp-authorizer<br/>- rsvp<br/>- get-event-rsvps<br/>- notification-planner<br/>- notification-sender | <pre>map(object({<br/>    access_profile = string<br/>    enable_logs    = optional(bool)<br/>    enable_xray    = optional(bool)<br/>  }))</pre> | n/a | yes |
+| <a name="input_workloads"></a> [workloads](#input\_workloads) | Map of Lambda workload role definitions keyed by logical workload name.<br/><br/>Supported workload keys:<br/>- create-event<br/>- get-event<br/>- list-events<br/>- list-my-events<br/>- update-event<br/>- cancel-event<br/>- rsvp-authorizer<br/>- rsvp<br/>- get-event-rsvps<br/>- notification-planner<br/>- notification-sender | <pre>map(object({<br/>    access_profile = string<br/>    enable_logs    = optional(bool)<br/>    enable_xray    = optional(bool)<br/>  }))</pre> | n/a | yes |
+| <a name="input_eventbridge_publish_event_bus_arn"></a> [eventbridge\_publish\_event\_bus\_arn](#input\_eventbridge\_publish\_event\_bus\_arn) | ARN of the EventBridge event bus write workloads may publish domain events to. When null, no EventBridge publish permissions are granted. | `string` | `null` | no |
 
 ## Outputs
 

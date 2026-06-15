@@ -12,9 +12,8 @@ data "aws_caller_identity" "current" {}
 # Lambda trust relationship
 ############################################
 
-# v1 keeps the trust model intentionally simple: this module creates Lambda
-# execution roles only, so every workload role trusts the Lambda service
-# principal and nothing broader.
+# This module creates Lambda execution roles only, so every workload role
+# trusts the Lambda service principal and nothing broader.
 data "aws_iam_policy_document" "lambda_assume_role" {
   statement {
     sid    = "LambdaAssumeRole"
@@ -35,7 +34,7 @@ data "aws_iam_policy_document" "lambda_assume_role" {
 
 # Generate one least-privilege customer-managed policy per workload. The
 # statements are driven by the fixed workload profiles from locals.tf so the
-# environment does not need to describe IAM internals later.
+# caller does not need to reproduce IAM policy internals.
 data "aws_iam_policy_document" "workload" {
   for_each = local.resolved_workloads
 
@@ -190,8 +189,8 @@ data "aws_iam_policy_document" "workload" {
         "dynamodb:UpdateItem"
       ]
 
-      # The handler reads the canonical event item first, and the transaction
-      # later updates counters on the events table. No index access is needed.
+      # The handler reads the canonical event item before the transaction
+      # updates counters on the events table. No index access is needed.
       resources = [var.events_table_arn]
     }
   }
@@ -256,7 +255,7 @@ data "aws_iam_policy_document" "workload" {
 
       # After the event read succeeds, the handler queries RSVP items directly
       # from the base RSVP table by event_pk. No write, scan, or index access
-      # is needed for this phase.
+      # is required.
       resources = [var.rsvps_table_arn]
     }
   }
@@ -338,8 +337,8 @@ data "aws_iam_policy_document" "workload" {
 
       actions = ["cognito-idp:ListUsers"]
 
-      # The sender will later resolve the current email address by applying an
-      # exact server-side Cognito filter on the canonical Cognito sub.
+      # The sender resolves the current email address by applying an exact
+      # server-side Cognito filter on the canonical Cognito sub.
       resources = [var.cognito_user_pool_arn]
     }
   }

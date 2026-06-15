@@ -33,7 +33,7 @@ variable "enabled" {
 }
 
 variable "price_class" {
-  description = "CloudFront price class used to keep the first edge-delivery baseline cost-aware."
+  description = "CloudFront price class used to control the distribution's geographic coverage and cost."
   type        = string
   default     = "PriceClass_100"
 

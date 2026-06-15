@@ -237,11 +237,9 @@ automation.
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.42.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
 
-## Modules
 
-No modules.
 
 ## Resources
 
@@ -259,15 +257,15 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_api_origin_domain_name"></a> [api\_origin\_domain\_name](#input\_api\_origin\_domain\_name) | Domain name of the API Gateway origin, without protocol or stage path. | `string` | n/a | yes |
+| <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Shared environment naming prefix used to derive CloudFront distribution resource names. | `string` | n/a | yes |
+| <a name="input_s3_origin_bucket_regional_domain_name"></a> [s3\_origin\_bucket\_regional\_domain\_name](#input\_s3\_origin\_bucket\_regional\_domain\_name) | Regional domain name of the private S3 bucket used as the frontend asset origin. | `string` | n/a | yes |
+| <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
 | <a name="input_api_origin_id"></a> [api\_origin\_id](#input\_api\_origin\_id) | Stable CloudFront origin ID used for the API Gateway backend origin. | `string` | `"api-gateway-origin"` | no |
 | <a name="input_api_origin_path"></a> [api\_origin\_path](#input\_api\_origin\_path) | Optional API Gateway stage path that CloudFront appends before forwarding requests to the API origin. | `string` | `null` | no |
 | <a name="input_default_root_object"></a> [default\_root\_object](#input\_default\_root\_object) | Default object CloudFront returns for requests to the distribution root. | `string` | `"index.html"` | no |
 | <a name="input_enabled"></a> [enabled](#input\_enabled) | Whether the CloudFront distribution is enabled. | `bool` | `true` | no |
-| <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Shared environment naming prefix used to derive CloudFront distribution resource names. | `string` | n/a | yes |
-| <a name="input_price_class"></a> [price\_class](#input\_price\_class) | CloudFront price class used to keep the first edge-delivery baseline cost-aware. | `string` | `"PriceClass_100"` | no |
-| <a name="input_s3_origin_bucket_regional_domain_name"></a> [s3\_origin\_bucket\_regional\_domain\_name](#input\_s3\_origin\_bucket\_regional\_domain\_name) | Regional domain name of the private S3 bucket used as the frontend asset origin. | `string` | n/a | yes |
+| <a name="input_price_class"></a> [price\_class](#input\_price\_class) | CloudFront price class used to control the distribution's geographic coverage and cost. | `string` | `"PriceClass_100"` | no |
 | <a name="input_s3_origin_id"></a> [s3\_origin\_id](#input\_s3\_origin\_id) | Stable CloudFront origin ID used for the private S3 frontend origin. | `string` | `"s3-frontend-origin"` | no |
-| <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
 | <a name="input_web_acl_arn"></a> [web\_acl\_arn](#input\_web\_acl\_arn) | Optional AWS WAFv2 Web ACL ARN to associate with the CloudFront distribution. | `string` | `null` | no |
 
 ## Outputs

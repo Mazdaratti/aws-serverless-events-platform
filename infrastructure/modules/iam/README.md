@@ -190,9 +190,7 @@ It receives:
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
 
-This role intentionally stays logs-only.
-
-It does not currently need:
+This role intentionally stays logs-only and does not receive:
 
 - DynamoDB access
 - SQS access

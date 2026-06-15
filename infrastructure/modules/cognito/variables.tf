@@ -39,7 +39,7 @@ variable "user_pool_client_name_override" {
 }
 
 variable "admin_group_name" {
-  description = "Name of the Cognito group that represents future admin membership for platform authorization context."
+  description = "Name of the Cognito group used to identify administrative membership in platform authorization context."
   type        = string
   default     = "admin"
 
@@ -73,7 +73,7 @@ variable "username_case_sensitive" {
 }
 
 variable "require_email" {
-  description = "Whether the baseline identity model requires email as a standard user attribute."
+  description = "Whether the identity model requires email as a standard user attribute."
   type        = bool
   default     = true
 }

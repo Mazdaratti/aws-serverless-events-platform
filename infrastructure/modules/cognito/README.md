@@ -175,14 +175,14 @@ before use in an AWS account.
 ## Requirements
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.14.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.37 |
 
 ## Providers
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
 | <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
 
 
@@ -190,7 +190,7 @@ before use in an AWS account.
 ## Resources
 
 | Name | Type |
-| ---- | ---- |
+|------|------|
 | [aws_cognito_user_group.admin](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cognito_user_group) | resource |
 | [aws_cognito_user_pool.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cognito_user_pool) | resource |
 | [aws_cognito_user_pool_client.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cognito_user_pool_client) | resource |
@@ -199,14 +199,14 @@ before use in an AWS account.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-| ---- | ----------- | ---- | ------- | :------: |
+|------|-------------|------|---------|:--------:|
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Shared environment naming prefix used to derive Cognito resource names. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
-| <a name="input_admin_group_name"></a> [admin\_group\_name](#input\_admin\_group\_name) | Name of the Cognito group that represents future admin membership for platform authorization context. | `string` | `"admin"` | no |
+| <a name="input_admin_group_name"></a> [admin\_group\_name](#input\_admin\_group\_name) | Name of the Cognito group used to identify administrative membership in platform authorization context. | `string` | `"admin"` | no |
 | <a name="input_allow_self_signup"></a> [allow\_self\_signup](#input\_allow\_self\_signup) | Whether Cognito allows end users to sign themselves up instead of requiring admin-created users only. | `bool` | `true` | no |
 | <a name="input_deletion_protection_enabled"></a> [deletion\_protection\_enabled](#input\_deletion\_protection\_enabled) | Whether Cognito deletion protection is enabled for the User Pool. Environment roots can set this explicitly per environment. | `bool` | `false` | no |
 | <a name="input_password_minimum_length"></a> [password\_minimum\_length](#input\_password\_minimum\_length) | Minimum password length for the Cognito password policy. | `number` | `8` | no |
-| <a name="input_require_email"></a> [require\_email](#input\_require\_email) | Whether the baseline identity model requires email as a standard user attribute. | `bool` | `true` | no |
+| <a name="input_require_email"></a> [require\_email](#input\_require\_email) | Whether the identity model requires email as a standard user attribute. | `bool` | `true` | no |
 | <a name="input_user_pool_client_name_override"></a> [user\_pool\_client\_name\_override](#input\_user\_pool\_client\_name\_override) | Optional explicit Cognito User Pool Client name. When omitted, the module derives the name from name\_prefix. | `string` | `null` | no |
 | <a name="input_user_pool_name_override"></a> [user\_pool\_name\_override](#input\_user\_pool\_name\_override) | Optional explicit Cognito User Pool name. When omitted, the module derives the name from name\_prefix. | `string` | `null` | no |
 | <a name="input_username_case_sensitive"></a> [username\_case\_sensitive](#input\_username\_case\_sensitive) | Whether Cognito usernames are case-sensitive. The platform default keeps usernames case-insensitive. | `bool` | `false` | no |
@@ -214,7 +214,7 @@ before use in an AWS account.
 ## Outputs
 
 | Name | Description |
-| ---- | ----------- |
+|------|-------------|
 | <a name="output_admin_group_name"></a> [admin\_group\_name](#output\_admin\_group\_name) | Name of the Cognito group that backs the future is\_admin caller-context projection. |
 | <a name="output_issuer"></a> [issuer](#output\_issuer) | JWT issuer URL derived from the Cognito User Pool for later API Gateway JWT validation wiring. |
 | <a name="output_user_pool_arn"></a> [user\_pool\_arn](#output\_user\_pool\_arn) | ARN of the Cognito User Pool used by the platform identity baseline. |

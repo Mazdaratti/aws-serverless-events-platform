@@ -2,9 +2,9 @@
 # SNS admin notification topic
 ############################################
 
-# This topic is the reusable baseline for platform/admin broadcast
-# notifications. EventBridge publish permissions are intentionally added later
-# in the concrete environment wiring where the source rule ARN is known.
+# This topic carries platform and administrative broadcast notifications.
+# Publisher permissions remain caller-owned because they depend on concrete
+# source identities such as EventBridge rule ARNs.
 resource "aws_sns_topic" "this" {
   name = local.topic_name
 

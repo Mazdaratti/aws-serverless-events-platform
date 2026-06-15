@@ -3,8 +3,8 @@
 ############################################
 
 locals {
-  # These defaults keep the v1 module small and predictable while still making
-  # the caller's queue definitions less repetitive.
+  # These defaults keep queue definitions predictable and reduce repetition for
+  # callers.
   queue_defaults = {
     create_dlq                 = false
     visibility_timeout_seconds = 30

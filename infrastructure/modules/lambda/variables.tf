@@ -30,7 +30,7 @@ variable "functions" {
   description = <<-EOT
     Map of Lambda function definitions keyed by logical workload name.
 
-    The module stays infrastructure-focused in v1:
+    The module remains infrastructure-focused:
     - package_path points to a ready ZIP artifact
     - IAM roles are consumed through role_arn
     - environment variables are passed through as simple key/value pairs

@@ -177,11 +177,9 @@ timeout, tracing, environment variables, tags, and log-group configuration.
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.45.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
 
-## Modules
 
-No modules.
 
 ## Resources
 
@@ -194,7 +192,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_functions"></a> [functions](#input\_functions) | Map of Lambda function definitions keyed by logical workload name.<br/><br/>The module stays infrastructure-focused in v1:<br/>- package\_path points to a ready ZIP artifact<br/>- IAM roles are consumed through role\_arn<br/>- environment variables are passed through as simple key/value pairs | <pre>map(object({<br/>    description           = string<br/>    role_arn              = string<br/>    runtime               = string<br/>    handler               = string<br/>    package_path          = string<br/>    memory_size           = optional(number)<br/>    timeout               = optional(number)<br/>    environment_variables = optional(map(string))<br/>    log_retention_in_days = optional(number)<br/>    tracing_mode          = optional(string, "PassThrough")<br/>  }))</pre> | n/a | yes |
+| <a name="input_functions"></a> [functions](#input\_functions) | Map of Lambda function definitions keyed by logical workload name.<br/><br/>The module remains infrastructure-focused:<br/>- package\_path points to a ready ZIP artifact<br/>- IAM roles are consumed through role\_arn<br/>- environment variables are passed through as simple key/value pairs | <pre>map(object({<br/>    description           = string<br/>    role_arn              = string<br/>    runtime               = string<br/>    handler               = string<br/>    package_path          = string<br/>    memory_size           = optional(number)<br/>    timeout               = optional(number)<br/>    environment_variables = optional(map(string))<br/>    log_retention_in_days = optional(number)<br/>    tracing_mode          = optional(string, "PassThrough")<br/>  }))</pre> | n/a | yes |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Shared environment naming prefix used to derive Lambda function and log group names. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
 

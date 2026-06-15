@@ -1,10 +1,10 @@
 ############################################
-# CloudFront-scoped Web ACL baseline
+# CloudFront-scoped Web ACL
 ############################################
 
 resource "aws_wafv2_web_acl" "this" {
-  # This Web ACL is intentionally scoped for CloudFront so the later edge layer
-  # can attach one reusable protection baseline at the public entry point.
+  # This Web ACL is scoped for association with a CloudFront distribution at
+  # the public edge entry point.
   #
   # Important:
   # CloudFront-scoped WAFv2 resources must be managed through the AWS provider
@@ -13,8 +13,8 @@ resource "aws_wafv2_web_acl" "this" {
   name  = local.web_acl_name
   scope = "CLOUDFRONT"
 
-  # The module starts from an allow baseline and then layers managed-rule and
-  # rate-limit protections on top of that default request flow.
+  # The default action allows requests that are not blocked by managed-rule or
+  # rate-limit protections.
   default_action {
     allow {}
   }

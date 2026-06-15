@@ -9,8 +9,7 @@ locals {
   # aws-serverless-events-platform-dev
   name_prefix = "${var.project_name}-${var.environment}"
 
-  # Baseline tags applied consistently by future module blocks in this
-  # environment so shared metadata does not need to be repeated everywhere.
+  # Shared tags applied consistently across resources in this environment.
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -66,9 +65,10 @@ locals {
     }
   }
 
-  # Notification workers are deployed in a later Lambda module call so sender
-  # environment variables can use the CloudFront distribution domain without
-  # creating a Lambda -> API Gateway -> CloudFront -> Lambda dependency cycle.
+  # Notification workers use a separate Lambda module call so sender
+  # environment variables can reference the CloudFront distribution domain
+  # without creating a Lambda -> API Gateway -> CloudFront -> Lambda dependency
+  # cycle.
   notification_lambda_workloads = {
     notification-planner = {
       description = "Consumes event-level participant notification planning messages and enqueues recipient-level email jobs."

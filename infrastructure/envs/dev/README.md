@@ -828,7 +828,7 @@ post-apply Terraform plan. Supporting evidence is available under
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.45.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.46.0 |
 
 ## Modules
 
@@ -881,16 +881,16 @@ post-apply Terraform plan. Supporting evidence is available under
 
 | Name | Description |
 |------|-------------|
-| <a name="output_api_gateway_api_arn"></a> [api\_gateway\_api\_arn](#output\_api\_gateway\_api\_arn) | ARN of the HTTP API created for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_api_endpoint"></a> [api\_gateway\_api\_endpoint](#output\_api\_gateway\_api\_endpoint) | Base invoke endpoint of the HTTP API created for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_api_id"></a> [api\_gateway\_api\_id](#output\_api\_gateway\_api\_id) | ID of the HTTP API created for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_execution_arn"></a> [api\_gateway\_execution\_arn](#output\_api\_gateway\_execution\_arn) | Execution ARN of the HTTP API created for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_jwt_authorizer_id"></a> [api\_gateway\_jwt\_authorizer\_id](#output\_api\_gateway\_jwt\_authorizer\_id) | JWT authorizer ID of the HTTP API created for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_request_authorizer_ids"></a> [api\_gateway\_request\_authorizer\_ids](#output\_api\_gateway\_request\_authorizer\_ids) | Map of logical Lambda request authorizer name to HTTP API authorizer ID for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_route_ids"></a> [api\_gateway\_route\_ids](#output\_api\_gateway\_route\_ids) | Map of logical route name to route ID for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_route_keys"></a> [api\_gateway\_route\_keys](#output\_api\_gateway\_route\_keys) | Map of logical route name to route key for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_stage_invoke_url"></a> [api\_gateway\_stage\_invoke\_url](#output\_api\_gateway\_stage\_invoke\_url) | Stage-qualified invoke URL of the HTTP API created for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_stage_name"></a> [api\_gateway\_stage\_name](#output\_api\_gateway\_stage\_name) | Stage name of the HTTP API created for the dev environment routed backend baseline. |
+| <a name="output_api_gateway_api_arn"></a> [api\_gateway\_api\_arn](#output\_api\_gateway\_api\_arn) | ARN of the routed HTTP API created for the dev environment. |
+| <a name="output_api_gateway_api_endpoint"></a> [api\_gateway\_api\_endpoint](#output\_api\_gateway\_api\_endpoint) | Base invoke endpoint of the routed HTTP API created for the dev environment. |
+| <a name="output_api_gateway_api_id"></a> [api\_gateway\_api\_id](#output\_api\_gateway\_api\_id) | ID of the routed HTTP API created for the dev environment. |
+| <a name="output_api_gateway_execution_arn"></a> [api\_gateway\_execution\_arn](#output\_api\_gateway\_execution\_arn) | Execution ARN of the routed HTTP API created for the dev environment. |
+| <a name="output_api_gateway_jwt_authorizer_id"></a> [api\_gateway\_jwt\_authorizer\_id](#output\_api\_gateway\_jwt\_authorizer\_id) | JWT authorizer ID of the routed HTTP API created for the dev environment. |
+| <a name="output_api_gateway_request_authorizer_ids"></a> [api\_gateway\_request\_authorizer\_ids](#output\_api\_gateway\_request\_authorizer\_ids) | Map of logical Lambda request authorizer name to authorizer ID for the dev HTTP API. |
+| <a name="output_api_gateway_route_ids"></a> [api\_gateway\_route\_ids](#output\_api\_gateway\_route\_ids) | Map of logical route name to route ID for the dev HTTP API. |
+| <a name="output_api_gateway_route_keys"></a> [api\_gateway\_route\_keys](#output\_api\_gateway\_route\_keys) | Map of logical route name to route key for the dev HTTP API. |
+| <a name="output_api_gateway_stage_invoke_url"></a> [api\_gateway\_stage\_invoke\_url](#output\_api\_gateway\_stage\_invoke\_url) | Stage-qualified invoke URL of the routed HTTP API created for the dev environment. |
+| <a name="output_api_gateway_stage_name"></a> [api\_gateway\_stage\_name](#output\_api\_gateway\_stage\_name) | Stage name of the routed HTTP API created for the dev environment. |
 | <a name="output_aws_region"></a> [aws\_region](#output\_aws\_region) | AWS region selected for regional resources in the dev environment. |
 | <a name="output_cloudfront_distribution_arn"></a> [cloudfront\_distribution\_arn](#output\_cloudfront\_distribution\_arn) | ARN of the CloudFront distribution created for the dev environment. |
 | <a name="output_cloudfront_distribution_domain_name"></a> [cloudfront\_distribution\_domain\_name](#output\_cloudfront\_distribution\_domain\_name) | Domain name of the CloudFront distribution created for the dev environment. |
@@ -927,8 +927,8 @@ post-apply Terraform plan. Supporting evidence is available under
 | <a name="output_lambda_log_group_names"></a> [lambda\_log\_group\_names](#output\_lambda\_log\_group\_names) | Map of workload CloudWatch Logs log group names for the dev environment. |
 | <a name="output_observability_alarm_arns"></a> [observability\_alarm\_arns](#output\_observability\_alarm\_arns) | Map of logical observability alarm key to CloudWatch alarm ARN for the dev environment. |
 | <a name="output_observability_alarm_names"></a> [observability\_alarm\_names](#output\_observability\_alarm\_names) | Map of logical observability alarm key to CloudWatch alarm name for the dev environment. |
-| <a name="output_observability_dashboard_arn"></a> [observability\_dashboard\_arn](#output\_observability\_dashboard\_arn) | ARN of the CloudWatch dashboard created for the dev observability baseline. |
-| <a name="output_observability_dashboard_name"></a> [observability\_dashboard\_name](#output\_observability\_dashboard\_name) | Name of the CloudWatch dashboard created for the dev observability baseline. |
+| <a name="output_observability_dashboard_arn"></a> [observability\_dashboard\_arn](#output\_observability\_dashboard\_arn) | ARN of the CloudWatch operational dashboard created for the dev environment. |
+| <a name="output_observability_dashboard_name"></a> [observability\_dashboard\_name](#output\_observability\_dashboard\_name) | Name of the CloudWatch operational dashboard created for the dev environment. |
 | <a name="output_rsvps_table_arn"></a> [rsvps\_table\_arn](#output\_rsvps\_table\_arn) | ARN of the DynamoDB RSVP table created for the dev environment. |
 | <a name="output_rsvps_table_name"></a> [rsvps\_table\_name](#output\_rsvps\_table\_name) | Name of the DynamoDB RSVP table created for the dev environment. |
 | <a name="output_ses_sender_identity_arn"></a> [ses\_sender\_identity\_arn](#output\_ses\_sender\_identity\_arn) | ARN of the SES sender email identity configured for participant notifications in dev. |

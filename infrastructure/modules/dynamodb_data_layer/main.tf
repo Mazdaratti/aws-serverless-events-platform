@@ -41,8 +41,8 @@ resource "aws_dynamodb_table" "events" {
 
   # These attributes back the creator events index.
   #
-  # This index supports future query-based reads such as "list events created
-  # by this user" without adding a speculative RSVP-by-user index in v1.
+  # This index supports creator-scoped event listing without scanning the
+  # events table. RSVP membership access remains event-scoped in the RSVP table.
   attribute {
     name = "creator_events_gsi_pk"
     type = "S"

@@ -25,8 +25,8 @@ locals {
 # WAF basic usage
 ############################################
 
-# This example demonstrates the intended baseline for a CloudFront-scoped WAFv2
-# Web ACL that will later be attached to the platform's public edge entry point.
+# This example demonstrates a CloudFront-scoped WAFv2 Web ACL intended for
+# association with a public edge distribution.
 module "waf" {
   source = "../../"
 

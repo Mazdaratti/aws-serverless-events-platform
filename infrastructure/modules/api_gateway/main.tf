@@ -1,5 +1,5 @@
 ############################################
-# HTTP API baseline
+# HTTP API
 ############################################
 
 resource "aws_apigatewayv2_api" "this" {
@@ -67,10 +67,8 @@ resource "aws_apigatewayv2_stage" "this" {
     }
   }
 
-  # Default stage throttling creates one baseline protection level for the
-  # whole HTTP API. Individual routes can still override these defaults later
-  # through route_settings when a smaller write-heavy surface needs tighter
-  # limits than the rest of the API.
+  # Default stage throttling establishes the shared protection level for the
+  # HTTP API. Per-route settings can apply tighter limits to selected paths.
   dynamic "default_route_settings" {
     for_each = var.default_throttling_burst_limit == null ? [] : [1]
 
@@ -80,10 +78,9 @@ resource "aws_apigatewayv2_stage" "this" {
     }
   }
 
-  # Route settings stay intentionally narrow in this PR. The module currently
-  # uses them only for per-route throttling overrides, which lets callers
-  # tighten selected write paths without widening the module surface to other
-  # API Gateway route-setting concerns.
+  # Route settings are limited to per-route throttling overrides so callers can
+  # tighten selected paths without broadening the module's configuration
+  # surface to unrelated API Gateway route settings.
   dynamic "route_settings" {
     for_each = local.route_settings
 

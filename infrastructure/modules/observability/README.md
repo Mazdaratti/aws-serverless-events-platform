@@ -135,7 +135,7 @@ AWS service metrics.
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.45.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
 
 
 
@@ -157,7 +157,7 @@ AWS service metrics.
 | <a name="input_api_gateway_5xx_threshold"></a> [api\_gateway\_5xx\_threshold](#input\_api\_gateway\_5xx\_threshold) | Number of API Gateway HTTP API 5xx responses in one period that causes the API alarm to enter ALARM state. | `number` | `1` | no |
 | <a name="input_api_gateway_api_id"></a> [api\_gateway\_api\_id](#input\_api\_gateway\_api\_id) | Optional API Gateway HTTP API ID used for API-level CloudWatch alarms. | `string` | `null` | no |
 | <a name="input_api_gateway_stage_name"></a> [api\_gateway\_stage\_name](#input\_api\_gateway\_stage\_name) | Optional API Gateway HTTP API stage name used with api\_gateway\_api\_id for stage-level CloudWatch alarms. | `string` | `null` | no |
-| <a name="input_dashboard_enabled"></a> [dashboard\_enabled](#input\_dashboard\_enabled) | Whether to create the CloudWatch dashboard baseline. | `bool` | `true` | no |
+| <a name="input_dashboard_enabled"></a> [dashboard\_enabled](#input\_dashboard\_enabled) | Whether to create the CloudWatch operational dashboard. | `bool` | `true` | no |
 | <a name="input_eventbridge_bus_name"></a> [eventbridge\_bus\_name](#input\_eventbridge\_bus\_name) | Optional custom EventBridge bus name used with eventbridge\_rule\_names for custom-bus rule alarms. | `string` | `null` | no |
 | <a name="input_eventbridge_failed_invocations_threshold"></a> [eventbridge\_failed\_invocations\_threshold](#input\_eventbridge\_failed\_invocations\_threshold) | Number of EventBridge failed invocations in one period that causes a rule alarm to enter ALARM state. | `number` | `1` | no |
 | <a name="input_eventbridge_rule_names"></a> [eventbridge\_rule\_names](#input\_eventbridge\_rule\_names) | Map of logical EventBridge rule key to deployed EventBridge rule name. | `map(string)` | `{}` | no |

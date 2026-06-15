@@ -59,7 +59,7 @@ variable "ok_actions" {
 ############################################
 
 variable "dashboard_enabled" {
-  description = "Whether to create the CloudWatch dashboard baseline."
+  description = "Whether to create the CloudWatch operational dashboard."
   type        = bool
   default     = true
 }

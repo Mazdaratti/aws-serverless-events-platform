@@ -153,9 +153,8 @@ locals {
       temporary_scan         = false
     }
 
-    # Notification-sender consumes recipient-level jobs and may look up the
-    # current Cognito user attributes later. SES access is intentionally absent
-    # until the sender implementation and SES strategy are introduced.
+    # Notification-sender consumes recipient-level jobs, resolves the current
+    # recipient email from Cognito, and sends Terraform-managed SES templates.
     notification_sender = {
       dynamodb_table_arns = []
       sqs_queue_arns      = [var.notification_email_queue_arn]

@@ -16,7 +16,7 @@ resource "aws_ses_email_identity" "sender" {
 ############################################
 
 # SES templates keep the user-facing email wording in AWS-managed reusable
-# resources. The later sender worker chooses the template and provides safe
+# resources. The notification sender chooses the template and provides safe
 # template data instead of rendering full email bodies itself.
 resource "aws_ses_template" "event_updated" {
   name    = "${var.name_prefix}-event-updated"

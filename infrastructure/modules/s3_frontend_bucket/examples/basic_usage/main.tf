@@ -21,8 +21,8 @@ locals {
 module "s3_frontend_bucket" {
   source = "../../"
 
-  # This example demonstrates the intended baseline for a private S3 bucket
-  # that will later sit behind CloudFront as a frontend origin.
+  # This example demonstrates a private S3 bucket intended for use as a
+  # CloudFront frontend origin.
   name_prefix        = local.name_prefix
   bucket_name_suffix = "frontend"
   tags               = local.tags

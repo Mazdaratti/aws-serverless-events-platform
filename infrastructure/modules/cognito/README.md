@@ -215,10 +215,10 @@ before use in an AWS account.
 
 | Name | Description |
 |------|-------------|
-| <a name="output_admin_group_name"></a> [admin\_group\_name](#output\_admin\_group\_name) | Name of the Cognito group that backs the future is\_admin caller-context projection. |
-| <a name="output_issuer"></a> [issuer](#output\_issuer) | JWT issuer URL derived from the Cognito User Pool for later API Gateway JWT validation wiring. |
-| <a name="output_user_pool_arn"></a> [user\_pool\_arn](#output\_user\_pool\_arn) | ARN of the Cognito User Pool used by the platform identity baseline. |
-| <a name="output_user_pool_client_id"></a> [user\_pool\_client\_id](#output\_user\_pool\_client\_id) | ID of the public Cognito User Pool Client that later API and frontend layers can use. |
-| <a name="output_user_pool_endpoint"></a> [user\_pool\_endpoint](#output\_user\_pool\_endpoint) | Endpoint of the Cognito User Pool. This is optional but can be useful for later integration and documentation. |
+| <a name="output_admin_group_name"></a> [admin\_group\_name](#output\_admin\_group\_name) | Name of the Cognito group used to derive the is\_admin caller context. |
+| <a name="output_issuer"></a> [issuer](#output\_issuer) | JWT issuer URL derived from the Cognito User Pool for token validation. |
+| <a name="output_user_pool_arn"></a> [user\_pool\_arn](#output\_user\_pool\_arn) | ARN of the Cognito User Pool used by the platform identity model. |
+| <a name="output_user_pool_client_id"></a> [user\_pool\_client\_id](#output\_user\_pool\_client\_id) | ID of the public Cognito User Pool Client used by API and frontend integrations. |
+| <a name="output_user_pool_endpoint"></a> [user\_pool\_endpoint](#output\_user\_pool\_endpoint) | Endpoint of the Cognito User Pool for identity integrations and operational reference. |
 | <a name="output_user_pool_id"></a> [user\_pool\_id](#output\_user\_pool\_id) | ID of the Cognito User Pool that acts as the platform's managed identity provider. |
 <!-- END_TF_DOCS -->

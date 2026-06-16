@@ -91,8 +91,8 @@ def test_lambda_handler_returns_public_event_dto_for_direct_invocation(mock_tabl
 
 
 def test_lambda_handler_accepts_api_gateway_path_parameters(mock_table):
-    # This mirrors the future API Gateway route shape where the event ID comes
-    # from a path parameter rather than a top-level direct-invoke field.
+    # This mirrors the routed API Gateway shape where the event ID comes from
+    # a path parameter rather than a top-level direct-invoke field.
     mock_table.get_item.return_value = {
         "Item": _valid_item(
             event_pk="EVENT#22222222-2222-2222-2222-222222222222",
@@ -139,7 +139,7 @@ def test_lambda_handler_accepts_api_gateway_path_parameters(mock_table):
 
 def test_lambda_handler_prefers_path_parameters_over_top_level_event_id(mock_table):
     # When both shapes are present, pathParameters should win so the handler
-    # already aligns with the future route-driven API Gateway contract.
+    # stays aligned with the route-driven API Gateway contract.
     mock_table.get_item.return_value = {
         "Item": _valid_item(
             event_pk="EVENT#33333333-3333-3333-3333-333333333333",

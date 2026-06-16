@@ -2,9 +2,8 @@
 # Cognito User Pool
 ############################################
 
-# Keep the initial User Pool intentionally small but production-shaped so it
-# supports the locked identity direction without dragging in later auth features
-# such as hosted UI, triggers, or social providers.
+# Keep the User Pool focused on the platform's identity contract without adding
+# hosted UI, triggers, or social identity providers.
 resource "aws_cognito_user_pool" "this" {
   name = local.user_pool_name
 
@@ -56,9 +55,8 @@ resource "aws_cognito_user_pool" "this" {
 # Cognito User Pool Client
 ############################################
 
-# This public client is the minimal identity consumer for later frontend and
-# API integration. It intentionally avoids OAuth, hosted UI, and secret-based
-# flows in this first baseline.
+# This public client supports frontend authentication and API token validation.
+# It intentionally avoids OAuth, hosted UI, and secret-based flows.
 resource "aws_cognito_user_pool_client" "this" {
   name         = local.user_pool_client_name
   user_pool_id = aws_cognito_user_pool.this.id
@@ -80,10 +78,10 @@ resource "aws_cognito_user_pool_client" "this" {
 # Cognito admin group
 ############################################
 
-# The admin group is created now so later API-layer auth projection has a
-# stable identity source for is_admin without needing to reshape Cognito.
+# The admin group provides the stable membership source used to derive the
+# is_admin caller context.
 resource "aws_cognito_user_group" "admin" {
   user_pool_id = aws_cognito_user_pool.this.id
   name         = var.admin_group_name
-  description  = "Administrative group backing future is_admin authorization context."
+  description  = "Administrative group used to derive the is_admin authorization context."
 }

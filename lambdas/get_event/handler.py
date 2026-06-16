@@ -62,11 +62,11 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
 
 def _validate_event_id(request: dict[str, Any]) -> str:
-    # The public identifier can arrive either from future path parameters or
-    # from a simple top-level field used in direct invocation and tests.
+    # The public identifier can arrive either from API Gateway path parameters
+    # or from a simple top-level field used in direct invocation and tests.
     #
     # We intentionally prefer pathParameters.event_id first so this handler
-    # already matches the future GET /api/events/{event_id} route shape.
+    # matches the routed GET /events/{event_id} API shape.
     raw_event_id = _resolve_event_id(request)
 
     if raw_event_id is None:
@@ -93,8 +93,8 @@ def _resolve_event_id(request: dict[str, Any]) -> Any:
     # 1. pathParameters.event_id
     # 2. top-level event_id
     #
-    # That gives future API Gateway requests priority without making direct
-    # invocation harder during the current implementation phase.
+    # That gives routed API Gateway requests priority without making direct
+    # invocation harder during local tests.
     path_parameters = request.get("pathParameters")
     if path_parameters is not None:
         if not isinstance(path_parameters, dict):
@@ -210,8 +210,8 @@ def _normalize_text(value: Any, *, field_name: str) -> str:
 def _normalize_capacity(value: Any) -> int | None:
     # Capacity is intentionally numeric-or-null in the public DTO.
     #
-    # The frontend can later render null capacity as "Unlimited" for people,
-    # but the API should keep the field machine-friendly and type-stable.
+    # The frontend can render null capacity as "Unlimited" for people, but the
+    # API should keep the field machine-friendly and type-stable.
     if value is None:
         return None
 
@@ -288,8 +288,8 @@ def _get_dynamodb_table(table_name: str):
 
 
 def _success_response(*, status_code: int, body: dict[str, Any]) -> dict[str, Any]:
-    # Keep the response shape aligned with the future API Gateway integration
-    # even though the function can already be invoked directly today.
+    # Keep the response shape aligned with API Gateway integration while still
+    # supporting direct invocation in tests.
     return {
         "statusCode": status_code,
         "headers": {"Content-Type": "application/json"},

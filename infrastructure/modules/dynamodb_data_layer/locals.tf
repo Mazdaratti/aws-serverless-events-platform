@@ -3,9 +3,8 @@
 ############################################
 
 locals {
-  # Keep table names predictable and environment-scoped so later env wiring can
-  # identify the business data layer clearly without embedding naming logic in
-  # the root module.
+  # Keep table names predictable and environment-scoped without duplicating
+  # naming logic in caller modules.
   events_table_name = "${var.name_prefix}-events"
   rsvps_table_name  = "${var.name_prefix}-rsvps"
 

@@ -1,20 +1,21 @@
-# S3 Frontend Origin Bucket Baseline
+# S3 Frontend Origin Module
 
-This module creates the initial private S3 frontend-origin bucket baseline for
+This module creates a private S3 origin bucket for frontend assets in
 the serverless events platform.
 
-It is intentionally platform-specific. The goal is not to provide a generic S3
-abstraction or a broad bucket factory. Instead, this module defines the
-concrete private bucket baseline that the later CloudFront delivery layer will
-depend on.
+It is intentionally platform-specific rather than a generic bucket factory.
+The module owns the bucket and its storage-level security controls.
 
-This module manages origin-bucket infrastructure only.
+Each environment root composes the bucket with its CloudFront distribution,
+origin access policy, and frontend deployment process. The platform-wide edge
+delivery model is documented in the
+[architecture guide](../../../docs/architecture.md).
 
 ---
 
 ## What This Module Creates
 
-This module currently creates:
+This module creates:
 
 - one private S3 bucket
 - one bucket-level public access block configuration
@@ -22,50 +23,51 @@ This module currently creates:
 - one bucket default server-side encryption configuration
 - one bucket versioning configuration
 
-It also exposes the core bucket identifiers later layers are most likely to
-need, including:
+It exposes:
 
 - the bucket ARN
 - the bucket name
 - the bucket ID
 - the bucket regional domain name
 
-This keeps the first edge-storage implementation small, reviewable, and aligned
-with the platform's locked edge-delivery direction.
+The caller controls the bucket-name suffix, versioning, destruction behavior,
+shared naming, and tags.
 
 ---
 
-## Why This Module Stays Origin-Bucket-Focused
+## Module Boundary
 
-This step is focused on the private S3 bucket baseline the platform clearly
-needs before CloudFront wiring can be added:
+The module owns:
 
-- private object storage for frontend assets
-- direct-public-access blocking
-- modern bucket ownership controls
-- default encryption at rest
-- optional versioning
+- private bucket creation and naming
+- public access block settings
+- ACL-free ownership controls
+- default SSE-S3 encryption
+- configurable versioning and destruction behavior
+- bucket outputs
 
-The module does not create CloudFront distributions, origin access control,
-bucket policies coupled to CloudFront, website hosting configuration, Route 53
-records, ACM certificates, logging buckets, replication, lifecycle transitions,
-or object upload automation. Those concerns may become relevant later, but they
-are intentionally outside the scope of this first frontend-origin bucket step.
+It does not own:
 
-Keeping the module limited to the origin bucket baseline makes the design
-easier to understand and avoids baking future CloudFront assumptions into the
-bucket module too early.
+- CloudFront distributions or origin access controls
+- bucket policies that authorize a concrete distribution
+- website hosting configuration
+- Route 53 records or ACM certificates
+- access-log buckets, replication, or lifecycle transitions
+- frontend builds or object deployment
+
+Those responsibilities belong to callers, edge-delivery modules, or deployment
+automation.
 
 ---
 
-## Private Origin Direction
+## Private Origin Contract
 
-This module is aligned with the platform's locked frontend-delivery direction:
+The bucket is designed for private origin storage:
 
 - frontend assets are stored in S3
 - the bucket stays private
 - direct S3 website hosting is not used
-- CloudFront will later become the intended public entry point
+- public delivery is delegated to a caller-owned edge layer
 
 That means this module creates a bucket for origin storage, not for public
 website delivery.
@@ -75,7 +77,7 @@ This is why the module:
 - blocks all direct public access
 - does not enable website hosting mode
 - does not expose website endpoint outputs
-- does not attach a CloudFront-specific bucket policy yet
+- does not attach a distribution-specific bucket policy
 
 ---
 
@@ -88,8 +90,8 @@ The module applies S3 bucket-level public access block settings directly.
 That is intentional:
 
 - the bucket is not meant to be browsed publicly
-- later public delivery should flow through CloudFront instead
-- the bucket baseline should already reflect the intended production shape
+- public delivery should flow through a controlled edge layer
+- private access is enforced independently of caller composition
 
 ### Ownership controls use BucketOwnerEnforced
 
@@ -105,15 +107,15 @@ The module enables default SSE-S3 encryption with `AES256`.
 That is intentional:
 
 - encryption at rest should be enabled by default
-- this step does not yet need customer-managed KMS keys
-- SSE-S3 keeps the baseline secure while staying cost-aware and small
+- the module does not introduce customer-managed KMS key ownership
+- SSE-S3 keeps the storage contract small and cost-aware
 
 ### Versioning is configurable
 
 Versioning is exposed as a small boolean input rather than hardcoded on or off.
 
-That allows environment wiring to decide whether this bucket should keep object
-history without turning the module into a broad policy surface.
+That allows callers to choose whether the bucket keeps object history without
+turning the module into a broad policy surface.
 
 ---
 
@@ -127,23 +129,22 @@ This module keeps its public input surface intentionally small:
 - `versioning_enabled`
 - `force_destroy`
 
-This keeps naming and tagging aligned with the environment root while leaving a
-small amount of environment-level control over destruction and versioning.
+This keeps naming and tagging aligned with the composing root while preserving
+explicit caller control over destruction and versioning.
 
 ---
 
 ## Outputs
 
-The module exposes the bucket values later layers are most likely to need:
+The module exposes:
 
 - `bucket_arn`
 - `bucket_id`
 - `bucket_name`
 - `bucket_regional_domain_name`
 
-The regional domain name is especially important because later CloudFront
-origin wiring is more likely to depend on that value than on website-style S3
-endpoints.
+The regional domain name allows callers to configure an S3 origin without
+enabling website hosting.
 
 ---
 
@@ -163,6 +164,9 @@ The example shows how to:
 
 The example intentionally does not create CloudFront, WAF, Route 53, ACM, or
 frontend assets.
+
+Applying the example creates a real S3 bucket and should be reviewed before use
+in an AWS account.
 
 ---
 

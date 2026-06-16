@@ -1,69 +1,75 @@
-# Cognito Identity Baseline
+# Cognito Identity Module
 
-This module creates the initial Cognito identity baseline for the serverless
+This module creates the Cognito identity resources for the serverless
 events platform.
 
-It is intentionally platform-specific. The goal is not to provide a generic
-identity abstraction or a fully-featured authentication product surface.
-Instead, this module defines the concrete Cognito baseline that later API
-Gateway wiring and environment composition will depend on.
+It is intentionally platform-specific rather than a generic identity
+abstraction. The module owns one User Pool, one public application client, and
+one administrative group.
 
-This module manages identity-provider infrastructure only.
+Each environment root composes these resources with frontend authentication,
+API authorization, and workload permissions. The platform-wide identity and
+authorization contracts are documented in the
+[architecture guide](../../../docs/architecture.md) and
+[platform behavior contract](../../../docs/platform-behavior.md).
 
 ---
 
 ## What This Module Creates
 
-This module currently creates:
+This module creates:
 
 - one Cognito User Pool
 - one public Cognito User Pool Client
 - one Cognito User Group: `admin`
 
-It also exposes the core identity outputs later layers will need, including:
+It exposes:
 
 - User Pool identifiers
 - the public client identifier
 - the JWT issuer value
 - the rendered admin group name
 
-This keeps the first Cognito implementation small, reviewable, and aligned with
-the platform's locked authentication boundary.
+The caller controls naming overrides, password length, self-sign-up, username
+case sensitivity, required email collection, and deletion protection.
 
 ---
 
-## Why This Module Stays Identity-Focused
+## Module Boundary
 
-This step is focused on the managed identity primitives the platform clearly
-needs next:
+The module owns:
 
-- Cognito User Pool infrastructure
-- a public app client for later API and frontend integration
-- admin group membership as the future source of admin caller context
+- Cognito User Pool configuration
+- one public User Pool Client without a client secret
+- one configurable administrative group
+- password, sign-up, verification, and recovery settings
+- identity resource outputs
 
-The module does not create API Gateway authorizers, route wiring, hosted UI
-configuration, social identity providers, Lambda triggers, MFA flows, custom
-domains, OAuth scopes, resource servers, or seeded users. Those concerns may
-become relevant later, but they are intentionally outside the scope of this
-first Cognito layer.
+It does not own:
 
-Keeping the module limited to identity-provider infrastructure makes the design
-easier to understand and avoids bleeding API and frontend work into the module.
+- API Gateway authorizers or route authorization
+- frontend session and token handling
+- Lambda authorizers or Cognito triggers
+- hosted UI or custom domains
+- social identity providers
+- MFA configuration
+- OAuth scopes or resource servers
+- user creation or group membership assignments
+
+Those responsibilities belong to callers and the application layers that
+consume the identity resources.
 
 ---
 
-## Identity Direction
+## Identity Contract
 
-This module is aligned with the platform's locked identity direction:
+The platform identity contract uses:
 
 - canonical internal user identity = Cognito user `sub`
-- future `requestContext.authorizer.user_id` projection = Cognito `sub`
-- future `requestContext.authorizer.is_admin` projection = Cognito `admin`
-  group membership
+- administrative membership source = the configured Cognito group
 
-The module does not implement API Gateway claim mapping yet, but it establishes
-the Cognito resources that later API-layer auth wiring will project into the
-Lambda caller context.
+The module provides the identity source but does not project claims or group
+membership into an API or Lambda caller context.
 
 This keeps internal identity:
 
@@ -77,31 +83,21 @@ This keeps internal identity:
 
 Sign-in is Cognito-managed.
 
-The initial identity baseline uses:
+The module configures:
 
 - username as the primary sign-in attribute
 - required email collection
 - Cognito-managed email verification
+- password, refresh-token, and SRP authentication flows
+- token revocation and user-existence error protection
 
-This does not permanently lock the platform into username-only login behavior.
-Later sign-in changes can evolve without changing the canonical internal
-identity model based on Cognito `sub`.
+The application client is public and does not generate a client secret.
 
 ---
 
-## Why The Module Stays Minimal
+## Deliberately Excluded Features
 
-The first Cognito baseline is intentionally small but future-safe.
-
-It includes:
-
-- one User Pool
-- one public User Pool Client
-- one `admin` group
-- a small password-policy baseline
-- Cognito-managed sign-up, verification, and recovery direction
-
-It intentionally excludes:
+The module intentionally excludes:
 
 - hosted UI
 - social login
@@ -111,11 +107,8 @@ It intentionally excludes:
 - OAuth scopes and resource servers
 - user seeding
 
-That keeps the identity layer aligned with the current platform phase:
-
-- Cognito owns identity
-- API Gateway will later validate JWTs
-- Lambda handlers stay focused on resource- and workflow-specific authorization
+Adding one of these features should be an explicit module-contract change
+rather than an environment-specific workaround.
 
 ---
 
@@ -132,14 +125,14 @@ This module keeps its public input surface intentionally small:
   - required email
   - deletion protection
 
-This keeps the module reusable without prematurely modeling every Cognito
-feature.
+This keeps the module reusable across project environments without modeling
+unneeded Cognito features.
 
 ---
 
 ## Outputs
 
-The module exposes the identity values later layers are most likely to need:
+The module exposes:
 
 - `user_pool_id`
 - `user_pool_arn`
@@ -151,8 +144,8 @@ It also exposes:
 
 - `user_pool_endpoint`
 
-The issuer output is especially important because later API Gateway JWT
-validation wiring will depend on that exact value.
+Callers can use the issuer and client ID for JWT validation and frontend
+authentication without requiring this module to own those integrations.
 
 ---
 
@@ -173,20 +166,23 @@ The example shows how to:
 The example intentionally does not create users, hosted UI configuration, API
 Gateway resources, or Lambda resources.
 
+Applying the example creates real Cognito resources and should be reviewed
+before use in an AWS account.
+
 ---
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.14.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.37 |
 
 ## Providers
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
 | <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
 
 
@@ -194,7 +190,7 @@ Gateway resources, or Lambda resources.
 ## Resources
 
 | Name | Type |
-| ---- | ---- |
+|------|------|
 | [aws_cognito_user_group.admin](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cognito_user_group) | resource |
 | [aws_cognito_user_pool.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cognito_user_pool) | resource |
 | [aws_cognito_user_pool_client.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cognito_user_pool_client) | resource |
@@ -203,14 +199,14 @@ Gateway resources, or Lambda resources.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-| ---- | ----------- | ---- | ------- | :------: |
+|------|-------------|------|---------|:--------:|
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Shared environment naming prefix used to derive Cognito resource names. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
-| <a name="input_admin_group_name"></a> [admin\_group\_name](#input\_admin\_group\_name) | Name of the Cognito group that represents future admin membership for platform authorization context. | `string` | `"admin"` | no |
+| <a name="input_admin_group_name"></a> [admin\_group\_name](#input\_admin\_group\_name) | Name of the Cognito group used to identify administrative membership in platform authorization context. | `string` | `"admin"` | no |
 | <a name="input_allow_self_signup"></a> [allow\_self\_signup](#input\_allow\_self\_signup) | Whether Cognito allows end users to sign themselves up instead of requiring admin-created users only. | `bool` | `true` | no |
 | <a name="input_deletion_protection_enabled"></a> [deletion\_protection\_enabled](#input\_deletion\_protection\_enabled) | Whether Cognito deletion protection is enabled for the User Pool. Environment roots can set this explicitly per environment. | `bool` | `false` | no |
 | <a name="input_password_minimum_length"></a> [password\_minimum\_length](#input\_password\_minimum\_length) | Minimum password length for the Cognito password policy. | `number` | `8` | no |
-| <a name="input_require_email"></a> [require\_email](#input\_require\_email) | Whether the baseline identity model requires email as a standard user attribute. | `bool` | `true` | no |
+| <a name="input_require_email"></a> [require\_email](#input\_require\_email) | Whether the identity model requires email as a standard user attribute. | `bool` | `true` | no |
 | <a name="input_user_pool_client_name_override"></a> [user\_pool\_client\_name\_override](#input\_user\_pool\_client\_name\_override) | Optional explicit Cognito User Pool Client name. When omitted, the module derives the name from name\_prefix. | `string` | `null` | no |
 | <a name="input_user_pool_name_override"></a> [user\_pool\_name\_override](#input\_user\_pool\_name\_override) | Optional explicit Cognito User Pool name. When omitted, the module derives the name from name\_prefix. | `string` | `null` | no |
 | <a name="input_username_case_sensitive"></a> [username\_case\_sensitive](#input\_username\_case\_sensitive) | Whether Cognito usernames are case-sensitive. The platform default keeps usernames case-insensitive. | `bool` | `false` | no |
@@ -218,11 +214,11 @@ Gateway resources, or Lambda resources.
 ## Outputs
 
 | Name | Description |
-| ---- | ----------- |
-| <a name="output_admin_group_name"></a> [admin\_group\_name](#output\_admin\_group\_name) | Name of the Cognito group that backs the future is\_admin caller-context projection. |
-| <a name="output_issuer"></a> [issuer](#output\_issuer) | JWT issuer URL derived from the Cognito User Pool for later API Gateway JWT validation wiring. |
-| <a name="output_user_pool_arn"></a> [user\_pool\_arn](#output\_user\_pool\_arn) | ARN of the Cognito User Pool used by the platform identity baseline. |
-| <a name="output_user_pool_client_id"></a> [user\_pool\_client\_id](#output\_user\_pool\_client\_id) | ID of the public Cognito User Pool Client that later API and frontend layers can use. |
-| <a name="output_user_pool_endpoint"></a> [user\_pool\_endpoint](#output\_user\_pool\_endpoint) | Endpoint of the Cognito User Pool. This is optional but can be useful for later integration and documentation. |
+|------|-------------|
+| <a name="output_admin_group_name"></a> [admin\_group\_name](#output\_admin\_group\_name) | Name of the Cognito group used to derive the is\_admin caller context. |
+| <a name="output_issuer"></a> [issuer](#output\_issuer) | JWT issuer URL derived from the Cognito User Pool for token validation. |
+| <a name="output_user_pool_arn"></a> [user\_pool\_arn](#output\_user\_pool\_arn) | ARN of the Cognito User Pool used by the platform identity model. |
+| <a name="output_user_pool_client_id"></a> [user\_pool\_client\_id](#output\_user\_pool\_client\_id) | ID of the public Cognito User Pool Client used by API and frontend integrations. |
+| <a name="output_user_pool_endpoint"></a> [user\_pool\_endpoint](#output\_user\_pool\_endpoint) | Endpoint of the Cognito User Pool for identity integrations and operational reference. |
 | <a name="output_user_pool_id"></a> [user\_pool\_id](#output\_user\_pool\_id) | ID of the Cognito User Pool that acts as the platform's managed identity provider. |
 <!-- END_TF_DOCS -->

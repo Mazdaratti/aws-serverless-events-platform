@@ -1,20 +1,21 @@
-# CloudFront Edge WAF Baseline
+# CloudFront WAF Module
 
-This module creates the reusable WAFv2 baseline for the serverless events
-platform's future CloudFront edge layer.
+This module creates a CloudFront-scoped AWS WAFv2 Web ACL for the serverless
+events platform.
 
-It is intentionally platform-specific. The goal is not to provide a generic
-WAF rules engine or a broad abstraction over every AWS WAF feature. Instead,
-this module defines the concrete CloudFront-scoped Web ACL baseline that the
-later edge-delivery layer will depend on.
+It is intentionally platform-specific rather than a generic WAF rule engine.
+The module owns a fixed managed-rule set, optional IP-based rate limiting, and
+visibility configuration.
 
-This module is CloudFront-edge-WAF-only in v1.
+Each environment root decides whether to create the Web ACL and passes its ARN
+to the edge-delivery layer. The platform-wide edge security model is documented
+in the [architecture guide](../../../docs/architecture.md).
 
 ---
 
 ## What This Module Creates
 
-This module currently creates:
+This module creates:
 
 - one WAFv2 Web ACL
 
@@ -29,36 +30,39 @@ That Web ACL is configured with:
   - each managed rule
   - the optional rate-limit rule
 
-It also exposes the Web ACL identifiers later layers are most likely to need:
+It exposes:
 
 - the Web ACL ARN
 - the Web ACL ID
 - the Web ACL name
 
-This keeps the first edge-protection implementation small, reviewable, and
-aligned with the platform's locked edge-delivery direction.
+The caller controls shared naming, tags, the Web ACL name suffix, and optional
+rate-limit behavior.
 
 ---
 
-## Why This Module Stays WAF-Focused
+## Module Boundary
 
-This step is focused on the reusable edge-protection baseline the platform
-clearly needs before CloudFront wiring can be added cleanly:
+The module owns:
 
-- one CloudFront-scoped Web ACL
-- one small fixed managed-rule baseline
-- one optional simple rate-limit rule
-- CloudWatch visibility configuration
+- CloudFront-scoped Web ACL creation
+- the fixed AWS managed-rule groups
+- one optional IP-based rate-limit rule
+- CloudWatch metrics and sampled-request settings
+- Web ACL naming, tags, and outputs
 
-The module does not create CloudFront distributions, Web ACL associations,
-logging configuration, custom response bodies, IP sets, regex pattern sets,
-scope-down statements, or a caller-defined arbitrary rules engine. Those
-concerns may become relevant later, but they are intentionally outside the
-scope of this first WAF baseline.
+It does not own:
 
-Keeping the module limited to the Web ACL baseline makes the design easier to
-understand and avoids coupling this step too early to later CloudFront
-composition details.
+- CloudFront distributions
+- Web ACL association with a concrete distribution
+- WAF logging destinations
+- custom response bodies
+- IP sets or regex pattern sets
+- scope-down statements
+- arbitrary caller-defined rules
+
+Those responsibilities belong to callers or require an explicit module-contract
+change.
 
 ---
 
@@ -68,10 +72,10 @@ This module is intentionally locked to:
 
 - `scope = "CLOUDFRONT"`
 
-That is deliberate because the current platform edge direction is:
+That is deliberate because this module protects:
 
-- CloudFront as the public browser-facing layer
-- AWS WAF attached at the CloudFront edge
+- a global CloudFront distribution
+- browser and API traffic entering through that distribution
 
 Important:
 
@@ -80,20 +84,20 @@ configured for:
 
 - `us-east-1`
 
-So callers must pass an AWS provider configured for `us-east-1` into this
-module.
+Callers must therefore pass an AWS provider configured for `us-east-1` into
+this module.
 
 The module itself does not declare a second provider alias internally because
 provider selection belongs with the caller or environment root.
 
 ---
 
-## Fixed Managed-Rule Baseline
+## Fixed Managed Rules
 
 This module intentionally uses a small fixed managed-rule baseline instead of a
 fully caller-defined rules engine.
 
-The current baseline includes:
+The fixed set includes:
 
 - `AWSManagedRulesCommonRuleSet`
 - `AWSManagedRulesKnownBadInputsRuleSet`
@@ -101,9 +105,9 @@ The current baseline includes:
 
 That is intentional:
 
-- it gives the edge layer an immediately useful production-shaped protection baseline
+- it provides a reviewable baseline against common and known-bad requests
 - it keeps the module small and reviewable
-- it avoids widening the module interface before later edge validation proves more flexibility is actually needed
+- it prevents callers from injecting arbitrary rule trees
 
 The managed rule groups use:
 
@@ -113,7 +117,7 @@ so AWS WAF applies the rule-group actions normally.
 
 ---
 
-## Rate-Limit Direction
+## Optional Rate Limit
 
 This module also supports one optional simple rate-limit rule.
 
@@ -124,15 +128,15 @@ The rate-limit rule is intentionally narrow:
 - aggregated by:
   - client IP
 
-This first version does not support:
+The module does not support:
 
 - scope-down statements
 - multiple rate-limit rules
 - path-specific rate limits
 - arbitrary caller-defined statement trees
 
-That keeps the first edge-protection step aligned with the project's current
-goal: a small, practical baseline rather than a broad WAF authoring framework.
+This keeps rate limiting predictable rather than turning the module into a
+broad WAF authoring framework.
 
 ---
 
@@ -149,7 +153,7 @@ That is intentional:
 
 - metrics should be available immediately for operational visibility
 - sampled requests should be available immediately for debugging and review
-- callers should not need to manage separate metrics toggles for this first baseline
+- callers do not need to manage separate visibility toggles
 
 Metric names are rendered internally from normalized names so the caller does
 not need to supply additional metrics inputs.
@@ -166,21 +170,21 @@ This module keeps its public input surface intentionally small:
 - `rate_limit_enabled`
 - `rate_limit`
 
-This keeps naming and tagging aligned with the environment root while leaving a
-small amount of control over the optional rate-limit behavior.
+This keeps naming and tagging aligned with the composing root while preserving
+explicit caller control over rate limiting.
 
 ---
 
 ## Outputs
 
-The module exposes the Web ACL values later layers are most likely to need:
+The module exposes:
 
 - `web_acl_arn`
 - `web_acl_id`
 - `web_acl_name`
 
-These values are the practical identifiers later environment wiring and
-CloudFront composition will need when the edge layer is attached.
+Callers can use the ARN to associate the Web ACL with a CloudFront distribution
+without requiring this module to own that distribution.
 
 ---
 
@@ -206,6 +210,9 @@ The example intentionally does not create:
 - Route 53 records
 - ACM certificates
 - frontend hosting resources
+
+Applying the example creates a real global WAFv2 Web ACL in `us-east-1` and
+should be reviewed before use in an AWS account.
 
 ---
 

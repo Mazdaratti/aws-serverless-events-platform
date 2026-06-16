@@ -1,22 +1,15 @@
-# Observability Baseline
+# CloudWatch Observability Module
 
-This module creates the reusable CloudWatch observability baseline for the
-serverless events platform.
+This module manages CloudWatch metric alarms and an optional operational
+dashboard for serverless workloads.
 
-It is intentionally focused on native AWS service metrics. The goal is not to
-create a full monitoring product or alert-routing layer. Instead, this module
-defines the first high-signal alarms and a compact dashboard that environment
-roots can compose around already deployed Lambda, API Gateway, SQS, and
-EventBridge resources.
+It consumes identifiers for caller-managed Lambda, API Gateway, SQS, and
+EventBridge resources and monitors them through native AWS service metrics.
+The module does not create or instrument those workloads.
 
-This module manages CloudWatch metric alarms and one optional CloudWatch
-dashboard.
+## Resources And Signals
 
----
-
-## What This Module Creates
-
-This module currently creates CloudWatch metric alarms for:
+The module can create CloudWatch metric alarms for:
 
 - Lambda errors
 - Lambda throttles
@@ -26,7 +19,7 @@ This module currently creates CloudWatch metric alarms for:
 - SQS dead-letter queue visible messages
 - EventBridge failed invocations
 
-It can also create one compact CloudWatch dashboard named:
+It can also create one CloudWatch dashboard named:
 
 - `<name_prefix>-observability`
 
@@ -37,17 +30,12 @@ The dashboard includes panels for:
 - SQS source queue depth, DLQ depth, and oldest message age
 - EventBridge invocations and failed invocations
 
-It also exposes the core outputs later platform layers need, including:
+The module exposes:
 
 - alarm names
 - alarm ARNs
 - dashboard name
 - dashboard ARN
-
-This keeps the first observability implementation small, reviewable, and
-aligned with the existing serverless architecture.
-
----
 
 ## Alarm Actions
 
@@ -58,14 +46,11 @@ By default, this module creates alarms with no notification delivery:
 - `alarm_actions = []`
 - `ok_actions = []`
 
-When both lists are empty, alarm actions are disabled. This lets an environment
-create and inspect alarms before connecting SNS topics, incident routing, or
-other alert delivery channels.
+When both lists are empty, alarm actions are disabled. Callers may supply action
+ARNs when alarm and recovery notifications should be delivered.
 
-Alert routing belongs to environment composition or a later alerting module, not
-to this first alarm baseline.
-
----
+This module invokes supplied action ARNs but does not create SNS topics,
+subscriptions, or incident-routing resources.
 
 ## Dashboard
 
@@ -81,15 +66,13 @@ The dashboard uses the active AWS provider region for its metric widgets. This
 keeps the module interface small and avoids asking callers to pass a duplicate
 dashboard-specific region.
 
-Dashboard widgets are intentionally compact and grouped by platform layer. The
-dashboard is for visual inspection and tuning; it does not replace alarms or
-create alert delivery.
-
----
+Widgets are added only for supplied workload inputs, allowing the module to
+monitor a partial service set without creating empty charts. The dashboard
+supports visual inspection and does not replace alarms or deliver alerts.
 
 ## Missing Data Strategy
 
-The baseline uses:
+The alarms use:
 
 - `treat_missing_data = "notBreaching"`
 - one-minute metric periods
@@ -101,14 +84,18 @@ metrics, missing data usually means there was no failure signal in that period,
 so treating missing data as not breaching avoids unnecessary
 `INSUFFICIENT_DATA` noise.
 
-The two-period evaluation window keeps the alarms responsive without using the
-most twitchy possible one-period setup.
-
----
+Thresholds are configurable through the module inputs.
 
 ## Module Boundary
 
-This module does not create:
+This module owns:
+
+- CloudWatch metric alarms derived from supplied workload identifiers
+- the optional CloudWatch dashboard
+- alarm thresholds and missing-data behavior
+- associations with caller-supplied alarm and recovery action ARNs
+
+Callers remain responsible for:
 
 - Lambda functions
 - API Gateway APIs or stages
@@ -117,15 +104,11 @@ This module does not create:
 - SNS topics
 - alert subscriptions
 - CloudWatch log metric filters
+- application log groups and retention
 - CloudFront or WAF alarms
 - SES configuration sets
 - budget or cost alarms
 - OpenTelemetry, ADOT, or Powertools instrumentation
-
-Those concerns belong to runtime modules, environment wiring, or later focused
-observability slices.
-
----
 
 ## Example
 
@@ -133,16 +116,12 @@ This module includes a runnable example:
 
 - `examples/basic_usage`
 
-The example creates CloudWatch metric alarms and the optional dashboard. It
-uses documentation-safe example metric dimensions instead of creating a full
-Lambda/API/SQS/EventBridge stack, because this module owns observability
-resources rather than runtime workloads.
+The example creates CloudWatch metric alarms and the optional dashboard using
+example metric dimensions. It does not create the monitored workloads.
 
 The example can be planned and applied as-is, but the alarms and dashboard only
 receive live metric data if matching workloads exist and emit the corresponding
 AWS service metrics.
-
----
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
@@ -156,7 +135,7 @@ AWS service metrics.
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.45.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
 
 
 
@@ -178,7 +157,7 @@ AWS service metrics.
 | <a name="input_api_gateway_5xx_threshold"></a> [api\_gateway\_5xx\_threshold](#input\_api\_gateway\_5xx\_threshold) | Number of API Gateway HTTP API 5xx responses in one period that causes the API alarm to enter ALARM state. | `number` | `1` | no |
 | <a name="input_api_gateway_api_id"></a> [api\_gateway\_api\_id](#input\_api\_gateway\_api\_id) | Optional API Gateway HTTP API ID used for API-level CloudWatch alarms. | `string` | `null` | no |
 | <a name="input_api_gateway_stage_name"></a> [api\_gateway\_stage\_name](#input\_api\_gateway\_stage\_name) | Optional API Gateway HTTP API stage name used with api\_gateway\_api\_id for stage-level CloudWatch alarms. | `string` | `null` | no |
-| <a name="input_dashboard_enabled"></a> [dashboard\_enabled](#input\_dashboard\_enabled) | Whether to create the CloudWatch dashboard baseline. | `bool` | `true` | no |
+| <a name="input_dashboard_enabled"></a> [dashboard\_enabled](#input\_dashboard\_enabled) | Whether to create the CloudWatch operational dashboard. | `bool` | `true` | no |
 | <a name="input_eventbridge_bus_name"></a> [eventbridge\_bus\_name](#input\_eventbridge\_bus\_name) | Optional custom EventBridge bus name used with eventbridge\_rule\_names for custom-bus rule alarms. | `string` | `null` | no |
 | <a name="input_eventbridge_failed_invocations_threshold"></a> [eventbridge\_failed\_invocations\_threshold](#input\_eventbridge\_failed\_invocations\_threshold) | Number of EventBridge failed invocations in one period that causes a rule alarm to enter ALARM state. | `number` | `1` | no |
 | <a name="input_eventbridge_rule_names"></a> [eventbridge\_rule\_names](#input\_eventbridge\_rule\_names) | Map of logical EventBridge rule key to deployed EventBridge rule name. | `map(string)` | `{}` | no |

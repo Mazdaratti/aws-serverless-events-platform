@@ -3,9 +3,8 @@
 ############################################
 
 locals {
-  # Keep the first baseline intentionally simple: standard-resolution
-  # CloudWatch service metrics, one-minute periods, and explicit missing-data
-  # handling so sparse failure metrics do not sit in INSUFFICIENT_DATA forever.
+  # Apply consistent one-minute periods and explicit missing-data handling
+  # across the module's standard-resolution CloudWatch service metrics.
   alarm_defaults = {
     period              = 60
     evaluation_periods  = 2
@@ -81,7 +80,7 @@ locals {
     for queue_key, queue_name in var.sqs_queue_names :
     "sqs-${queue_key}-visible-messages" => merge(local.alarm_defaults, {
       alarm_name        = "${var.name_prefix}-sqs-${queue_key}-visible-messages"
-      alarm_description = "SQS source queue ${queue_name} has visible messages above the baseline threshold."
+      alarm_description = "SQS source queue ${queue_name} has visible messages above the configured threshold."
       namespace         = "AWS/SQS"
       metric_name       = "ApproximateNumberOfMessagesVisible"
       statistic         = "Maximum"
@@ -96,7 +95,7 @@ locals {
     for queue_key, queue_name in var.sqs_queue_names :
     "sqs-${queue_key}-oldest-message-age" => merge(local.alarm_defaults, {
       alarm_name        = "${var.name_prefix}-sqs-${queue_key}-oldest-message-age"
-      alarm_description = "SQS source queue ${queue_name} has an oldest message age above the baseline threshold."
+      alarm_description = "SQS source queue ${queue_name} has an oldest message age above the configured threshold."
       namespace         = "AWS/SQS"
       metric_name       = "ApproximateAgeOfOldestMessage"
       statistic         = "Maximum"

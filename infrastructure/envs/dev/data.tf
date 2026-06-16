@@ -8,6 +8,5 @@
 # only to reconstruct an ARN that Terraform can derive from stable context.
 data "aws_caller_identity" "current" {}
 
-# Partition keeps derived ARNs portable across standard AWS and future
-# partition-specific deployments.
+# Partition data keeps derived ARNs portable across AWS partitions.
 data "aws_partition" "current" {}

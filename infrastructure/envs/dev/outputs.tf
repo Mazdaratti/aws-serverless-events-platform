@@ -43,12 +43,11 @@ output "rsvps_table_arn" {
 }
 
 ############################################
-# SQS messaging baseline outputs
+# SQS messaging outputs
 ############################################
 
-# These outputs re-export the generic queue maps from the SQS module so later
-# environment-level consumers can look up the currently wired queue identities
-# by logical queue key.
+# These outputs expose queue identities by logical queue key without requiring
+# consumers to inspect the SQS module internals.
 output "sqs_queue_names" {
   description = "Map of logical queue key to rendered SQS queue name for the dev environment."
   value       = module.sqs.queue_names
@@ -80,11 +79,11 @@ output "sqs_dlq_urls" {
 }
 
 ############################################
-# EventBridge async event bus baseline outputs
+# EventBridge event bus outputs
 ############################################
 
-# These outputs expose the custom EventBridge bus identity that later wiring
-# steps will use for rules, targets, and Lambda PutEvents permissions.
+# These outputs expose the custom EventBridge bus identity for routing,
+# permissions, validation, and operational inspection.
 output "eventbridge_event_bus_name" {
   description = "Name of the custom EventBridge event bus created for the dev environment."
   value       = module.eventbridge.event_bus_name
@@ -100,8 +99,7 @@ output "eventbridge_event_bus_id" {
   value       = module.eventbridge.event_bus_id
 }
 
-# These outputs expose the currently wired EventBridge routing identities for
-# later IAM, validation, and operational inspection.
+# These outputs expose EventBridge rule and target identities by logical key.
 output "eventbridge_rule_names" {
   description = "Map of logical EventBridge rule key to rendered rule name for the dev environment."
   value       = module.eventbridge.rule_names
@@ -123,11 +121,10 @@ output "eventbridge_target_arns" {
 }
 
 ############################################
-# SNS admin notification topic baseline outputs
+# SNS admin notification outputs
 ############################################
 
-# These outputs expose the admin notification topic identity that later
-# EventBridge routing and topic-policy wiring will consume.
+# These outputs expose the admin notification topic and subscription identities.
 output "sns_admin_topic_name" {
   description = "Name of the SNS admin notification topic created for the dev environment."
   value       = module.sns_admin_notifications.topic_name
@@ -149,7 +146,7 @@ output "sns_admin_email_subscription_arns" {
 }
 
 ############################################
-# SES participant email sender baseline outputs
+# SES participant email outputs
 ############################################
 
 output "ses_sender_identity_arn" {
@@ -168,12 +165,11 @@ output "ses_template_arns" {
 }
 
 ############################################
-# Lambda execution IAM baseline outputs
+# Lambda execution IAM outputs
 ############################################
 
-# These outputs re-export the workload-keyed IAM role maps from the IAM module
-# so later environment-level consumers can bind Lambda functions to the correct
-# execution roles without re-describing IAM policy internals here.
+# These outputs expose workload-keyed IAM role identities without re-describing
+# IAM policy internals.
 output "iam_role_names" {
   description = "Map of workload IAM role names for the dev environment."
   value       = module.iam.role_names
@@ -185,12 +181,11 @@ output "iam_role_arns" {
 }
 
 ############################################
-# Lambda compute baseline outputs
+# Lambda compute outputs
 ############################################
 
-# These outputs re-export workload-keyed Lambda maps from both Lambda module
-# calls so later environment-level consumers can integrate the deployed
-# functions without re-describing Lambda infrastructure internals here.
+# These outputs combine workload-keyed Lambda identities from both module calls
+# for deployment and environment integrations.
 output "lambda_function_names" {
   description = "Map of workload Lambda function names for the dev environment."
   value = merge(
@@ -232,12 +227,11 @@ output "lambda_log_group_arns" {
 }
 
 ############################################
-# Cognito identity baseline outputs
+# Cognito identity outputs
 ############################################
 
-# These outputs re-export the key Cognito identities from the module so later
-# environment-level consumers such as API Gateway wiring can use them directly
-# without re-describing Cognito internals in the root.
+# These outputs expose Cognito identities used by API authorization, frontend
+# authentication, and operational tooling.
 output "cognito_user_pool_id" {
   description = "ID of the Cognito User Pool created for the dev environment."
   value       = module.cognito.user_pool_id
@@ -269,12 +263,11 @@ output "cognito_user_pool_endpoint" {
 }
 
 ############################################
-# S3 frontend origin bucket baseline outputs
+# S3 frontend origin outputs
 ############################################
 
-# These outputs expose the private frontend origin bucket values that the later
-# edge-delivery steps are most likely to need, without requiring callers to
-# inspect the s3_frontend_bucket module internals directly.
+# These outputs expose the private frontend origin bucket values used by edge
+# delivery and frontend deployment tooling.
 output "frontend_bucket_arn" {
   description = "ARN of the private frontend origin bucket created for the dev environment."
   value       = module.s3_frontend_bucket.bucket_arn
@@ -296,7 +289,7 @@ output "frontend_bucket_regional_domain_name" {
 }
 
 ############################################
-# WAF edge protection baseline outputs
+# WAF edge protection outputs
 ############################################
 
 # These outputs expose the CloudFront-scoped Web ACL values when WAF is enabled
@@ -317,13 +310,12 @@ output "waf_web_acl_name" {
 }
 
 ############################################
-# CloudFront edge distribution baseline outputs
+# CloudFront edge distribution outputs
 ############################################
 
-# These outputs expose the CloudFront distribution values needed for browser
-# validation, later frontend deployment integration, and future DNS/custom
-# domain work without requiring callers to inspect the cloudfront module
-# internals directly.
+# These outputs expose CloudFront distribution values used by browser
+# validation, frontend deployment, and optional DNS or custom-domain
+# integrations.
 output "cloudfront_distribution_id" {
   description = "ID of the CloudFront distribution created for the dev environment."
   value       = module.cloudfront.distribution_id
@@ -360,69 +352,67 @@ output "cloudfront_spa_rewrite_function_name" {
 }
 
 ############################################
-# API Gateway routed backend baseline outputs
+# API Gateway routed backend outputs
 ############################################
 
-# These outputs expose the current routed backend baseline so the environment
-# can be tested end to end without requiring callers to inspect the
-# api_gateway module internals directly.
+# These outputs expose the routed HTTP API for integration, deployment
+# validation, and operational inspection.
 output "api_gateway_api_id" {
-  description = "ID of the HTTP API created for the dev environment routed backend baseline."
+  description = "ID of the routed HTTP API created for the dev environment."
   value       = module.api_gateway.api_id
 }
 
 output "api_gateway_api_arn" {
-  description = "ARN of the HTTP API created for the dev environment routed backend baseline."
+  description = "ARN of the routed HTTP API created for the dev environment."
   value       = module.api_gateway.api_arn
 }
 
 output "api_gateway_execution_arn" {
-  description = "Execution ARN of the HTTP API created for the dev environment routed backend baseline."
+  description = "Execution ARN of the routed HTTP API created for the dev environment."
   value       = module.api_gateway.api_execution_arn
 }
 
 output "api_gateway_api_endpoint" {
-  description = "Base invoke endpoint of the HTTP API created for the dev environment routed backend baseline."
+  description = "Base invoke endpoint of the routed HTTP API created for the dev environment."
   value       = module.api_gateway.api_endpoint
 }
 
 output "api_gateway_stage_name" {
-  description = "Stage name of the HTTP API created for the dev environment routed backend baseline."
+  description = "Stage name of the routed HTTP API created for the dev environment."
   value       = module.api_gateway.stage_name
 }
 
 output "api_gateway_stage_invoke_url" {
-  description = "Stage-qualified invoke URL of the HTTP API created for the dev environment routed backend baseline."
+  description = "Stage-qualified invoke URL of the routed HTTP API created for the dev environment."
   value       = module.api_gateway.stage_invoke_url
 }
 
 output "api_gateway_jwt_authorizer_id" {
-  description = "JWT authorizer ID of the HTTP API created for the dev environment routed backend baseline."
+  description = "JWT authorizer ID of the routed HTTP API created for the dev environment."
   value       = module.api_gateway.jwt_authorizer_id
 }
 
 output "api_gateway_request_authorizer_ids" {
-  description = "Map of logical Lambda request authorizer name to HTTP API authorizer ID for the dev environment routed backend baseline."
+  description = "Map of logical Lambda request authorizer name to authorizer ID for the dev HTTP API."
   value       = module.api_gateway.request_authorizer_ids
 }
 
 output "api_gateway_route_ids" {
-  description = "Map of logical route name to route ID for the dev environment routed backend baseline."
+  description = "Map of logical route name to route ID for the dev HTTP API."
   value       = module.api_gateway.route_ids
 }
 
 output "api_gateway_route_keys" {
-  description = "Map of logical route name to route key for the dev environment routed backend baseline."
+  description = "Map of logical route name to route key for the dev HTTP API."
   value       = module.api_gateway.route_keys
 }
 
 ############################################
-# CloudWatch observability baseline outputs
+# CloudWatch observability outputs
 ############################################
 
-# These outputs expose the CloudWatch alarm and dashboard identities created
-# for the dev observability baseline, without coupling callers to the reusable
-# observability module internals.
+# These outputs expose CloudWatch alarm and dashboard identities without
+# coupling consumers to the observability module internals.
 output "observability_alarm_names" {
   description = "Map of logical observability alarm key to CloudWatch alarm name for the dev environment."
   value       = module.observability.alarm_names
@@ -434,11 +424,11 @@ output "observability_alarm_arns" {
 }
 
 output "observability_dashboard_name" {
-  description = "Name of the CloudWatch dashboard created for the dev observability baseline."
+  description = "Name of the CloudWatch operational dashboard created for the dev environment."
   value       = module.observability.dashboard_name
 }
 
 output "observability_dashboard_arn" {
-  description = "ARN of the CloudWatch dashboard created for the dev observability baseline."
+  description = "ARN of the CloudWatch operational dashboard created for the dev environment."
   value       = module.observability.dashboard_arn
 }

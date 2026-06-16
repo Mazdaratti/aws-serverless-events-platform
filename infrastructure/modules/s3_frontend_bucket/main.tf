@@ -1,12 +1,11 @@
 ############################################
-# Private frontend origin bucket baseline
+# Private frontend origin bucket
 ############################################
 
 resource "aws_s3_bucket" "this" {
-  # This is the private bucket that will later act as the CloudFront origin
-  # for frontend assets. The module intentionally creates only the bucket
-  # baseline here and leaves CloudFront-specific access policy wiring for a
-  # later step.
+  # This private bucket stores frontend assets served through CloudFront.
+  # CloudFront access policy wiring remains caller-owned because it depends on
+  # the consuming distribution ARN.
   bucket        = local.bucket_name
   force_destroy = var.force_destroy
 
@@ -16,9 +15,8 @@ resource "aws_s3_bucket" "this" {
 resource "aws_s3_bucket_public_access_block" "this" {
   bucket = aws_s3_bucket.this.id
 
-  # The frontend bucket must not be directly public. CloudFront will become the
-  # intended public entry point later, so all direct public-access paths are
-  # blocked at the bucket level now.
+  # CloudFront is the public entry point, so direct public-access paths remain
+  # blocked at the bucket level.
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -26,7 +24,7 @@ resource "aws_s3_bucket_public_access_block" "this" {
 }
 
 resource "aws_s3_bucket_ownership_controls" "this" {
-  # Attach public-access blocking first so the bucket's baseline protection is
+  # Attach public-access blocking first so the bucket's protection is
   # already in place before additional bucket-side controls are applied.
   depends_on = [aws_s3_bucket_public_access_block.this]
 
@@ -44,8 +42,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
 
   rule {
     apply_server_side_encryption_by_default {
-      # SSE-S3 keeps the baseline encrypted at rest without introducing KMS key
-      # management or extra cost/complexity in this first origin-bucket step.
+      # SSE-S3 encrypts objects at rest without introducing caller-managed KMS
+      # key ownership or additional key-management requirements.
       sse_algorithm = "AES256"
     }
   }
@@ -55,9 +53,8 @@ resource "aws_s3_bucket_versioning" "this" {
   bucket = aws_s3_bucket.this.id
 
   versioning_configuration {
-    # Versioning is exposed as a small module input so environments can decide
-    # whether they want rollback-friendly object history or the leaner
-    # non-versioned baseline.
+    # Versioning lets callers choose between rollback-friendly object history
+    # and suspended versioning.
     status = var.versioning_enabled ? "Enabled" : "Suspended"
   }
 }

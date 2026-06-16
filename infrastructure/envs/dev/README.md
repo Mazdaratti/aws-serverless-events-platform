@@ -1,24 +1,36 @@
 # Development Environment (`envs/dev`)
 
-This folder contains the Terraform root module for the `dev` environment.
+This directory contains the Terraform root module for the deployed `dev`
+environment.
 
-The root module stays intentionally thin and composition-focused.
-It defines shared Terraform, provider, naming, and tagging baselines
-and wires reusable infrastructure modules as the platform is implemented step by step.
+The root remains composition-focused: it configures the environment, wires
+reusable Terraform modules, and owns policies that connect concrete deployed
+resources.
 
 ---
 
-## What This Environment Does Right Now
+## Documentation Ownership
 
-The current `dev` root module is responsible for:
+This document owns:
 
-- defining Terraform and AWS provider version constraints
-- configuring the AWS provider for the selected region
-- establishing shared environment naming and baseline tags
-- declaring the required input values for local use
-- composing reusable infrastructure modules for the dev environment
+- the concrete Terraform composition deployed in `dev`
+- environment-specific configuration and resource relationships
+- operational constraints that apply specifically to this environment
+- validation notes for the deployed infrastructure
 
-This keeps the environment root clean and composition-only while the platform is implemented step by step.
+Related documentation:
+
+- [Project setup](../../../docs/project-setup.md) covers bootstrap, provisioning,
+  deployment workflows, and local operator commands.
+- [Architecture](../../../docs/architecture.md) explains the platform design and
+  service relationships.
+- [Platform behavior](../../../docs/platform-behavior.md) defines runtime,
+  authorization, and API contracts.
+- [Implementation roadmap](../../../docs/implementation-roadmap.md) records
+  delivery history and future direction.
+
+The generated Terraform requirements, providers, modules, resources, inputs,
+and outputs reference remains at the end of this file.
 
 ---
 
@@ -45,1413 +57,762 @@ The configured backend uses:
 
 ---
 
-## How To Use This Environment
+## Operating This Environment
 
-### 1. Create your local tfvars file
+The primary provisioning paths are the manual GitHub Actions dry-run and apply
+workflows. Local Terraform provisioning remains available for operator-driven
+validation or recovery.
 
-Use the example file as your starting point:
+Before planning or applying this root:
 
-```bash
-cp terraform.tfvars.example terraform.tfvars
-```
+- bootstrap must have created the remote backend and generated `backend.tf`
+- local runs require an untracked `terraform.tfvars` created from
+  `terraform.tfvars.example`
+- GitHub Actions runs receive the same inputs through `TF_VAR_*` environment
+  variables
+- Lambda ZIP artifacts must exist under `artifacts/lambda/` before Terraform
+  plans fresh function creation
+- the active AWS identity must have the required provisioning permissions
 
-Then review and adjust:
-
-- `project_name`
-- `environment`
-- `aws_region`
-- `dynamodb_point_in_time_recovery_enabled`
-- `enable_waf`
-- `sns_admin_email_subscriptions`
-- `ses_sender_email`
-
-### 2. Initialize Terraform
-
-```bash
-terraform init
-```
-
-Terraform reads the generated `backend.tf` file and initializes this root with
-the configured S3 backend.
-
-### 3. Review the plan
-
-```bash
-terraform plan
-```
-
-The plan will show the creation of real AWS resources from wired modules.
-
-The plan is useful to:
-
-- validate provider authentication
-- validate variable wiring
-- validate remote backend initialization
-- validate the evaluation graph for the environment root
-- validate real env/module composition before apply
-
----
+Provisioning workflows, input synchronization, Lambda packaging, and the full
+local Terraform command sequence are documented in
+[Project setup](../../../docs/project-setup.md).
 
 ## File Overview
 
-- `versions.tf` keeps the Terraform CLI and AWS provider version baseline in one place
-- `locals.tf` defines shared naming and tagging values for future module composition
-- `variables.tf` declares the required environment inputs and validates that they are not empty
-- `providers.tf` configures the AWS provider and applies baseline default tags
-- `main.tf` composes the reusable modules for the dev environment
+- `versions.tf` defines the Terraform CLI and AWS provider constraints
+- `providers.tf` configures the AWS provider and default tags
+- `variables.tf` declares and validates environment inputs
+- `locals.tf` defines shared naming, tagging, and composition values
+- `data.tf` reads AWS identity and partition metadata used by the environment
+- `main.tf` composes the reusable infrastructure modules
+- `event_source_mappings.tf` connects the notification SQS queues to their
+  Lambda consumers
 - `resource_policies.tf` owns environment-specific resource policies that bind
   concrete deployed resources together
-- `outputs.tf` re-exports outputs needed by later layers
+- `outputs.tf` exports deployed resource identifiers and application
+  configuration consumed by operators and deployment helpers
 - `backend.tf` is generated by `infrastructure/bootstrap/dev` and ignored by Git
-- `terraform.tfvars.example` shows the required local input shape for this environment
+- `terraform.tfvars.example` documents the local environment input shape
 
 ---
 
-## What This Environment Deploys
+## Deployed Composition
 
-The dev environment is composed of reusable modules plus a small set of
-environment-owned resource policies for concrete relationships between deployed
+The `dev` environment combines reusable modules with environment-owned event
+source mappings and resource policies for relationships between concrete
 resources.
 
-Each section below corresponds to **one module block in `main.tf`**.
-
-New infrastructure is added by appending additional module blocks to `main.tf`.
+The sections below document the deployed service configuration and
+environment-specific decisions. The generated Terraform reference at the end of
+this file provides the exact module, resource, input, and output inventory.
 
 ---
 
 ## DynamoDB Data Layer
 
-Creates the initial DynamoDB business data baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/dynamodb_data_layer`](../../modules/dynamodb_data_layer/README.md)
 
-- `modules/dynamodb_data_layer`
+The environment deploys:
 
-This environment currently wires in:
+| Table | Primary key | Secondary indexes |
+|---|---|---|
+| `events` | Partition key: `event_pk` | `public-upcoming-events`, `creator-events` |
+| `rsvps` | Partition key: `event_pk`; sort key: `subject_sk` | None |
 
-- the `events` table for canonical event records
-- the `rsvps` table for canonical RSVP membership records
-- the first approved GSIs on the `events` table for future query-based listing patterns
+Both tables use:
 
-Why this module is wired first:
+- `PAY_PER_REQUEST` billing
+- `STANDARD` table class
+- environment-level point-in-time recovery configuration
 
-- the platform needs a durable business data layer before API and compute layers can be composed above it
-- the DynamoDB design establishes the canonical write model for events and RSVPs
-- later IAM, Lambda, and API wiring will consume the table names and ARNs exported here
+Point-in-time recovery defaults to disabled in `dev` to reduce steady
+non-production cost. The reusable module supports enabling it through
+`dynamodb_point_in_time_recovery_enabled`.
 
-Important design notes:
+Table names and ARNs are exported for IAM, Lambda configuration, deployment
+inspection, and other environment composition.
 
-- the primary RSVP business write remains synchronous through DynamoDB durable commit
-- asynchronous services such as SQS are reserved for downstream side effects after commit
-- the `rsvps` table is the source of truth for attendance membership
-- event-level counters are helper fields, not the source of truth
-- point-in-time recovery is disabled by default in `dev` to reduce always-on non-production cost
-- the reusable module still supports PITR, but this environment now treats it as an explicit environment-level behavior choice
+Data ownership, key conventions, transactional RSVP behavior, and query
+patterns are documented in:
 
-The environment should stay thin:
+- [Architecture](../../../docs/architecture.md#data-layer)
+- [Platform behavior](../../../docs/platform-behavior.md)
 
-- reusable AWS resource logic belongs in modules
-- `envs/dev` should focus on composition and environment-level identity and placement inputs
+### DynamoDB Validation
 
-Validation:
-
-- validated via `terraform apply`, AWS inspection, and a clean post-apply `terraform plan`
-- confirmed table creation, approved GSIs, `PAY_PER_REQUEST`, and table class `STANDARD`
-- `dev` now defaults point-in-time recovery to disabled as a cost-saving environment override
-- optional CLI data validation was also completed
-- see evidence screenshots under `docs/assets/dynamodb/`
+Deployment validation confirmed table creation, indexes, billing mode, table
+class, data access, and a clean post-apply Terraform plan. Supporting evidence
+is available under [`docs/assets/dynamodb/`](../../../docs/assets/dynamodb/).
 
 ---
 
-## SQS Messaging Baseline
+## SQS Messaging
 
-Creates the initial SQS messaging baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/sqs`](../../modules/sqs/README.md)
+- `event_source_mappings.tf`
+- `resource_policies.tf`
 
-- `modules/sqs`
+The environment deploys:
 
-This environment currently wires in:
+| Queue | Purpose | Consumer |
+|---|---|---|
+| `notification-dispatch` | Event-level participant notification planning | `notification-planner` |
+| `notification-email` | Recipient-level email delivery | `notification-sender` |
 
-- two standard queues:
-  - `notification-dispatch`
-  - `notification-email`
-- one dedicated dead-letter queue for each source queue
-- one environment-owned queue policy that allows the EventBridge participant
-  dispatch rule to send messages to `notification-dispatch`
-- Lambda-ready queue timing for `notification-dispatch` with a 60 second
-  visibility timeout and 20 second long polling
+Each standard queue has:
 
-Why this module is wired now:
+- a dedicated dead-letter queue
+- a 60-second visibility timeout
+- four-day message retention
+- 20-second long polling
+- a redrive threshold of five receives
 
-- the platform already reserves SQS for asynchronous work after durable state changes
-- notification dispatch is the clearest first async side effect to separate from API response time
-- the email queue establishes the recipient-level user-facing email work buffer
-  between the participant notification planner and sender
-- the queues and DLQs establish concrete messaging extension points without
-  changing the synchronous RSVP write path
+The environment-owned queue policy permits only the concrete EventBridge
+participant-dispatch rule in the current AWS account to send messages to
+`notification-dispatch`. EventBridge does not send directly to
+`notification-email`.
 
-Important design notes:
+The Lambda event source mappings use:
 
-- `notification-dispatch` is intended for event-level participant notification
-  planning work from EventBridge
-- `notification-email` is intended for recipient-level user-facing email jobs
-  produced by the notification planner
-- participant emails are user-facing product emails, not admin/debug messages
-- the planner produces safe recipient-level jobs, and the sender owns final
-  presentation through stable templates
-- EventBridge does not send directly to `notification-email`
-- `notification-planner` is implemented and consumes `notification-dispatch`
-  through a Lambda event source mapping
-- `notification-sender` is implemented and consumes `notification-email`
-  through a Lambda event source mapping
-- both notification event source mappings use `ReportBatchItemFailures`
-- `notification-sender` resolves the current recipient email from Cognito by
-  canonical `sub` and sends SES templated participant emails
-- the primary RSVP business write remains synchronous through DynamoDB durable commit
-- the EventBridge-to-SQS queue policy is scoped to the concrete participant
-  dispatch rule ARN and the current AWS account through `aws:SourceAccount`
-- Lambda consumer permissions remain separate from the queue resource policy and
-  are not changed by the EventBridge routing step
+- batch size `10`
+- no batching window
+- `ReportBatchItemFailures` partial batch responses
 
-The environment should stay thin:
+Notification topology, worker responsibilities, and message behavior are
+documented in:
 
-- reusable AWS resource logic belongs in modules
-- `envs/dev` should focus on composition and environment-level identity and placement inputs
+- [Architecture](../../../docs/architecture.md#event-driven-notification-architecture)
+- [Platform behavior](../../../docs/platform-behavior.md#post-commit-notification-behavior)
 
-Validation:
+### SQS Validation
 
-- validated via `terraform apply -target="module.sqs"`, AWS inspection, and a clean post-apply `terraform plan`
-- confirmed source queue creation, DLQ creation, redrive configuration, and queue attribute values
-- confirmed Terraform outputs match the created queue and DLQ identities
-- see evidence screenshots under `docs/assets/sqs/`
+Deployment validation confirmed source queues, dedicated DLQs, redrive
+configuration, queue attributes, exported identities, and a clean post-apply
+Terraform plan. Supporting evidence is available under
+[`docs/assets/sqs/`](../../../docs/assets/sqs/).
 
 ---
 
-## EventBridge Async Event Bus Baseline
+## EventBridge Routing
 
-Creates the custom EventBridge event bus and notification routing baseline for
-the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/eventbridge`](../../modules/eventbridge/README.md)
+- `resource_policies.tf`
 
-- `modules/eventbridge`
+The environment deploys the custom event bus:
 
-This environment currently wires in:
+- `aws-serverless-events-platform-dev-events`
 
-- one custom EventBridge event bus
-- one admin lifecycle notification rule: `admin_lifecycle_notifications`
-- one admin update notification rule: `admin_update_notifications`
-- one participant dispatch rule: `participant_notification_dispatch`
-- two SNS targets for formatted admin notifications
-- one SQS target for participant notification planning
+Routing is configured as follows:
 
-Why this module is wired now:
+| Rule | Domain events | Target |
+|---|---|---|
+| `admin_lifecycle_notifications` | `event.created`, `event.cancelled` | SNS admin notification topic |
+| `admin_update_notifications` | `event.updated` | SNS admin notification topic |
+| `participant_notification_dispatch` | `event.updated`, `event.cancelled` | SQS `notification-dispatch` |
 
-- the platform has locked EventBridge as the post-commit domain event router
-- the real `dev` environment now has concrete fanout routes for the locked v1
-  event-management domain events
-- routing through EventBridge keeps write Lambdas from publishing separate
-  messages for separate downstream targets
+The SNS targets use input transformers to render admin-readable messages with
+the CloudFront event URL. Update notifications also include
+`changed_fields`.
 
-Important design notes:
+Environment-owned SNS and SQS resource policies permit delivery only from the
+corresponding concrete EventBridge rule ARNs and the current AWS account.
+Lambda permissions to publish with `events:PutEvents` remain in the IAM module.
 
-- the event bus is intended for compact domain events after durable business
-  writes
-- EventBridge owns fanout to the current admin and participant notification
-  paths
-- `event.created` and `event.cancelled` are routed to the SNS admin
-  notification topic through the lifecycle admin rule
-- `event.updated` is routed to the SNS admin notification topic through the
-  update admin rule
-- `event.updated` and `event.cancelled` are routed to the existing
-  `notification-dispatch` SQS queue
-- admin SNS targets use EventBridge input transformers to render lightweight
-  email text with the CloudFront event URL
-- direct EventBridge-to-SNS email delivery still shows AWS/SNS line quoting
-  artifacts, so polished email formatting remains a future formatter concern
-- SNS and SQS target resource policies are owned by `envs/dev` in
-  `resource_policies.tf` because they bind concrete rules to concrete targets
-- write Lambda `events:PutEvents` permissions are configured through the IAM module
-- write Lambdas receive the custom event bus name through
-  `EVENTBRIDGE_EVENT_BUS_NAME`
-- `cancel-event` now publishes `event.cancelled` after successful durable
-  cancellation
-- `create-event` now publishes `event.created` after successful durable
-  creation
-- `update-event` now publishes `event.updated` after successful durable updates
-- the synchronous API and DynamoDB business write path remain unchanged
+The event-management write Lambdas receive the bus name through
+`EVENTBRIDGE_EVENT_BUS_NAME`. Domain-event publication and downstream
+notification behavior are documented in:
 
-The environment should stay thin:
+- [Architecture](../../../docs/architecture.md#event-driven-notification-architecture)
+- [Platform behavior](../../../docs/platform-behavior.md#post-commit-notification-behavior)
 
-- reusable EventBridge resource logic belongs in `modules/eventbridge`
-- concrete target policies belong in the environment because they connect
-  environment-specific resources
-- `envs/dev` should focus on composition and environment-level identity and
-  placement inputs
+### EventBridge Validation
 
-Validation:
-
-- validated via `terraform apply`, AWS inspection, EventBridge-routed SQS
-  message receipt, and a clean post-apply `terraform plan`
-- confirmed the deployed EventBridge bus name is:
-  - `aws-serverless-events-platform-dev-events`
-- confirmed deployed EventBridge rules are:
-  - `admin_lifecycle_notifications`
-  - `admin_update_notifications`
-  - `participant_notification_dispatch`
-- confirmed `event.created`, `event.updated`, and `event.cancelled` deliver
-  admin SNS emails to a confirmed dev email subscription
-- confirmed admin SNS emails include the full CloudFront event URL
-- confirmed `event.updated` admin email includes `changed_fields`
-- confirmed `event.created` and `event.cancelled` admin emails do not include
-  an empty or irrelevant `changed_fields` line
-- confirmed `event.created` from `create-event` is published after durable
-  creation
-- confirmed `event.created` does not route to the existing
-  `notification-dispatch` SQS queue
-- confirmed `event.updated` from `update-event` routes to the existing
-  `notification-dispatch` SQS queue with compact notification-safe detail and
-  `changed_fields`
-- confirmed `event.cancelled` from `cancel-event` routes to the existing
-  `notification-dispatch` SQS queue with compact notification-safe detail
+Deployment validation confirmed the event bus, rules, targets, transformed SNS
+messages, SQS delivery for participant notifications, route exclusions, and a
+clean post-apply Terraform plan.
 
 ---
 
-## SNS Admin Notification Topic Baseline
+## SNS Admin Notifications
 
-Creates the SNS admin notification topic baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/sns`](../../modules/sns/README.md)
+- `resource_policies.tf`
 
-- `modules/sns`
+The environment deploys:
 
-This environment currently wires in:
+- the `aws-serverless-events-platform-dev-admin-notifications` topic
+- configurable email subscriptions from `sns_admin_email_subscriptions`
+- an environment-owned topic policy for EventBridge delivery
 
-- one SNS admin notification topic
-- configurable SNS email subscriptions for dev admin notification validation
-- one confirmed dev SNS email subscription when local untracked tfvars provide
-  an email endpoint
-- one environment-owned topic policy that allows the EventBridge admin
-  lifecycle and update notification rules to publish to the topic
+Email endpoints come from the untracked local `terraform.tfvars` file or the
+corresponding GitHub Actions secret. Personal email addresses are not stored in
+committed Terraform.
 
-Why this module is wired now:
+The topic policy permits `sns:Publish` only from:
 
-- the platform has locked SNS as the direct admin/platform broadcast path
-- the real `dev` environment now has a concrete SNS admin topic for the locked
-  v1 write-Lambda domain events
-- the topic is now connected to the EventBridge admin notification route through
-  a scoped topic policy
-- the confirmed dev email subscription proves the direct admin notification
-  path before Step 20 participant email workers are introduced
+- EventBridge as the service principal
+- the concrete `admin_lifecycle_notifications` and
+  `admin_update_notifications` rule ARNs
+- the current AWS account through `aws:SourceAccount`
 
-Important design notes:
+Admin notifications are routed directly from EventBridge. Its input
+transformers produce lightweight email content containing the CloudFront event
+URL and, for update events, `changed_fields`. Participant notifications use the
+separate SQS and SES path.
 
-- the topic is intended for platform/admin broadcast notifications
-- SNS email subscriptions are configured through local untracked tfvars
-- no personal email addresses are hardcoded in committed Terraform
-- the SNS topic policy is scoped to the concrete EventBridge
-  `admin_lifecycle_notifications` and `admin_update_notifications` rule ARNs
-- admin notifications are routed directly from EventBridge to SNS
-- admin SNS email text is formatted by EventBridge input transformers and
-  includes a full CloudFront event URL
-- direct EventBridge-to-SNS email delivery is intentionally lightweight and may
-  show AWS/SNS line quoting artifacts
-- participant notifications do not use this topic
-- write Lambda `events:PutEvents` permissions are configured through the IAM module
-- the SNS topic policy is also scoped to the current AWS account through
-  `aws:SourceAccount`
-- write Lambdas receive the custom event bus name through
-  `EVENTBRIDGE_EVENT_BUS_NAME`
-- `cancel-event` now publishes `event.cancelled` after successful durable
-  cancellation
-- `create-event` now publishes `event.created` after successful durable
-  creation
-- `update-event` now publishes `event.updated` after successful durable updates
-- the synchronous API and DynamoDB business write path remain unchanged
+Notification routing and admin-message behavior are documented in:
 
-The environment should stay thin:
+- [Architecture](../../../docs/architecture.md#admin-notification-path)
+- [Platform behavior](../../../docs/platform-behavior.md#admin-notification-behavior)
 
-- reusable AWS resource logic belongs in modules
-- `envs/dev` should focus on composition and environment-level identity and
-  placement inputs
+### SNS Validation
 
-Validation:
-
-- validated via `terraform apply`, confirmed SNS email subscription, received
-  admin emails, EventBridge-routed SQS checks, and a clean post-apply
-  `terraform plan`
-- confirmed the SNS admin topic name is:
-  - `aws-serverless-events-platform-dev-admin-notifications`
-- confirmed the configured dev email subscription is confirmed, not pending
-- confirmed the topic policy principal is `events.amazonaws.com`
-- confirmed `event.created`, `event.updated`, and `event.cancelled` each
-  deliver an admin SNS email
-- confirmed all admin SNS emails contain the full CloudFront event URL
-- confirmed `event.updated` email includes `changed_fields`
-- confirmed `event.created` and `event.cancelled` emails do not include an
-  empty or irrelevant `changed_fields` line
-- confirmed `event.created` does not route to `notification-dispatch`
-- confirmed `event.updated` and `event.cancelled` still route to
-  `notification-dispatch`
-- see evidence screenshots under `docs/assets/lambda_api/`
+Deployment validation confirmed topic creation, subscription confirmation,
+scoped EventBridge publishing, admin email delivery for all supported lifecycle
+events, message content, route separation, and a clean post-apply Terraform
+plan. Supporting evidence is available under
+[`docs/assets/lambda_api/`](../../../docs/assets/lambda_api/).
 
 ---
 
-## SES Participant Email Baseline
+## SES Participant Email
 
-Creates the SES sender identity and participant notification template baseline
-for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/ses`](../../modules/ses/README.md)
 
-- `modules/ses`
+The environment deploys:
 
-This environment currently wires in:
+| Resource | Purpose |
+|---|---|
+| Email identity | Dedicated participant-notification sender |
+| `event.updated` template | Participant event-update email |
+| `event.cancelled` template | Participant event-cancellation email |
 
-- one SES email identity for the dedicated project sender inbox
-- one SES template for `event.updated` participant emails
-- one SES template for `event.cancelled` participant emails
+The sender address comes from the untracked local `terraform.tfvars` file or the
+corresponding GitHub Actions secret. It must use a dedicated project inbox;
+private addresses are not stored in committed Terraform, application code, or
+documentation.
 
-Why this module is wired now:
+Terraform creates the email identity, but the inbox owner must complete the SES
+verification email before the identity can send. The verified identity becomes
+the visible participant-email `From` address.
 
-- participant emails are user-facing product emails, not admin/debug messages
-- SES gives the deployed `notification-sender` an AWS-native templated email
-  delivery baseline
-- SES templates keep reusable subject, plain-text, and HTML email definitions
-  in AWS-managed template resources instead of Lambda code
-- wiring the identity and templates separately lets the sender inbox be verified
-  before any Lambda is allowed to send email
+Each Terraform-managed template contains a subject, plain-text body, and HTML
+body. The `notification-sender` selects the template and supplies separately
+validated text-safe and HTML-safe dynamic values.
 
-Important design notes:
+The `dev` environment remains in the SES sandbox:
 
-- the sender email is configured through local untracked `terraform.tfvars`
-- the sender email must be a dedicated project inbox, not a private personal
-  email address
-- Terraform creates the SES email identity, but inbox verification is manual
-- the dedicated project inbox is the visible participant email `From` address
-- Terraform manages templates for:
-  - `event.updated`
-  - `event.cancelled`
-- SES templates contain:
-  - subject
-  - plain-text body
-  - HTML body
-- `notification-sender` chooses the correct Terraform-managed SES template and
-  provides safe template data
-- `notification-sender` validates URL inputs and uses separate text-safe and
-  HTML-safe template data fields before passing dynamic values to SES
-- SES sandbox assumptions remain explicit for `dev`
-- sandbox sending requires verified recipient email addresses
-- participant emails are sent from the verified project sender identity through
-  SES templated email delivery
-- no SES production access request has been made yet
-- domain identity, DKIM, SPF, DMARC, and custom MAIL FROM remain future
-  deliverability hardening work
+- sender and recipient identities must be verified
+- Terraform does not request production access
+- domain identity, DKIM, SPF, DMARC, and custom MAIL FROM are not configured
 
-The environment should stay thin:
+Participant notification topology, recipient selection, and message behavior
+are documented in:
 
-- reusable AWS resource logic belongs in modules
-- `envs/dev` should focus on composition and environment-level identity and
-  placement inputs
+- [Architecture](../../../docs/architecture.md#participant-notification-path)
+- [Platform behavior](../../../docs/platform-behavior.md#participant-notification-behavior)
 
-Validation:
+### SES Validation
 
-- validated via `terraform apply`, SES identity inspection, SES template
-  inspection, manual sender identity verification, and a clean post-apply
-  `terraform plan`
-- confirmed the SES sender identity exists
-- confirmed the SES sender identity is verified through the dedicated project
-  inbox
-- confirmed the `event.updated` SES template exists
-- confirmed the `event.cancelled` SES template exists
-- confirmed Terraform outputs expose the SES sender identity ARN and template
-  identifiers
-- confirmed `notification-sender` sends templated SES email for controlled
-  `event.updated` and `event.cancelled` recipient jobs
-- confirmed SES sandbox validation uses verified recipient addresses
-- confirmed the rendered participant emails do not expose internal platform
-  fields
-- see evidence screenshots under `docs/assets/ses/`
+Deployment validation confirmed identity creation and verification, both
+templates, exported identifiers, controlled participant-email delivery,
+sandbox recipient requirements, safe rendered content, and a clean post-apply
+Terraform plan. Supporting evidence is available under
+[`docs/assets/ses/`](../../../docs/assets/ses/).
 
 ---
 
-## IAM Roles (Lambda Execution Baseline)
+## Lambda Execution IAM
 
-Defines the Lambda execution IAM baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/iam`](../../modules/iam/README.md)
 
-- `modules/iam`
+Each Lambda workload receives:
 
-This environment currently wires in:
+- a dedicated execution role
+- a Lambda-only trust policy
+- a workload-specific customer-managed policy
+- CloudWatch Logs permissions
+- the minimal X-Ray write permissions required for active tracing
 
-- one execution role for `create-event`
-- one execution role for `get-event`
-- one execution role for `list-events`
-- one execution role for `list-my-events`
-- one execution role for `update-event`
-- one execution role for `cancel-event`
-- one execution role for `rsvp-authorizer`
-- one execution role for `rsvp`
-- one execution role for `get-event-rsvps`
-- one execution role for `notification-planner`
-- one execution role for `notification-sender`
+Workload access is separated by responsibility:
 
-Why this module is wired now:
+| Workload | Scoped access |
+|---|---|
+| `create-event` | Create event records and publish to the custom EventBridge bus |
+| `get-event` | Direct event read |
+| `list-events` | Events-table `Scan` as the current temporary listing access pattern |
+| `list-my-events` | Query the `creator-events` GSI |
+| `update-event` | Read and update event records; publish to the custom EventBridge bus |
+| `cancel-event` | Read and update event records; publish to the custom EventBridge bus |
+| `rsvp-authorizer` | Logs and tracing only; no DynamoDB, SQS, or Cognito API access |
+| `rsvp` | Read event and RSVP state; transact across the `events` and `rsvps` tables |
+| `get-event-rsvps` | Read the event and query its RSVP records |
+| `notification-planner` | Consume `notification-dispatch`, query RSVP records, and send to `notification-email` |
+| `notification-sender` | Consume `notification-email`, resolve users in Cognito, and send approved SES templates |
 
-- workload execution roles must exist before Lambda functions can be deployed cleanly
-- the platform now has real DynamoDB and SQS resources available for least-privilege IAM binding
-- the platform now has a real EventBridge bus ARN available for scoped domain-event publish permissions
-- the environment can now validate workload-specific execution roles against concrete AWS resource ARNs
+EventBridge publishing is granted only to `create-event`, `update-event`, and
+`cancel-event`, scoped to the custom `dev` event bus.
 
-Important design notes:
+The notification sender’s SES permission is constrained to the configured
+sender identity and participant templates. Its `From` address is restricted by
+an IAM condition. The sender has no DynamoDB or EventBridge permissions.
 
-- each workload gets its own least-privilege execution role and
-  customer-managed policy
-- API/business workload permissions are scoped by access pattern:
-  - `create-event` can create canonical event records in `events`
-  - `get-event` can read one event directly with `GetItem`
-  - `list-events` currently has temporary `Scan` access as a short-term
-    access-pattern accommodation
-  - `list-my-events` can query the `creator-events` GSI
-  - `update-event` and `cancel-event` can read and update canonical event
-    records with narrow `GetItem` and `UpdateItem` access
-- RSVP workload permissions are scoped separately:
-  - `rsvp` can read current event and RSVP state and perform the transactional
-    write across `events` and `rsvps`
-  - `get-event-rsvps` can read the event with `GetItem` and query RSVP records
-    from `rsvps`
-- `rsvp-authorizer` uses a logs-only execution profile because Cognito token
-  validation and JWKS retrieval happen without direct Cognito IAM access
-- EventBridge publishing is limited to write workloads:
-  - only `create-event`, `update-event`, and `cancel-event` receive
-    `events:PutEvents`
-  - publish access is scoped to the custom dev event bus ARN
-  - the matching `EVENTBRIDGE_EVENT_BUS_NAME` environment variable is wired in
-    the Lambda module composition
-  - `create-event` publishes `event.created` after durable creation
-  - `update-event` publishes `event.updated` after durable updates
-  - `cancel-event` publishes `event.cancelled` after durable cancellation
-- notification worker permissions are split by queue responsibility:
-  - `notification-planner` can consume `notification-dispatch`, query RSVP
-    records, and send recipient-level jobs to `notification-email`
-  - `notification-sender` can consume `notification-email`, resolve recipient
-    email addresses with Cognito `ListUsers`, and send templated participant
-    emails through SES
-- `notification-sender` SES access is constrained to the resources required for
-  templated sending, with the configured sender `From` address constrained by
-  IAM condition
-- `notification-sender` does not receive DynamoDB or EventBridge permissions
-- all current Lambda workload roles include the minimal X-Ray write
-  permissions required for active Lambda tracing:
-  - `xray:PutTraceSegments`
-  - `xray:PutTelemetryRecords`
+The X-Ray permission set contains only:
 
-The environment should stay thin:
+- `xray:PutTraceSegments`
+- `xray:PutTelemetryRecords`
 
-- reusable AWS resource logic belongs in modules
-- `envs/dev` should focus on composition and environment-level identity and placement inputs
+Role names and ARNs are exported for Lambda composition and deployment
+inspection.
 
-Validation:
+### IAM Validation
 
-- validated via `terraform apply`, AWS inspection, and a clean post-apply `terraform plan` for the original IAM baseline
-- the EventBridge publish permission update and notification planner/sender IAM
-  split were validated with `terraform apply`, AWS inspection, and a clean
-  post-apply `terraform plan`
-- confirmed all wired workload roles were created with Lambda-only trust relationships
-- confirmed the planned IAM policy updates are limited to `create-event`, `update-event`, and `cancel-event`
-- confirmed the IAM update did not include Lambda environment variable or Lambda
-  code changes
-- confirmed `get-event` has narrow direct-read access for the events table
-- confirmed `list-events` has temporary `Scan` access for the events table only
-- confirmed `list-my-events` has narrow `Query` access for the `creator-events` GSI
-- confirmed `update-event` has narrow read/write access for the events table
-- confirmed `cancel-event` has narrow read/write access for the events table
-- confirmed `rsvp-authorizer` has the logs-only execution profile and no DynamoDB or SQS permissions
-- confirmed the RSVP policy includes transactional DynamoDB access across both business tables
-- confirmed `get-event-rsvps` has read-only DynamoDB access across the two business tables:
-  - `GetItem` on `events`
-  - `Query` on `rsvps`
-- confirmed `notification-planner` has SQS consumer permissions for
-  `notification-dispatch`
-- confirmed `notification-planner` can query RSVP records and send messages to
-  `notification-email`
-- confirmed `notification-sender` has SQS consumer permissions for
-  `notification-email`
-- confirmed `notification-sender` can list users in the dev Cognito user pool
-- confirmed `notification-sender` can call `ses:SendTemplatedEmail` for the
-  configured sender address, participant notification templates, and verified
-  sandbox recipient identity scope required by SES authorization
-- confirmed `notification-sender` has no DynamoDB or EventBridge permissions
-- confirmed the Lambda X-Ray baseline updates IAM policies in place without
-  replacing roles or changing workload-specific permissions
-- confirmed a representative workload policy includes only the minimal
-  `XRayWrite` actions:
-  - `xray:PutTraceSegments`
-  - `xray:PutTelemetryRecords`
-- confirmed Terraform outputs match the created IAM role identities
-- see evidence screenshots under `docs/assets/iam/`
-- see Lambda X-Ray validation screenshots under `docs/assets/observability/`
+Deployment validation confirmed role creation, Lambda trust relationships,
+workload-specific resource access, EventBridge publishing boundaries,
+notification-worker separation, SES sender constraints, X-Ray permissions,
+exported role identities, and a clean post-apply Terraform plan. Supporting
+evidence is available under:
+
+- [`docs/assets/iam/`](../../../docs/assets/iam/)
+- [`docs/assets/observability/`](../../../docs/assets/observability/)
 
 ---
 
-## Cognito Identity Baseline
+## Cognito Identity
 
-Creates the initial managed identity baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/cognito`](../../modules/cognito/README.md)
 
-- `modules/cognito`
+The environment deploys:
 
-This environment currently wires in:
+| Resource | Configuration |
+|---|---|
+| User Pool | `aws-serverless-events-platform-dev-users` |
+| Public app client | `aws-serverless-events-platform-dev-app-client`; no client secret |
+| User group | `admin` |
 
-- one Cognito User Pool
-- one public Cognito User Pool Client
-- one Cognito User Group: `admin`
+The `dev` identity configuration uses:
 
-Why this module is wired now:
+- case-insensitive usernames as the primary sign-in attribute
+- required, Cognito-verified email
+- self-service sign-up
+- verified-email account recovery
+- an eight-character minimum password with uppercase, lowercase, and numeric
+  requirements
+- password, SRP, and refresh-token authentication flows
+- token revocation and user-existence error protection
+- deletion protection disabled for this non-production environment
 
-- the platform has already locked Cognito as the managed identity provider
-- `envs/dev` now needs a real identity baseline before routed authenticated API behavior can be introduced
+The client is Cognito-only and does not use a generated secret. Hosted UI,
+OAuth configuration, social identity providers, Lambda triggers, and MFA are
+not configured.
 
-Important design notes:
+The User Pool ID, ARN, client ID, issuer, endpoint, and admin group name are
+exported for API Gateway, Lambda authorizer, frontend, and deployment-helper
+configuration.
 
-- Cognito owns identity lifecycle
-- the routed API uses a hybrid auth model:
-  - native JWT authorization for ordinary protected routes
-  - a dedicated custom Lambda authorizer for the mixed-mode `rsvp` route
-- business Lambda handlers remain free of generic authentication logic
-- business Lambda handlers consume normalized caller context rather than depending directly on a single raw authorizer shape
-- the canonical identity baseline remains:
-  - Cognito `sub` for user identity
-  - Cognito `admin` group membership for admin capability
-- the current baseline intentionally stays small:
-  - username is the primary sign-in attribute in v1
-  - email is required
-  - email verification is Cognito-managed
-  - self sign-up is enabled
-  - MFA is disabled in this phase
-  - hosted UI, social login, triggers, scopes, domains, and user seeding are not part of this step
-- `envs/dev` explicitly sets Cognito deletion protection to disabled for this non-production environment
+Identity ownership, canonical user identity, admin projection, and route
+authorization behavior are documented in:
 
-The environment should stay thin:
+- [Architecture](../../../docs/architecture.md#authentication-layer)
+- [Platform behavior](../../../docs/platform-behavior.md#authentication-behavior)
 
-- reusable AWS resource logic belongs in modules
-- `envs/dev` should focus on composition and environment-level identity and placement inputs
+### Cognito Validation
 
-Validation:
-
-- validated via `terraform apply`, AWS Console inspection, Terraform output verification, and a clean post-apply `terraform plan`
-- confirmed the Cognito User Pool was created in `eu-central-1`
-- confirmed the rendered User Pool name is `aws-serverless-events-platform-dev-users`
-- confirmed the rendered public app client name is `aws-serverless-events-platform-dev-app-client`
-- confirmed the `admin` Cognito group was created
-- confirmed the app client is public and has no client secret
-- confirmed the app client enables:
-  - username/password auth
-  - refresh token auth
-  - SRP auth
-- confirmed token revocation and prevent-user-existence hardening are enabled
-- confirmed Terraform outputs match the created User Pool, app client, issuer, and admin group identities
-- see evidence screenshots under `docs/assets/cognito/`
+Deployment validation confirmed the User Pool, public app client, admin group,
+authentication flows, client hardening, exported identities, and a clean
+post-apply Terraform plan. Supporting evidence is available under
+[`docs/assets/cognito/`](../../../docs/assets/cognito/).
 
 ---
 
-## API Gateway Routed API Baseline
+## API Gateway HTTP API
 
-This is the current end-to-end validated routed backend baseline in the platform:
-Cognito → API Gateway → Lambda → DynamoDB.
+Implemented by:
 
-This section documents the routed API baseline currently deployed in `envs/dev`.
+- [`modules/api_gateway`](../../modules/api_gateway/README.md)
+- the environment-owned API Gateway access-log group in `main.tf`
 
-Implemented via:
+The environment deploys:
 
-- `modules/api_gateway`
+- HTTP API `aws-serverless-events-platform-dev-http-api`
+- stage `dev`
+- Cognito JWT authorization
+- one Lambda request authorizer for mixed-mode RSVP
+- Lambda proxy integrations
+- stage access logging and throttling
 
-This environment currently wires in:
+### Route Matrix
 
-- one HTTP API
-- one stage
-- one environment-owned CloudWatch Logs log group for API Gateway stage access logs
-- one JWT authorizer (Cognito-based)
-- one Lambda request authorizer for the mixed-mode RSVP route
-- stage access logging for the HTTP API
-- default stage throttling
-- eight routed API endpoints:
-  - `POST /events`
-  - `PATCH /events/{event_id}`
-  - `POST /events/{event_id}/cancel`
-  - `POST /events/{event_id}/rsvp`
-  - `GET /events/{event_id}/rsvps`
-  - `GET /events`
-  - `GET /events/mine`
-  - `GET /events/{event_id}`
-- eight Lambda integrations:
-  - `create-event`
-  - `update-event`
-  - `cancel-event`
-  - `rsvp`
-  - `get-event-rsvps`
-  - `list-events`
-  - `list-my-events`
-  - `get-event`
+| Route | Lambda integration | Authorization |
+|---|---|---|
+| `GET /events` | `list-events` | Public |
+| `GET /events/{event_id}` | `get-event` | Public |
+| `GET /events/mine` | `list-my-events` | Cognito JWT |
+| `POST /events` | `create-event` | Cognito JWT |
+| `PATCH /events/{event_id}` | `update-event` | Cognito JWT |
+| `POST /events/{event_id}/cancel` | `cancel-event` | Cognito JWT |
+| `GET /events/{event_id}/rsvps` | `get-event-rsvps` | Cognito JWT |
+| `POST /events/{event_id}/rsvp` | `rsvp` | Mixed-mode Lambda request authorizer |
 
-Why this module is wired now:
+The request authorizer uses payload format `2.0`, simple responses, no identity
+source, and a result TTL of `0`. This permits anonymous requests while
+validating any presented bearer token.
 
-- the platform needed to validate public and JWT-protected Lambda handlers end to end through API Gateway
-- the routed API rollout was implemented incrementally, adding and validating one path per Lambda
-- currently implemented and validated routes are:
-  - `POST /events`
-  - `PATCH /events/{event_id}`
-  - `POST /events/{event_id}/cancel`
-  - `POST /events/{event_id}/rsvp`
-  - `GET /events/{event_id}/rsvps`
-  - `GET /events`
-  - `GET /events/mine`
-  - `GET /events/{event_id}`
+### Stage Controls
 
-Important design notes:
+Default stage throttling is:
 
-- this remains the routed backend baseline behind the CloudFront edge layer
-- the stage-qualified API Gateway invoke URL remains useful for direct backend
-  testing and diagnostics, but it is not the intended browser-facing product
-  entry point
-- CloudFront preserves the existing routed backend path contract instead of
-  introducing a separate translated browser-facing API path family
-- API Gateway stage access logs are now enabled in `dev`
-- the API Gateway access-log log group is owned by `envs/dev`, while the reusable module owns the stage logging configuration
-- stage throttling is configured in `dev` as a backend protection baseline
-  behind CloudFront
-- stricter per-route throttling is now applied to the more write-sensitive routes:
-  - `POST /events`
-  - `PATCH /events/{event_id}`
-  - `POST /events/{event_id}/cancel`
-  - `POST /events/{event_id}/rsvp`
-- API Gateway X-Ray tracing is not enabled in `dev` because this platform uses
-  HTTP API, while API Gateway active tracing applies to REST APIs
-- CORS remains intentionally disabled in `dev` because normal browser traffic
-  is expected to enter through the same-origin CloudFront path
-- `GET /events` is intentionally a public route with `authorization_type = NONE`
-- ordinary protected routes use native JWT authorization at API Gateway
-- `GET /events/mine` is intentionally JWT-protected so API Gateway enforces the creator-route authentication boundary
-- the mixed-mode RSVP authorizer is now implemented as a Lambda request authorizer
-- the real mixed-mode `rsvp` business route is now validated through API Gateway using that authorizer
-- the business `create-event`, `list-my-events`, `update-event`, `cancel-event`, and `get-event-rsvps` Lambdas consume normalized caller context instead of parsing JWTs directly
-- the business `rsvp` Lambda now also consumes normalized caller context instead of parsing raw authorizer payloads directly
-- reusable API Gateway logic belongs in modules while `envs/dev` stays composition-oriented
+- burst limit: `100`
+- rate limit: `50` requests per second
 
-Validation:
+Write-sensitive route overrides are:
 
-- validated via `terraform apply`, AWS Console inspection, Terraform output verification, real Cognito token acquisition, routed API invocation, Lambda execution verification, and a clean post-apply `terraform plan`
-- confirmed the HTTP API was created in `eu-central-1`
-- confirmed the rendered API name is `aws-serverless-events-platform-dev-http-api`
-- confirmed the stage name is `dev`
-- confirmed the API Gateway stage access-log log group is owned by the environment and separate from Lambda log groups
-- confirmed stage access logging is configured on the deployed API Gateway stage
-- confirmed the deployed stage access-log destination is:
-  - `/aws/apigateway/aws-serverless-events-platform-dev-http-api-access`
-- confirmed default stage throttling is configured on the deployed API Gateway stage
-- confirmed stricter per-route throttling overrides are configured for:
-  - `POST /events`
-  - `PATCH /events/{event_id}`
-  - `POST /events/{event_id}/cancel`
-  - `POST /events/{event_id}/rsvp`
-- confirmed CORS remains disabled in `dev`
-- confirmed the mixed-mode request authorizer remains configured with:
-  - payload format version `2.0`
-  - simple responses enabled
-  - TTL `0`
-  - identity sources omitted
-- confirmed the route keys are:
-  - `POST /events`
-  - `PATCH /events/{event_id}`
-  - `POST /events/{event_id}/cancel`
-  - `POST /events/{event_id}/rsvp`
-  - `GET /events/{event_id}/rsvps`
-  - `GET /events`
-  - `GET /events/mine`
-  - `GET /events/{event_id}`
-- confirmed JWT authorization is attached to the protected routes
-- confirmed anonymous requests are rejected at the API edge for JWT-protected routes
-- confirmed authenticated `create-event` invocation succeeds through API Gateway with JWT validation
-- confirmed admin-only creation behavior is enforced correctly by the Lambda through the routed path
-- confirmed event items are successfully written to DynamoDB through the routed path
-- confirmed authenticated owner `update-event` invocation succeeds through API Gateway with JWT validation
-- confirmed authenticated admin `update-event` invocation succeeds through API Gateway with JWT validation
-- confirmed authenticated non-owner `update-event` invocation returns `403`
-- confirmed cancelled-event `update-event` invocation returns `400`
-- confirmed immutable-field and malformed-body validation still work through the routed `update-event` path
-- confirmed event updates are successfully applied through the routed path
-- confirmed authenticated owner `cancel-event` invocation succeeds through API Gateway with JWT validation
-- confirmed authenticated admin `cancel-event` invocation succeeds through API Gateway with JWT validation
-- confirmed authenticated non-owner `cancel-event` invocation returns `403`
-- confirmed repeated routed `cancel-event` invocation remains idempotent and returns `200`
-- confirmed successful routed cancel removes public discovery helpers while keeping creator visibility helpers in storage
-- confirmed event cancellation is successfully applied through the routed path
-- confirmed authenticated creator `get-event-rsvps` invocation succeeds through API Gateway with JWT validation
-- confirmed authenticated admin `get-event-rsvps` invocation succeeds through API Gateway with JWT validation
-- confirmed authenticated non-owner `get-event-rsvps` invocation returns `403`
-- confirmed missing-event routed `get-event-rsvps` invocation returns `404`
-- confirmed empty-RSVP routed `get-event-rsvps` invocation returns `200` with an empty `items` array
-- confirmed RSVP-read results are successfully returned through the routed path
-- confirmed routed `get-event-rsvps` responses expose the locked RSVP-read contract:
-  - `event`
-  - `items`
-  - `stats`
-  - `next_cursor`
-- confirmed `GET /events` is public and has no attached authorizer
-- confirmed unauthenticated `GET /events` succeeds through API Gateway with `200`
-- confirmed routed public `GET /events` responses filter cancelled events during the current temporary scan-based phase
-- confirmed due to the temporary scan-based access path, routed public `GET /events` responses may still include active non-public and past events in the current contract
-- confirmed unauthenticated `GET /events/mine` is rejected at the API edge with `401`
-- confirmed authenticated creator `GET /events/mine` succeeds through API Gateway with JWT validation
-- confirmed authenticated admin `GET /events/mine` succeeds through API Gateway with JWT validation and returns only the admin caller's own events
-- confirmed API Gateway access-log entries are written to the dedicated API Gateway access-log group for:
-  - `GET /events`
-  - `GET /events/mine`
-  - `POST /events/{event_id}/rsvp`
-- confirmed `GET /events/{event_id}` is public and has no attached authorizer
-- confirmed unauthenticated `GET /events/{event_id}` succeeds through API Gateway with `200`
-- confirmed routed `GET /events/{event_id}` still returns cancelled events by ID
-- confirmed routed `GET /events/{event_id}` still returns non-public events by ID
-- confirmed missing-event routed `get-event` invocation returns `404`
-- confirmed routed `GET /events/mine` responses include creator-owned cancelled events
-- confirmed routed `GET /events/mine` pagination works through:
-  - `limit`
-  - opaque `next_cursor`
-- confirmed normalized caller context is correctly resolved inside business Lambdas from JWT authorizer input
-- confirmed the mixed-mode RSVP authorizer is attached to routed `POST /events/{event_id}/rsvp`
-- confirmed anonymous public `POST /events/{event_id}/rsvp` succeeds through API Gateway with `201`
-- confirmed authenticated user `POST /events/{event_id}/rsvp` succeeds through API Gateway where allowed
-- confirmed authenticated admin `POST /events/{event_id}/rsvp` succeeds through API Gateway where allowed
-- confirmed an earlier malformed RSVP validation request returned `400` because the request body was not valid JSON, not because of an API Gateway routing or authorizer regression
-- confirmed malformed or invalid presented auth for routed `POST /events/{event_id}/rsvp` is denied at the API edge with `403`
-- confirmed anonymous routed `POST /events/{event_id}/rsvp` to a protected event returns `403`
-- confirmed non-admin routed `POST /events/{event_id}/rsvp` to an admin-only event returns `403`
-- confirmed full-capacity routed `POST /events/{event_id}/rsvp` with `attending = true` returns `400`
-- confirmed full-capacity routed `POST /events/{event_id}/rsvp` with `attending = false` still succeeds
-- confirmed cancelled-event routed `POST /events/{event_id}/rsvp` returns `400`
-- confirmed past-event routed `POST /events/{event_id}/rsvp` returns `400`
-- confirmed normalized caller context is correctly resolved inside the `rsvp` Lambda from the mixed-mode request authorizer input
-- confirmed Terraform outputs match the deployed API ID, stage URL, authorizer ID, and route wiring
-- see evidence screenshots under `docs/assets/lambda_api/`
+| Routes | Burst | Rate |
+|---|---:|---:|
+| `POST /events`, `PATCH /events/{event_id}` | `20` | `10` |
+| `POST /events/{event_id}/cancel`, `POST /events/{event_id}/rsvp` | `15` | `8` |
+
+Access logs are retained for 14 days in:
+
+- `/aws/apigateway/aws-serverless-events-platform-dev-http-api-access`
+
+The access-log record includes request ID, route key, status, and source IP.
+CORS remains disabled because browser traffic uses same-origin CloudFront
+routing. API Gateway X-Ray tracing is not available for HTTP APIs; Lambda
+tracing remains active.
+
+CloudFront is the intended browser-facing entry point. The stage-qualified API
+Gateway URL remains available for direct backend diagnostics.
+
+Route contracts, authorization behavior, request and response schemas, and
+status-code semantics are documented in:
+
+- [Architecture](../../../docs/architecture.md#api-layer)
+- [Platform behavior](../../../docs/platform-behavior.md#routed-api-path-contract)
+
+### API Gateway Validation
+
+Deployment validation confirmed the API and stage, route integrations,
+authorization modes, throttling, access logging, public and authenticated
+invocations, mixed-mode RSVP behavior, exported identifiers, and a clean
+post-apply Terraform plan. Detailed routed behavior evidence is available under
+[`docs/assets/lambda_api/`](../../../docs/assets/lambda_api/).
 
 ---
 
-## Lambda Compute Baseline
+## Lambda Compute
 
-Defines the current Lambda compute baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/lambda`](../../modules/lambda/README.md)
+- `module.lambda` for API, business, and authorizer workloads
+- `module.notification_lambdas` for asynchronous notification workers
+- `event_source_mappings.tf` for SQS-triggered workers
 
-- `modules/lambda`
-- two environment module calls:
-  - `module.lambda` for API/business workloads
-  - `module.notification_lambdas` for asynchronous notification workers
+### Workload Inventory
 
-### Lambda workloads
+| Workload | Invocation source | Responsibility |
+|---|---|---|
+| `create-event` | API Gateway | Create canonical event records |
+| `list-events` | API Gateway | List events through the current public read path |
+| `get-event` | API Gateway | Read one event by public identifier |
+| `list-my-events` | API Gateway | List creator-owned events |
+| `update-event` | API Gateway | Update mutable event fields |
+| `cancel-event` | API Gateway | Cancel an event |
+| `rsvp-authorizer` | API Gateway | Validate optional RSVP authentication and project caller context |
+| `rsvp` | API Gateway | Perform transactional RSVP writes |
+| `get-event-rsvps` | API Gateway | Read event RSVP membership |
+| `notification-planner` | SQS `notification-dispatch` | Expand event-level notifications into recipient jobs |
+| `notification-sender` | SQS `notification-email` | Resolve recipients and send SES participant emails |
 
-This environment currently wires in these deployed Lambda workloads:
+Notification workers use a separate module call after CloudFront creation so
+`notification-sender` can receive the deployed frontend URL without introducing
+a Lambda/API Gateway/CloudFront dependency cycle.
 
-- `create-event`
-- `list-events`
-- `get-event`
-- `update-event`
-- `cancel-event`
-- `rsvp`
-- `get-event-rsvps`
-- `list-my-events`
-- `rsvp-authorizer`
-- `notification-planner`
-- `notification-sender`
+### Shared Configuration
 
-Why this module is wired now:
+All functions use:
 
-- the platform now has the minimum supporting layers needed for real compute:
-  - DynamoDB business tables
-  - workload IAM roles
-- the platform can now validate synchronous write paths and both public and authenticated read paths end to end in AWS
-- packaging stays outside Terraform
-- Terraform uses prepared ZIP artifacts for fresh Lambda creation while
-  tolerating external code-only updates after functions exist
-- notification workers are deployed through a separate Lambda module call after
-  CloudFront so `notification-sender` can receive the CloudFront frontend base
-  URL without creating a Lambda/API Gateway/CloudFront dependency cycle
+- Python `3.13`
+- handler `handler.lambda_handler`
+- `256` MB memory
+- a `10` second timeout
+- 14-day CloudWatch log retention
+- active X-Ray tracing
+- a dedicated workload execution role
+- ZIP artifacts under `artifacts/lambda/<workload>.zip`
 
-Important design notes:
+Workload-specific environment configuration is:
 
-- the Lambda module remains infrastructure-focused and consumes prepared ZIP
-  artifacts
-- packaging is prepared before Terraform so fresh Lambda functions can be
-  created from the expected ZIP artifacts
-- Terraform manages Lambda infrastructure, configuration, and wiring while
-  tolerating external code-only updates without planning to revert code
-- `envs/dev` stays thin and composition-only while reusable Lambda resource
-  logic stays in `modules/lambda`
-- API Gateway invoke ARN wiring and SQS event source mappings stay unchanged in
-  this deployment ownership split
-- each deployed function uses its matching least-privilege IAM role
-- environment variables are workload-specific:
-  - event API workloads receive `EVENTS_TABLE_NAME`
-  - RSVP workloads also receive `RSVPS_TABLE_NAME`
-  - write workloads receive `EVENTBRIDGE_EVENT_BUS_NAME` for post-commit
-    domain-event publishing
-  - `rsvp-authorizer` receives only Cognito/JWT verification settings:
-    `COGNITO_ISSUER`, `COGNITO_APP_CLIENT_ID`, and
-    `COGNITO_ADMIN_GROUP_NAME`
-  - `notification-planner` receives `RSVPS_TABLE_NAME` and
-    `NOTIFICATION_EMAIL_QUEUE_URL`
-  - `notification-sender` receives Cognito, SES sender/template, and
-    CloudFront frontend URL settings
-- `create-event`, `update-event`, and `cancel-event` publish compact
-  EventBridge domain events only after durable DynamoDB writes
-- all currently deployed Lambda workloads use active X-Ray tracing in `dev`
-  through the Lambda module's per-function `tracing_mode = "Active"` setting
-- notification workers are not API Gateway integrations; they are triggered by
-  SQS event source mappings
-- API-facing deployed functions return API Gateway-style wrapped responses
+| Workloads | Configuration |
+|---|---|
+| Event API workloads | `EVENTS_TABLE_NAME` |
+| `rsvp`, `get-event-rsvps` | `RSVPS_TABLE_NAME` |
+| `create-event`, `update-event`, `cancel-event` | `EVENTBRIDGE_EVENT_BUS_NAME` |
+| `rsvp-authorizer` | Cognito issuer, app client ID, and admin group |
+| `notification-planner` | RSVP table and notification-email queue URL |
+| `notification-sender` | Cognito User Pool, SES sender/templates, and CloudFront frontend URL |
 
-Current business behavior validated in this environment:
+### Code Ownership
 
-- `create-event`
-  - protected routed invocation via `POST /events` succeeds for authenticated callers
-  - anonymous routed invocation is rejected at the API edge
-  - non-admin admin-only creation is rejected
-  - admin admin-only creation succeeds
-  - canonical event items are written with `status = ACTIVE`
-  - request-body `creator_id` spoofing is ignored in favor of caller-context ownership
-  - public events populate the public upcoming GSI, while non-public events omit those helper attributes
-  - successful durable creation publishes `event.created` to EventBridge
-  - EventBridge-routed `event.created` does not reach `notification-dispatch`
-    SQS
-  - validation, authentication, and admin-only authorization failures do not
-    publish `event.created`
-- `list-events`
-  - broad public listing succeeds
-  - this is a public (unauthenticated) listing workload
-  - no caller context is required or consumed
-  - returned items use the locked public event DTO and hide internal storage helper fields
-  - broad listing excludes cancelled events during the current scan-based phase
-  - due to the temporary scan-based access path, active non-public and past events may still appear in the current contract
-- `list-my-events`
-  - authenticated creator-scoped listing succeeds
-  - routed invocation via `GET /events/mine` is JWT-protected at API Gateway
-  - anonymous routed invocation is rejected at the API edge
-  - returned items use the same locked public event DTO as `list-events` and `get-event`
-  - creator-scoped listing includes cancelled and past creator-owned events
-  - pagination works through:
-    - `limit`
-    - opaque `next_cursor`
-  - the current read path uses the `creator-events` GSI
-- `get-event`
-  - public routed invocation via `GET /events/{event_id}` succeeds without authentication
-  - successful single-item lookup returns `200`
-  - missing event returns `404`
-  - single-item reads do not require caller context
-  - returned items use the locked public event DTO under `item`
-  - direct DynamoDB `GetItem` lookup is used by canonical `event_pk`
-  - cancelled events remain readable by ID
-  - non-public events remain readable by ID
-- `update-event`
-  - protected routed invocation via `PATCH /events/{event_id}` succeeds for authenticated owners
-  - protected routed invocation via `PATCH /events/{event_id}` succeeds for authenticated admins
-  - authenticated non-owner routed invocation returns `403`
-  - cancelled-event routed invocation returns `400`
-  - invalid update input returns `400`
-  - capacity reductions below current `attending_count` return `400`
-  - cancelled events cannot be updated
-  - direct invocation and API Gateway-style body input both work
-  - partial updates preserve omitted mutable fields
-  - returned updated items use the locked public event DTO under `item`
-  - successful durable updates publish `event.updated` to EventBridge
-  - `event.updated` messages include compact notification-safe detail and
-    `changed_fields`
-  - EventBridge-routed `event.updated` messages reach `notification-dispatch`
-    SQS
-  - valid no-op updates return `200` without writing to DynamoDB or publishing
-    `event.updated`
-  - unauthorized and cancelled-event update attempts do not publish
-    `event.updated`
-- `cancel-event`
-  - protected routed invocation via `POST /events/{event_id}/cancel` succeeds for authenticated owners
-  - protected routed invocation via `POST /events/{event_id}/cancel` succeeds for authenticated admins
-  - authenticated non-owner routed invocation returns `403`
-  - repeated routed invocation returns `200` idempotently
-  - anonymous routed invocation is rejected at the API edge
-  - cancelled items use the locked public event DTO under `item`
-  - successful durable cancellation publishes `event.cancelled` to EventBridge
-  - repeated idempotent cancellation does not publish another `event.cancelled`
-  - EventBridge-routed `event.cancelled` messages reach `notification-dispatch`
-    SQS with compact notification-safe detail
-  - `status = CANCELLED` is returned
-  - public GSI helper attributes are removed while creator visibility helpers remain in storage
-- `rsvp`
-  - public events allow anonymous and authenticated RSVP
-  - protected events require authentication
-  - admin-only events require an authenticated admin caller
-  - successful anonymous RSVP to a public event returns `201`
-  - same-subject overwrite returns `200` with `operation = "updated"`
-  - protected-event anonymous RSVP returns `403`
-  - admin-only RSVP by a non-admin caller returns `403`
-  - full-capacity attending RSVP returns `400`
-  - full-capacity not-attending RSVP still succeeds
-  - cancelled events reject RSVP with `400`
-  - RSVP writes remain synchronous and transactional across the `events` and `rsvps` tables
-  - responses expose the locked public RSVP contract:
-    - `item`
-    - `event_summary`
-    - `operation`
-- `get-event-rsvps`
-  - protected routed invocation via `GET /events/{event_id}/rsvps` succeeds for authenticated creators
-  - protected routed invocation via `GET /events/{event_id}/rsvps` succeeds for authenticated admins
-  - authenticated non-owner routed invocation returns `403`
-  - missing-event routed invocation returns `404`
-  - empty-RSVP routed invocation returns `200` with `items = []`
-  - anonymous routed invocation is rejected at the API edge
-  - request resolution supports:
-    - direct invocation input
-    - API Gateway-style `pathParameters` and `queryStringParameters`
-  - response body uses the locked public RSVP read contract:
-    - `event`
-    - `items`
-    - `stats`
-    - `next_cursor`
-  - internal storage fields stay hidden from the response
-  - cancelled and past events remain readable for the creator and admins
-  - pagination works through opaque `next_cursor`
-- `notification-planner`
-  - consumes `event.updated` and `event.cancelled` planning messages from
-    `notification-dispatch`
-  - uses a Lambda event source mapping with `ReportBatchItemFailures`
-  - queries RSVP records for the affected event
-  - includes authenticated RSVP users with both `attending = true` and
-    `attending = false`
-  - skips anonymous RSVP subjects
-  - creates one recipient-level job per authenticated RSVP user in
-    `notification-email`
-  - recipient-level jobs contain `recipient_user_id`, not email or username
-  - recipient-level jobs do not expose anonymous tokens or internal DynamoDB keys
-  - unsupported event types are ignored successfully
-  - malformed supported messages fail only the affected SQS record
-- `notification-sender`
-  - consumes recipient-level jobs from `notification-email`
-  - uses a Lambda event source mapping with `ReportBatchItemFailures`
-  - resolves the current recipient email through Cognito `ListUsers` using the
-    canonical Cognito `sub`
-  - ignores any email value in the SQS message body
-  - requires exactly one matching Cognito user with an email address
-  - selects the SES template by `notification_type`
-  - sends `event.updated` and `event.cancelled` participant emails through
-    `ses:SendTemplatedEmail`
-  - uses the Terraform-managed SES templates and verified project sender
-    identity
-  - validates event detail paths and frontend URL construction before using
-    links in template data
-  - provides separate text-safe and HTML-safe template data fields
-  - malformed or unsendable messages fail only the affected SQS record
-  - does not query DynamoDB, call EventBridge, or inspect RSVP records
-- notification preferences, anonymous email collection, and RSVP-created
-  participant notifications remain outside the current environment behavior
+Terraform manages function resources, runtime configuration, IAM attachment,
+environment variables, log groups, tracing, API Gateway integrations,
+permissions, and event source mappings.
 
-Public event DTO behavior validated across the event read/update/cancel flows:
+Fresh function creation requires prepared ZIP artifacts. After creation,
+Terraform ignores package-field drift so external code deployment with
+`aws lambda update-function-code` does not cause a planned code rollback.
+Infrastructure and configuration drift remain visible to Terraform.
 
-- returned event items use the locked public DTO contract:
-  - `event_id`
-  - `status`
-  - `title`
-  - `date`
-  - `description`
-  - `location`
-  - `capacity`
-  - `is_public`
-  - `requires_admin`
-  - `created_by`
-  - `created_at`
-  - `rsvp_count`
-  - `attending_count`
-- internal GSI helper fields and `not_attending_count` stay hidden from the public event response shape
-- `capacity = null` is preserved for unlimited-capacity events
-- frontend is expected to render user-friendly timestamp formatting from backend-provided ISO UTC timestamps
+Packaging and deployment operations are documented in:
 
-Validation:
+- [Lambda packaging](../../../lambdas/README.md)
+- [Project setup](../../../docs/project-setup.md)
 
-- validated via external artifact packaging, `terraform apply`, Lambda invocation, DynamoDB inspection, CloudWatch logs inspection, and a clean post-apply `terraform plan`
-- the EventBridge bus-name environment variable update was validated with local
-  `terraform plan`
-- confirmed only `create-event`, `update-event`, and `cancel-event` receive `EVENTBRIDGE_EVENT_BUS_NAME`
-- confirmed `create-event` publishes `event.created` after durable creation
-- confirmed created event records remain `ACTIVE` in DynamoDB
-- confirmed EventBridge-routed `event.created` does not reach the existing
-  `notification-dispatch` SQS queue
-- confirmed invalid, anonymous, and unauthorized admin-only create attempts do
-  not publish `event.created`
-- confirmed `update-event` publishes `event.updated` after durable updates
-- confirmed updated event records remain `ACTIVE` in DynamoDB
-- confirmed EventBridge-routed `event.updated` reaches the existing
-  `notification-dispatch` SQS queue with compact notification-safe detail and
-  `changed_fields`
-- confirmed unauthorized, cancelled-event, and no-op update attempts do not
-  publish `event.updated`
-- confirmed `cancel-event` publishes `event.cancelled` after durable
-  cancellation
-- confirmed EventBridge publication does not change the successful API response
-- confirmed repeated `cancel-event` invocation stays idempotent and does not
-  publish a second `event.cancelled`
-- confirmed unauthorized `cancel-event` invocation returns `403` and does not
-  publish `event.cancelled`
-- confirmed the EventBridge-routed `event.cancelled` message reaches the
-  existing `notification-dispatch` SQS queue
-- confirmed deployed function names and log groups for:
-  - `create-event`
-  - `get-event`
-  - `list-events`
-  - `list-my-events`
-  - `update-event`
-  - `cancel-event`
-  - `rsvp`
-  - `get-event-rsvps`
-  - `rsvp-authorizer`
-  - `notification-planner`
-- `notification-sender`
-- confirmed Terraform outputs match the created Lambda and log group identities
-- confirmed `notification-planner` has an enabled event source mapping from
-  `notification-dispatch` with `ReportBatchItemFailures`
-- confirmed `event.updated` and `event.cancelled` messages create
-  recipient-level jobs in `notification-email`
-- confirmed anonymous RSVP records are skipped while authenticated attending
-  and not-attending RSVP records are included
-- confirmed `notification-sender` has an enabled event source mapping from
-  `notification-email` with `ReportBatchItemFailures`
-- confirmed controlled `event.updated` and `event.cancelled` recipient jobs are
-  consumed from `notification-email`
-- confirmed controlled `event.updated` and `event.cancelled` recipient jobs
-  produce templated SES emails for a verified sandbox recipient
-- confirmed successful sender invocations drain the SQS message and complete
-  with zero failed records
-- confirmed participant emails do not expose raw EventBridge, SQS, DynamoDB, or
-  internal identity fields
-- confirmed the Lambda X-Ray baseline updates all current Lambda functions in
-  place from `PassThrough` to `Active`
-- confirmed representative functions from both Lambda module calls report
-  `TracingConfig.Mode = Active`
-- confirmed a lightweight `list-events` invocation produces an X-Ray trace
-  summary without faults or errors
-- see evidence screenshots under `docs/assets/lambda/`
-- see create-event, update-event, and cancel-event EventBridge validation screenshots under
-  `docs/assets/lambda_api/`
-- see Lambda X-Ray validation screenshots under `docs/assets/observability/`
+Handler behavior, API contracts, authorization, data rules, and notification
+worker contracts are documented in
+[Platform behavior](../../../docs/platform-behavior.md).
+
+### Lambda Validation
+
+Deployment validation confirmed all function and log-group identities,
+workload-specific configuration, API and SQS invocation paths, EventBridge
+publication, notification processing, SES delivery, active tracing, exported
+outputs, and a clean post-apply Terraform plan. Supporting evidence is available
+under:
+
+- [`docs/assets/lambda/`](../../../docs/assets/lambda/)
+- [`docs/assets/lambda_api/`](../../../docs/assets/lambda_api/)
+- [`docs/assets/observability/`](../../../docs/assets/observability/)
 
 ---
 
-## S3 Frontend Origin Bucket Baseline
+## S3 Frontend Origin
 
-Creates the initial private frontend-origin storage baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/s3_frontend_bucket`](../../modules/s3_frontend_bucket/README.md)
+- `resource_policies.tf`
 
-- `modules/s3_frontend_bucket`
+The environment deploys the private bucket:
 
-This environment currently wires in:
+- `aws-serverless-events-platform-dev-frontend`
 
-- one private S3 bucket for frontend asset storage behind CloudFront
+The bucket is configured with:
 
-Why this module is wired now:
+- all S3 public-access block settings enabled
+- `BucketOwnerEnforced` object ownership
+- default SSE-S3 encryption with `AES256`
+- S3 website hosting disabled
+- versioning suspended
+- `force_destroy = true`
 
-- the platform needed a real frontend-origin bucket before CloudFront and WAF could be added cleanly
-- the edge-delivery rollout is intentionally being implemented in small module-first and env-wiring-second slices
-- a private S3 origin bucket is the storage dependency for the browser-facing CloudFront edge layer
+Versioning remains disabled and force-destroy remains enabled so this
+non-production environment can be reset without retaining frontend artifacts.
 
-Important design notes:
+The environment-owned bucket policy grants `s3:GetObject` only to the CloudFront
+service principal when the request originates from the deployed distribution
+ARN. Direct public object access remains blocked.
 
-- this bucket is an origin bucket, not a public website bucket
-- direct public access is intentionally blocked
-- S3 website hosting is intentionally not used
-- `envs/dev` currently keeps bucket versioning disabled to keep this non-production environment lean
-- `envs/dev` currently sets `force_destroy = true` so the bucket stays easy to tear down and recreate during iterative edge rollout work
-- one tiny placeholder frontend file can now be uploaded for validation without introducing a real frontend implementation yet
-- the CloudFront distribution now uses this bucket as its private frontend origin
-- reusable AWS resource logic belongs in modules while `envs/dev` stays composition-oriented
+Frontend build and deployment operations are documented in
+[Frontend operations](../../../frontend/README.md).
 
-Validation:
+### S3 Validation
 
-- validated via `terraform apply`, Terraform output verification, AWS Console inspection, AWS CLI inspection, placeholder object upload, direct public-access check, and a clean post-apply `terraform plan`
-- confirmed the bucket was created in `eu-central-1`
-- confirmed the rendered bucket name is:
-  - `aws-serverless-events-platform-dev-frontend`
-- confirmed Terraform outputs match the created bucket identity:
-  - `frontend_bucket_arn`
-  - `frontend_bucket_id`
-  - `frontend_bucket_name`
-  - `frontend_bucket_regional_domain_name`
-- confirmed bucket-level public access blocking is fully enabled
-- confirmed ownership controls use:
-  - `BucketOwnerEnforced`
-- confirmed default server-side encryption uses:
-  - `AES256`
-- confirmed bucket versioning is not enabled in `dev`:
-  - `Status = Suspended`
-- confirmed placeholder `index.html` upload succeeds
-- confirmed direct public object access returns:
-  - `403 AccessDenied`
-- see evidence screenshots under `docs/assets/s3_frontend_bucket/`
+Deployment validation confirmed bucket creation, exported identifiers, public
+access blocking, ownership controls, encryption, versioning state, object
+upload, CloudFront-only read access, direct-access denial, and a clean
+post-apply Terraform plan. Supporting evidence is available under
+[`docs/assets/s3_frontend_bucket/`](../../../docs/assets/s3_frontend_bucket/).
 
 ---
 
-## Optional WAF Edge Protection Baseline
+## Optional WAF Edge Protection
 
-Optionally creates the CloudFront-scoped WAF protection baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/waf`](../../modules/waf/README.md)
 
-- `modules/waf`
+WAF is controlled by `enable_waf` and defaults to disabled in `dev` to avoid
+steady non-production Web ACL and managed-rule charges.
 
-When `enable_waf = true`, this environment wires in:
+When enabled, the environment deploys:
 
-- one CloudFront-scoped WAFv2 Web ACL
-- a fixed AWS managed-rule baseline
-- one simple IP-based rate-limit rule
+- the CloudFront-scoped Web ACL
+  `aws-serverless-events-platform-dev-edge`
+- default action `allow`
+- three AWS managed rule groups
+- one IP-based rate-limit rule
+- CloudWatch metrics and sampled-request visibility for the Web ACL and every
+  rule
 
-Why this module is wired now:
+The managed rule groups are:
 
-- the platform has private frontend-origin storage and a CloudFront distribution that can attach edge protection when needed
-- WAF remains part of the target architecture, but dev can disable it while the frontend is not actively used
-- the edge-delivery rollout remains split into small module-first and env-wiring-second slices
+- `AWSManagedRulesCommonRuleSet`
+- `AWSManagedRulesKnownBadInputsRuleSet`
+- `AWSManagedRulesAmazonIpReputationList`
 
-Important design notes:
+The rate-limit rule blocks a source IP after `2000` requests in the WAF
+evaluation window.
 
-- the Web ACL is CloudFront-scoped, so it is managed through the `us-east-1` AWS provider alias
-- `enable_waf` defaults to `false` in dev to avoid steady Web ACL and rule charges before the browser application needs active edge filtering
-- when enabled, the Web ACL is associated with the dev CloudFront distribution through the CloudFront module wiring
-- when disabled, the WAF outputs return `null` and CloudFront receives no Web ACL ARN
-- the default Web ACL action is `allow`
-- the managed-rule baseline includes:
-  - `AWSManagedRulesCommonRuleSet`
-  - `AWSManagedRulesKnownBadInputsRuleSet`
-  - `AWSManagedRulesAmazonIpReputationList`
-- the rate-limit rule blocks requests when one source IP exceeds the configured threshold
-- when enabled, `dev` uses a simple rate limit of `2000` requests per five-minute evaluation window
-- visibility configuration is enabled for the Web ACL and every rule so metrics and sampled requests are available
-- reusable AWS resource logic belongs in modules while `envs/dev` stays composition-oriented
+Because the Web ACL has CloudFront scope, Terraform manages it through the
+`us-east-1` AWS provider alias. When enabled, its ARN is passed to the
+CloudFront module. When disabled, WAF outputs are `null` and the distribution
+has no Web ACL association.
 
-Validation:
+The broader edge security model is documented in
+[Architecture](../../../docs/architecture.md#edge-layer-global-entry-point).
 
-- validated via `terraform apply`, Terraform output verification, AWS CLI inspection, AWS Console inspection, tag inspection, and a clean post-apply `terraform plan`
-- confirmed the CloudFront-scoped Web ACL was created in `us-east-1`
-- confirmed the rendered Web ACL name is:
-  - `aws-serverless-events-platform-dev-edge`
-- confirmed Terraform outputs match the created Web ACL identity:
-  - `waf_web_acl_arn`
-  - `waf_web_acl_id`
-  - `waf_web_acl_name`
-- confirmed the Web ACL scope is:
-  - `CLOUDFRONT`
-- confirmed the default action is:
-  - `allow`
-- confirmed the managed-rule baseline is present
-- confirmed the rate-limit rule uses:
-  - `Limit = 2000`
-  - `AggregateKeyType = IP`
-  - `Action = Block`
-- confirmed Web ACL and rule visibility configuration is enabled
-- confirmed expected project, environment, management, and name tags are applied
-- confirmed a clean post-apply `terraform plan`
-- see evidence screenshots under `docs/assets/waf/`
+### WAF Validation
+
+Deployment validation with WAF enabled confirmed the Web ACL identity and
+CloudFront scope, managed rules, IP rate limit, visibility configuration, tags,
+CloudFront association, exported outputs, and a clean post-apply Terraform
+plan. Supporting evidence is available under:
+
+- [`docs/assets/waf/`](../../../docs/assets/waf/)
+- [`docs/assets/cloudfront/`](../../../docs/assets/cloudfront/)
 
 ---
 
-## CloudFront Edge Distribution Baseline
+## CloudFront Edge Distribution
 
-Creates the initial public edge entry-point baseline for the platform.
+Implemented by:
 
-Implemented via:
+- [`modules/cloudfront`](../../modules/cloudfront/README.md)
+- `resource_policies.tf`
 
-- `modules/cloudfront`
+CloudFront is the public browser entry point for the `dev` platform. The
+distribution uses:
 
-This environment currently wires in:
+- default root object `index.html`
+- `PriceClass_100`
+- HTTP-to-HTTPS redirects
+- optional WAF attachment through `enable_waf`
+- AWS Shield Standard protection provided automatically by CloudFront
 
-- one CloudFront distribution
-- one S3 Origin Access Control for the private frontend origin bucket
-- one CloudFront Function for frontend SPA navigation rewrites
-- one default static asset behavior backed by the private S3 bucket
-- two ordered frontend SPA behaviors for:
-  - `/app`
-  - `/app/*`
-- two ordered API behaviors for:
-  - `/events`
-  - `/events/*`
-- one API Gateway origin using the existing `dev` stage path
-- optional attachment for the CloudFront-scoped WAF Web ACL
-- one environment-owned S3 bucket policy in `resource_policies.tf` that allows
-  CloudFront read access to the private frontend bucket
+### Origins
 
-Why this module is wired now:
+| Origin | Configuration |
+|---|---|
+| `s3-frontend-origin` | Private S3 frontend bucket accessed through Origin Access Control |
+| `api-gateway-origin` | API Gateway domain with origin path `/dev` |
 
-- the private frontend origin bucket already exists in `dev`
-- the platform now needs CloudFront to become the intended public entry point
-- the edge-delivery baseline must prove both static delivery and backend API routing before real frontend implementation starts
+The environment-owned S3 bucket policy grants this distribution read access to
+frontend objects. Legacy Origin Access Identity is not used.
 
-Important design notes:
+### Cache Behaviors
 
-- CloudFront serves `index.html` and future static frontend assets from the private S3 origin bucket
-- S3 direct public access remains denied
-- CloudFront accesses S3 through Origin Access Control, not legacy Origin Access Identity
-- the S3 bucket policy is owned by `envs/dev` in `resource_policies.tf` because
-  it binds this concrete bucket to this concrete distribution ARN
-- `resource_policies.tf` also owns the current SNS and SQS EventBridge target policies
-- API Gateway remains the backend route/auth/integration layer
-- CloudFront forwards the existing backend route family through:
-  - `/events`
-  - `/events/*`
-- CloudFront serves frontend application routes under:
-  - `/app`
-  - `/app/*`
-- the `/app` and `/app/*` behaviors use a viewer-request CloudFront Function
-  to rewrite eligible browser HTML navigations to `/index.html`
-- missing static assets under `/app/*` are not rewritten to the SPA entrypoint
-- CloudFront uses the API Gateway domain as the origin and supplies the stage path through `origin_path = /dev`
-- WAF can be associated with the distribution at the CloudFront edge by setting `enable_waf = true`
-- static traffic uses the managed caching-optimized policy
-- API traffic uses the managed caching-disabled policy and forwards viewer request details needed by API Gateway
-- custom domains, Route 53, ACM certificates, logging buckets, broad custom error response fallbacks, and frontend deployment automation remain out of scope for this environment step
-- reusable AWS resource logic belongs in modules while `envs/dev` stays composition-oriented
+| Path | Origin | Cache policy | Edge behavior |
+|---|---|---|---|
+| Default | S3 | `Managed-CachingOptimized` | Static frontend assets |
+| `/app`, `/app/*` | S3 | `Managed-CachingOptimized` | Viewer-request SPA rewrite |
+| `/events`, `/events/*` | API Gateway | `Managed-CachingDisabled` | Forward viewer request details |
 
-Validation:
+The CloudFront Function rewrites eligible frontend navigation requests under
+`/app` to `/index.html`. Requests for missing static assets are not rewritten,
+and API behaviors never invoke the SPA rewrite function.
 
-- validated via `terraform apply`, AWS Console inspection, AWS CLI inspection, runtime curl checks, and a clean post-apply `terraform plan`
-- confirmed the CloudFront distribution was created and deployed
-- confirmed the rendered CloudFront distribution name is:
-  - `aws-serverless-events-platform-dev-edge`
-- confirmed the CloudFront distribution domain name was created and is exposed via:
-  - `cloudfront_distribution_domain_name`
-- confirmed Terraform outputs match the created distribution identity:
-  - `cloudfront_distribution_id`
-  - `cloudfront_distribution_arn`
-  - `cloudfront_distribution_domain_name`
-  - `cloudfront_distribution_hosted_zone_id`
-  - `cloudfront_s3_origin_access_control_id`
-  - `cloudfront_spa_rewrite_function_arn`
-  - `cloudfront_spa_rewrite_function_name`
-- confirmed the distribution has two origins:
-  - `s3-frontend-origin`
-  - `api-gateway-origin`
-- confirmed the S3 origin uses Origin Access Control
-- confirmed the API Gateway origin uses the API Gateway domain with origin path:
-  - `/dev`
-- confirmed behaviors are configured for:
-  - default static frontend traffic
-  - `/app`
-  - `/app/*`
-  - `/events`
-  - `/events/*`
-- confirmed the SPA rewrite CloudFront Function is deployed and attached only to:
-  - `/app`
-  - `/app/*`
-- confirmed WAF is associated with the distribution
-- confirmed direct S3 public access to `index.html` returns `403 AccessDenied`
-- confirmed CloudFront serves `index.html` successfully
-- confirmed CloudFront rewrites eligible `/app` browser HTML navigations to `/index.html`
-- confirmed CloudFront rewrites eligible `/app/events/example` browser HTML navigations to `/index.html`
-- confirmed missing static assets under `/app/*` return real S3 or CloudFront errors instead of the SPA entrypoint
-- confirmed CloudFront routes `/events` to API Gateway successfully
-- confirmed CloudFront routes `/events/not-a-real-event` to API Gateway and returns API JSON
-- confirmed HTTP requests redirect to HTTPS at CloudFront
-- confirmed a clean post-apply `terraform plan`
-- see evidence screenshots under `docs/assets/cloudfront/`
+The distribution currently uses its generated CloudFront domain. Route 53,
+custom domains, ACM certificates, and CloudFront access-log storage are not
+configured.
+
+Edge routing and frontend deployment operations are documented in:
+
+- [Architecture](../../../docs/architecture.md#edge-layer-global-entry-point)
+- [Frontend operations](../../../frontend/README.md)
+
+### CloudFront Validation
+
+Deployment validation confirmed the distribution, origins, OAC, bucket policy,
+cache behaviors, SPA rewrite function, optional WAF association, HTTPS redirect,
+frontend delivery, API routing, exported identifiers, and a clean post-apply
+Terraform plan. Supporting evidence is available under
+[`docs/assets/cloudfront/`](../../../docs/assets/cloudfront/).
 
 ---
 
-## CloudWatch Observability Baseline
+## CloudWatch Observability
 
-Creates the dev CloudWatch observability baseline for the platform's core
-runtime surfaces.
+Implemented by:
 
-Implemented via:
+- [`modules/observability`](../../modules/observability/README.md)
 
-- `modules/observability`
+The environment deploys 32 native CloudWatch metric alarms and the dashboard:
 
-This environment currently wires in:
+- `aws-serverless-events-platform-dev-observability`
 
-- CloudWatch metric alarms for all current Lambda workloads:
-  - errors
-  - throttles
-- CloudWatch metric alarms for the HTTP API:
-  - API Gateway 5xx responses
-- CloudWatch metric alarms for the notification SQS queues:
-  - source queue visible messages
-  - source queue oldest message age
-  - DLQ visible messages
-- CloudWatch metric alarms for the custom EventBridge rules:
-  - failed target invocations
-- one compact CloudWatch dashboard:
-  - `aws-serverless-events-platform-dev-observability`
+### Alarm Coverage
 
-Why this module is wired now:
+| Surface | Alarm signal | Threshold |
+|---|---|---:|
+| Every Lambda workload | Errors | `1` |
+| Every Lambda workload | Throttles | `1` |
+| API Gateway `dev` stage | 5xx responses | `1` |
+| Each notification source queue | Visible messages | `10` |
+| Each notification source queue | Oldest message age | `300` seconds |
+| Each notification DLQ | Visible messages | `1` |
+| Each EventBridge rule | Failed target invocations | `1` |
 
-- the platform now has enough deployed runtime surfaces to benefit from a
-  shared operational baseline
-- the alarms cover high-signal service-level failure indicators without adding
-  custom application log parsing
-- the dashboard gives one compact CloudWatch view across Lambda, API Gateway,
-  SQS, and EventBridge
-- alert delivery can be added later without redesigning the module interface
+All alarms use:
 
-Important design notes:
+- one-minute metric periods
+- two evaluation periods
+- one datapoint to alarm
+- `treat_missing_data = "notBreaching"`
 
-- alert actions are intentionally disabled in `dev`:
-  - `alarm_actions = []`
-  - `ok_actions = []`
-- alarms are based on native AWS service metrics only
-- no CloudWatch log metric filters are created
-- no SNS alert topic, subscription, or production routing is created
-- no CloudFront, WAF, SES, cost, or X-Ray dashboard widgets are created by
-  this baseline
-- Lambda duration is included on the dashboard for visibility, but no duration
-  alarm is created in this baseline
-- API Gateway 4xx responses are included on the dashboard, but no 4xx alarm is
-  created because normal authentication and authorization behavior can produce
-  expected 401 and 403 responses
-- reusable CloudWatch alarm and dashboard design belongs in
-  `modules/observability`
-- `envs/dev` stays composition-oriented and passes deployed resource names and
-  identifiers into the module
+Alert delivery is intentionally disabled through empty `alarm_actions` and
+`ok_actions`. The alarms detect conditions but do not publish notifications to
+an incident channel.
 
-Validation:
+### Dashboard Coverage
 
-- validated via `terraform apply tfplan`, AWS CLI inspection, CloudWatch
-  dashboard inspection, and a clean post-apply `terraform plan`
-- confirmed Terraform created:
-  - 32 CloudWatch metric alarms
-  - 1 CloudWatch dashboard
-- confirmed the apply created only observability resources:
-  - no Lambda changes
-  - no IAM changes
-  - no API Gateway route or stage changes
-  - no SQS queue changes
-  - no EventBridge rule or target changes
-  - no SES, Cognito, CloudFront, or WAF changes
-- confirmed representative Lambda, API Gateway, SQS, and EventBridge alarms
-  exist with:
-  - `EvaluationPeriods = 2`
-  - `DatapointsToAlarm = 1`
-  - `TreatMissingData = notBreaching`
-  - `ActionsEnabled = False`
-- confirmed the dashboard contains 8 widgets covering:
-  - Lambda invocations
-  - Lambda errors and throttles
-  - Lambda duration p95
-  - API Gateway traffic and errors
-  - API Gateway latency
-  - SQS visible messages
-  - SQS oldest message age
-  - EventBridge invocations
-- confirmed Terraform outputs expose:
-  - `observability_alarm_names`
-  - `observability_alarm_arns`
-  - `observability_dashboard_name`
-  - `observability_dashboard_arn`
-- see CloudWatch observability validation screenshots under
-  `docs/assets/observability/`
+The dashboard contains eight widgets covering:
+
+- Lambda invocations
+- Lambda errors and throttles
+- Lambda duration p95
+- API Gateway traffic and errors
+- API Gateway latency
+- SQS visible messages
+- SQS oldest message age
+- EventBridge invocations
+
+API Gateway 4xx responses and Lambda duration remain dashboard signals rather
+than alarms. Expected authentication and authorization failures can produce 4xx
+responses, while duration currently needs observation before an actionable
+threshold is selected.
+
+This observability configuration uses native AWS service metrics only. It does
+not create custom metrics, log metric filters, CloudFront/WAF/SES/cost widgets,
+or X-Ray dashboard widgets. Lambda X-Ray tracing is configured separately
+through the Lambda and IAM modules.
+
+The broader observability architecture is documented in
+[Architecture](../../../docs/architecture.md#observability-layer).
+
+### Observability Validation
+
+Deployment validation confirmed the 32 alarms, eight dashboard widgets, shared
+alarm evaluation settings, disabled actions, exported alarm and dashboard
+identities, isolated observability-only infrastructure changes, and a clean
+post-apply Terraform plan. Supporting evidence is available under
+[`docs/assets/observability/`](../../../docs/assets/observability/).
 
 ---
 
@@ -1467,7 +828,7 @@ Validation:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.45.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.46.0 |
 
 ## Modules
 
@@ -1520,16 +881,16 @@ Validation:
 
 | Name | Description |
 |------|-------------|
-| <a name="output_api_gateway_api_arn"></a> [api\_gateway\_api\_arn](#output\_api\_gateway\_api\_arn) | ARN of the HTTP API created for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_api_endpoint"></a> [api\_gateway\_api\_endpoint](#output\_api\_gateway\_api\_endpoint) | Base invoke endpoint of the HTTP API created for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_api_id"></a> [api\_gateway\_api\_id](#output\_api\_gateway\_api\_id) | ID of the HTTP API created for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_execution_arn"></a> [api\_gateway\_execution\_arn](#output\_api\_gateway\_execution\_arn) | Execution ARN of the HTTP API created for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_jwt_authorizer_id"></a> [api\_gateway\_jwt\_authorizer\_id](#output\_api\_gateway\_jwt\_authorizer\_id) | JWT authorizer ID of the HTTP API created for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_request_authorizer_ids"></a> [api\_gateway\_request\_authorizer\_ids](#output\_api\_gateway\_request\_authorizer\_ids) | Map of logical Lambda request authorizer name to HTTP API authorizer ID for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_route_ids"></a> [api\_gateway\_route\_ids](#output\_api\_gateway\_route\_ids) | Map of logical route name to route ID for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_route_keys"></a> [api\_gateway\_route\_keys](#output\_api\_gateway\_route\_keys) | Map of logical route name to route key for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_stage_invoke_url"></a> [api\_gateway\_stage\_invoke\_url](#output\_api\_gateway\_stage\_invoke\_url) | Stage-qualified invoke URL of the HTTP API created for the dev environment routed backend baseline. |
-| <a name="output_api_gateway_stage_name"></a> [api\_gateway\_stage\_name](#output\_api\_gateway\_stage\_name) | Stage name of the HTTP API created for the dev environment routed backend baseline. |
+| <a name="output_api_gateway_api_arn"></a> [api\_gateway\_api\_arn](#output\_api\_gateway\_api\_arn) | ARN of the routed HTTP API created for the dev environment. |
+| <a name="output_api_gateway_api_endpoint"></a> [api\_gateway\_api\_endpoint](#output\_api\_gateway\_api\_endpoint) | Base invoke endpoint of the routed HTTP API created for the dev environment. |
+| <a name="output_api_gateway_api_id"></a> [api\_gateway\_api\_id](#output\_api\_gateway\_api\_id) | ID of the routed HTTP API created for the dev environment. |
+| <a name="output_api_gateway_execution_arn"></a> [api\_gateway\_execution\_arn](#output\_api\_gateway\_execution\_arn) | Execution ARN of the routed HTTP API created for the dev environment. |
+| <a name="output_api_gateway_jwt_authorizer_id"></a> [api\_gateway\_jwt\_authorizer\_id](#output\_api\_gateway\_jwt\_authorizer\_id) | JWT authorizer ID of the routed HTTP API created for the dev environment. |
+| <a name="output_api_gateway_request_authorizer_ids"></a> [api\_gateway\_request\_authorizer\_ids](#output\_api\_gateway\_request\_authorizer\_ids) | Map of logical Lambda request authorizer name to authorizer ID for the dev HTTP API. |
+| <a name="output_api_gateway_route_ids"></a> [api\_gateway\_route\_ids](#output\_api\_gateway\_route\_ids) | Map of logical route name to route ID for the dev HTTP API. |
+| <a name="output_api_gateway_route_keys"></a> [api\_gateway\_route\_keys](#output\_api\_gateway\_route\_keys) | Map of logical route name to route key for the dev HTTP API. |
+| <a name="output_api_gateway_stage_invoke_url"></a> [api\_gateway\_stage\_invoke\_url](#output\_api\_gateway\_stage\_invoke\_url) | Stage-qualified invoke URL of the routed HTTP API created for the dev environment. |
+| <a name="output_api_gateway_stage_name"></a> [api\_gateway\_stage\_name](#output\_api\_gateway\_stage\_name) | Stage name of the routed HTTP API created for the dev environment. |
 | <a name="output_aws_region"></a> [aws\_region](#output\_aws\_region) | AWS region selected for regional resources in the dev environment. |
 | <a name="output_cloudfront_distribution_arn"></a> [cloudfront\_distribution\_arn](#output\_cloudfront\_distribution\_arn) | ARN of the CloudFront distribution created for the dev environment. |
 | <a name="output_cloudfront_distribution_domain_name"></a> [cloudfront\_distribution\_domain\_name](#output\_cloudfront\_distribution\_domain\_name) | Domain name of the CloudFront distribution created for the dev environment. |
@@ -1566,8 +927,8 @@ Validation:
 | <a name="output_lambda_log_group_names"></a> [lambda\_log\_group\_names](#output\_lambda\_log\_group\_names) | Map of workload CloudWatch Logs log group names for the dev environment. |
 | <a name="output_observability_alarm_arns"></a> [observability\_alarm\_arns](#output\_observability\_alarm\_arns) | Map of logical observability alarm key to CloudWatch alarm ARN for the dev environment. |
 | <a name="output_observability_alarm_names"></a> [observability\_alarm\_names](#output\_observability\_alarm\_names) | Map of logical observability alarm key to CloudWatch alarm name for the dev environment. |
-| <a name="output_observability_dashboard_arn"></a> [observability\_dashboard\_arn](#output\_observability\_dashboard\_arn) | ARN of the CloudWatch dashboard created for the dev observability baseline. |
-| <a name="output_observability_dashboard_name"></a> [observability\_dashboard\_name](#output\_observability\_dashboard\_name) | Name of the CloudWatch dashboard created for the dev observability baseline. |
+| <a name="output_observability_dashboard_arn"></a> [observability\_dashboard\_arn](#output\_observability\_dashboard\_arn) | ARN of the CloudWatch operational dashboard created for the dev environment. |
+| <a name="output_observability_dashboard_name"></a> [observability\_dashboard\_name](#output\_observability\_dashboard\_name) | Name of the CloudWatch operational dashboard created for the dev environment. |
 | <a name="output_rsvps_table_arn"></a> [rsvps\_table\_arn](#output\_rsvps\_table\_arn) | ARN of the DynamoDB RSVP table created for the dev environment. |
 | <a name="output_rsvps_table_name"></a> [rsvps\_table\_name](#output\_rsvps\_table\_name) | Name of the DynamoDB RSVP table created for the dev environment. |
 | <a name="output_ses_sender_identity_arn"></a> [ses\_sender\_identity\_arn](#output\_ses\_sender\_identity\_arn) | ARN of the SES sender email identity configured for participant notifications in dev. |

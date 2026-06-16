@@ -1,13 +1,17 @@
-# Dev Bootstrap Remote Backend and GitHub OIDC
+# Dev Bootstrap: Remote State and GitHub OIDC
 
 This bootstrap root creates the `dev` foundation for remote Terraform state and
 GitHub Actions AWS authentication.
 
 It is intentionally separate from `infrastructure/envs/dev`.
 
-The environment root owns the application platform resources. This bootstrap
-root owns only the small amount of infrastructure needed before the environment
-can safely use remote state and GitHub OIDC authentication.
+The [`dev` environment root](../../envs/dev/README.md) owns the application
+platform. This bootstrap root owns only the resources required before that
+environment can use remote state and GitHub Actions can authenticate to AWS
+without long-lived credentials.
+
+The complete bootstrap, input-sync, and provisioning sequence is documented in
+the [project setup guide](../../../docs/project-setup.md).
 
 ---
 
@@ -20,11 +24,11 @@ This root creates:
 - S3 default server-side encryption using SSE-S3
 - S3 public access block settings
 - S3 ownership controls using `BucketOwnerEnforced`
-- generated `infrastructure/envs/dev/backend.tf`
+- generated S3 backend configuration for `infrastructure/envs/dev`
 - one GitHub Actions OIDC provider
 - one branch-scoped GitHub Actions IAM role
 - one Terraform state access policy
-- split Terraform deploy policies for the current serverless platform surfaces
+- split deployment policies for Terraform provisioning and artifact deployment
 - one repo-aligned permissions boundary for the GitHub Actions role
 
 The generated backend config uses the Terraform S3 backend with native S3
@@ -53,15 +57,15 @@ This root does not:
 - change Lambda, API Gateway, SQS, EventBridge, SES, Cognito, CloudFront, or
   WAF runtime behavior
 
-State migration remains an explicit operator step after this bootstrap root has
-been applied and validated.
+Initializing or migrating the environment root against the generated backend
+remains a separate, explicit operation after bootstrap succeeds.
 
 ---
 
 ## Remote State Bucket
 
 The state bucket is owned directly by this `dev` bootstrap root instead of the
-reusable `remote_backend` module.
+reusable [`remote_backend` module](../../modules/remote_backend/README.md).
 
 That is deliberate.
 
@@ -105,8 +109,9 @@ The backend key is stable and environment-specific:
 infrastructure/envs/dev/terraform.tfstate
 ```
 
-Generating this file keeps the backend settings aligned with the bucket this
-root created, while still keeping backend migration as a separate reviewed step.
+Generating this file keeps the environment backend aligned with the bucket
+created by this root. Terraform initialization and any required state migration
+remain separate reviewed operations.
 
 ---
 
@@ -131,15 +136,15 @@ For this project, the validated `dev` trust subject is:
 repo:Mazdaratti/aws-serverless-events-platform:ref:refs/heads/main
 ```
 
-GitHub Environment subjects are intentionally not included here. They can be
-added later if deployment workflows adopt GitHub Environments.
+The current AWS workflows run manually from `main` and use this branch-scoped
+subject. GitHub Environment subjects are not part of the current trust policy.
 
 ---
 
 ## IAM Policy Shape
 
-The GitHub Actions role has separate policies for state access and deployment
-access.
+The GitHub Actions role has separate managed policies for state access and
+deployment access.
 
 State access is intentionally small and limited to:
 
@@ -147,7 +152,7 @@ State access is intentionally small and limited to:
 - reading and writing the `dev` state object
 - reading, writing, and deleting the S3 `.tflock` lockfile
 
-Deployment access is split into smaller managed policies:
+Deployment access is split into smaller managed policies for:
 
 - core platform resources:
   - DynamoDB
@@ -172,9 +177,17 @@ Deployment access is split into smaller managed policies:
 The split keeps the policies within IAM managed policy size limits and makes the
 permission groups easier to review.
 
+These policies support the manual provisioning, Lambda code deployment, and
+frontend deployment workflows. The bootstrap root creates the AWS permissions;
+it does not run those workflows or deploy application artifacts.
+
+When enabled, the permissions boundary limits the maximum permissions available
+to the GitHub Actions role. It does not grant permissions by itself; access is
+granted by the attached state and deployment policies.
+
 ---
 
-## Validation
+## Validation Status
 
 The bootstrap root has been validated in AWS for `dev`.
 
@@ -188,6 +201,8 @@ Validation confirmed:
 - the GitHub Actions role trust is scoped to the repository and `main` branch
 - the GitHub Actions role has the state policy, split deploy policies, and
   permissions boundary in place
+- the branch-scoped role can be assumed through the manual AWS OIDC smoke
+  workflow
 - a post-apply Terraform plan is clean
 
 <!-- BEGIN_TF_DOCS -->

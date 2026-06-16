@@ -1,64 +1,66 @@
 # Lambda Packaging
 
-This directory contains the Python Lambda workload source folders plus the
-shared helper package under `lambdas/shared`.
+This directory contains the Python Lambda workloads and the shared helper
+package under `lambdas/shared`.
 
-Lambda deployment artifacts in this repository are ZIP files built with:
+Lambda workloads are deployed as deterministic ZIP artifacts built by:
 
-- `scripts/package_lambda.py`
-- `scripts/package_lambdas.py`
+| Helper | Purpose |
+|---|---|
+| `scripts/package_lambda.py` | Package one workload with optional shared helpers or vendored dependencies |
+| `scripts/package_lambdas.py` | Package the complete workload set expected by `infrastructure/envs/dev` |
 
-The scripts keep packaging deterministic so repeated builds do not create noisy
-artifact differences when the inputs have not changed. `package_lambda.py`
-packages one workload. `package_lambdas.py` orchestrates all deployed workloads
-expected by `infrastructure/envs/dev`.
+Deterministic metadata and file ordering prevent unchanged source inputs from
+producing noisy artifact differences.
 
-Packaging and deployment are separate responsibilities.
-
-This directory documents how Lambda ZIP artifacts are built. Provisioning
-automation will build these artifacts before Terraform plan/apply. Lambda code
-deployment automation maps packaged workloads to Terraform output function
-names and can update function code with `aws lambda update-function-code`.
-Terraform ownership rules are documented in the infrastructure and setup docs.
+Provisioning and Lambda code deployment both use these artifacts, but packaging
+does not provision infrastructure or update AWS resources. Deployment ownership
+is documented in
+[project-setup.md](../docs/project-setup.md#deployment-boundaries).
 
 ## All-Workload Packaging
 
-Use the orchestration helper when provisioning or deployment automation needs
-the complete Lambda artifact set:
+Build every deployed workload from the repository root:
 
 ```powershell
 python scripts/package_lambdas.py
 ```
 
-The helper packages all deployed workloads into:
+Artifacts are written to:
 
-- `artifacts/lambda/<function-key>.zip`
+```text
+artifacts/lambda/<function-key>.zip
+```
 
-It also rebuilds the Lambda-compatible RSVP authorizer vendor tree by default
-before packaging `rsvp-authorizer`.
+The orchestration helper:
 
-If the vendor tree has already been rebuilt in the current job or local
-session, the rebuild can be skipped:
+- validates every configured workload source directory
+- rebuilds the Lambda-compatible RSVP authorizer vendor tree
+- applies each workload's shared/vendor packaging mode
+- verifies every expected ZIP exists
+- prints the workload-to-artifact summary
+
+Skip the Docker vendor rebuild only when a compatible, non-empty vendor tree
+already exists:
 
 ```powershell
 python scripts/package_lambdas.py --skip-authorizer-vendor-build
 ```
 
-The skip mode still validates that `lambdas/rsvp_authorizer/vendor/` exists and
-is not empty before packaging.
+Skip mode still validates `lambdas/rsvp_authorizer/vendor/` before packaging.
 
-## Standard Packaging Model
+## Per-Workload Packaging Modes
 
-For ordinary Lambda workloads, the packaging flow is:
+`scripts/package_lambda.py` packages one source directory and supports three
+repository packaging modes:
 
-1. package the selected Lambda source directory
-2. include `lambdas/shared` when the workload imports shared helpers
-3. write the ZIP artifact under `artifacts/lambda/`
+| Mode | ZIP contents | Workloads |
+|---|---|---|
+| Source and shared helpers | Workload files at ZIP root and `lambdas/shared` under `shared/...` | API and business workloads |
+| Source only | Workload files at ZIP root | `notification-planner`, `notification-sender` |
+| Source, shared helpers, and vendor dependencies | Workload files and vendor contents at ZIP root, plus `shared/...` | `rsvp-authorizer` |
 
-This is the default packaging model currently used by the existing business
-Lambdas.
-
-Example:
+### Shared-Helper Example
 
 ```powershell
 python scripts/package_lambda.py `
@@ -66,23 +68,11 @@ python scripts/package_lambda.py `
   artifacts/lambda/get-event.zip
 ```
 
-The resulting ZIP places:
+Shared helpers are included by default.
 
-- the workload source files at ZIP root
-- the shared helpers under `shared/...`
+### Source-Only Example
 
-## Packaging Without Shared Helpers
-
-Worker Lambdas that do not import the shared helper package should skip
-`lambdas/shared` with `--no-shared`.
-
-This keeps small worker artifacts focused on the code they actually execute.
-
-Notification planner/sender worker packaging commands:
-
-The `notification-planner` and `notification-sender` workers use this
-no-shared packaging model because they remain independent from
-`lambdas/shared`.
+Use `--no-shared` for a workload that does not import `lambdas/shared`:
 
 ```powershell
 python scripts/package_lambda.py `
@@ -91,42 +81,28 @@ python scripts/package_lambda.py `
   --no-shared
 ```
 
-```powershell
-python scripts/package_lambda.py `
-  lambdas/notification_sender `
-  artifacts/lambda/notification-sender.zip `
-  --no-shared
-```
+The all-workload orchestrator applies these modes from its canonical workload
+map, so provisioning and deployment automation do not need separate packaging
+commands per function.
 
-## Mixed-Mode Authorizer Exception
+## RSVP Authorizer Dependencies
 
-The dedicated mixed-mode RSVP authorizer has one extra packaging requirement:
+The mixed-mode RSVP authorizer directly depends on `PyJWT` and `cryptography`.
+The native dependency chain also includes packages such as `cffi`.
 
-- third-party JWT verification dependencies
+| Path | Purpose |
+|---|---|
+| `lambdas/rsvp_authorizer/requirements.txt` | Tracked dependency source |
+| `lambdas/rsvp_authorizer/vendor/` | Generated workload-local dependencies |
+| `lambdas/rsvp_authorizer/Dockerfile.vendor` | Lambda-compatible vendor build |
 
-For this workload, the tracked dependency source of truth is:
+The generated vendor directory is ignored by Git and must not be used as a
+shared dependency directory for other workloads.
 
-- `lambdas/rsvp_authorizer/requirements.txt`
+### Local Test Dependencies
 
-The generated vendor directory is:
-
-- `lambdas/rsvp_authorizer/vendor/`
-
-That vendor directory is:
-
-- generated
-- workload-local
-- ignored by Git
-
-It must not become a shared dependency bucket for other Lambdas.
-
-## Authorizer Local Test Install
-
-For RSVP authorizer local unit tests, dependencies can be installed into the
-workload-local vendor directory so the handler test file can import them
-directly.
-
-Example:
+For local authorizer tests, install dependencies into the workload-local vendor
+directory:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install `
@@ -134,55 +110,44 @@ Example:
   --requirement lambdas/rsvp_authorizer/requirements.txt
 ```
 
-This supports local importability for:
+This installation supports local imports only. It is not necessarily compatible
+with the AWS Lambda Linux runtime.
 
-- `PyJWT`
-- `cryptography`
+### Lambda-Compatible Vendor Build
 
-## Lambda-Compatible Vendor Build
-
-Local importability is not the same as Lambda-runtime compatibility.
-
-The final vendored dependency tree used for deployment must be built for the
-deployed Lambda runtime and architecture.
-
-Current locked deployment target:
-
-- Python `3.13`
-- `x86_64`
-- AWS Lambda Linux runtime
-
-Before rebuilding the vendor tree, remove any previous generated contents so
-platform-specific files do not get mixed together.
-
-```powershell
-Remove-Item -Recurse -Force lambdas/rsvp_authorizer/vendor
-```
-
-The preferred deployment build approach uses the helper script:
-
-- `scripts/build_rsvp_authorizer_vendor.py`
-
-Run:
+Build deployment dependencies with:
 
 ```powershell
 python scripts/build_rsvp_authorizer_vendor.py
 ```
 
-The helper script:
+The helper:
 
-- removes any existing generated `vendor/` directory
+- removes the existing vendor directory
 - builds the workload-local Docker image
-- rebuilds the vendor tree in a Lambda-compatible container
+- installs dependencies in a Linux Python 3.13 container
+- verifies that the rebuilt vendor directory is non-empty
 
-Under the hood it uses the workload-local Docker build file:
+The resulting dependencies target:
 
-- `lambdas/rsvp_authorizer/Dockerfile.vendor`
+- AWS Lambda Linux
+- Python `3.13`
+- `x86_64`
 
-If you need to debug the lower-level Docker flow directly, the equivalent steps
-are:
+This prevents locally built native binaries from being included in the
+deployment artifact.
 
-Build the vendor image:
+The helper is the preferred build path because it starts from a clean vendor
+directory. For lower-level Docker troubleshooting, reproduce that cleanup
+before running Docker:
+
+```powershell
+Remove-Item `
+  -Recurse `
+  -Force `
+  -ErrorAction SilentlyContinue `
+  lambdas/rsvp_authorizer/vendor
+```
 
 ```powershell
 docker build `
@@ -191,33 +156,15 @@ docker build `
   lambdas/rsvp_authorizer
 ```
 
-Rebuild the workload-local vendor directory in a Lambda-compatible container:
-
 ```powershell
 docker run --rm `
   -v "${PWD}\lambdas\rsvp_authorizer:/output" `
   rsvp-authorizer-vendor
 ```
 
-The container installs the pinned dependencies into `/output/vendor` using a
-Linux Python 3.13 environment aligned with the deployed Lambda target.
+### Authorizer Packaging
 
-Why this differs from the local test install:
-
-- local test install only needs the dependencies to import on the local machine
-- deployment build must produce a dependency tree compatible with:
-  - AWS Lambda Linux
-  - Python `3.13`
-  - `x86_64`
-
-Native dependencies such as `cryptography` and `cffi` must match the Lambda
-runtime target. The Docker-based vendor build was added specifically to avoid
-shipping local Windows-built binaries into the Lambda ZIP.
-
-## Authorizer Packaging Command
-
-When the `vendor/` directory contains the correct Lambda-compatible dependency
-build, package the authorizer with:
+After building compatible dependencies, package the authorizer with:
 
 ```powershell
 python scripts/package_lambda.py `
@@ -226,15 +173,27 @@ python scripts/package_lambda.py `
   --vendor-dir lambdas/rsvp_authorizer/vendor
 ```
 
-With `--vendor-dir`, vendored dependency contents are placed at ZIP root so the
-authorizer can import them directly.
+The vendor contents are placed at ZIP root so the authorizer can import them
+directly. The all-workload helper performs this build and packaging sequence
+automatically.
 
-## Cleanup Notes
+## Generated Artifacts
 
-Generated packaging and dependency artifacts must not be committed.
+Generated packaging outputs are disposable and ignored by Git:
 
-Examples of generated Lambda-related artifacts:
+| Path | Generated by |
+|---|---|
+| `artifacts/lambda/*.zip` | Lambda packaging helpers |
+| `lambdas/rsvp_authorizer/vendor/` | Local dependency install or Docker vendor build |
+| `__pycache__/` and `*.pyc` | Python execution |
 
-- `lambdas/rsvp_authorizer/vendor/`
-- `artifacts/lambda/*.zip`
-- Python cache directories such as `__pycache__`
+The authorizer dependency sources remain tracked:
+
+- `lambdas/rsvp_authorizer/requirements.txt`
+- `lambdas/rsvp_authorizer/Dockerfile.vendor`
+
+Inspect ignored artifacts from the repository root with:
+
+```powershell
+git status --short --ignored -- artifacts lambdas/rsvp_authorizer/vendor
+```

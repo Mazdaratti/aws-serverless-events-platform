@@ -3,14 +3,14 @@
 ############################################
 
 data "aws_cloudfront_cache_policy" "static" {
-  # Use AWS's managed static-content cache baseline instead of creating a
-  # custom cache policy before the platform has real frontend traffic patterns.
+  # Use AWS's managed static-content cache policy rather than owning a custom
+  # cache policy in this module.
   name = local.static_cache_policy_name
 }
 
 data "aws_cloudfront_cache_policy" "api" {
-  # API requests must not be cached in this first edge baseline because the
-  # backend contains authenticated reads and mutating routes.
+  # API requests are not cached because the backend contains authenticated
+  # reads and mutating routes.
   name = local.api_cache_policy_name
 }
 
@@ -49,7 +49,7 @@ resource "aws_cloudfront_function" "spa_rewrite" {
 }
 
 ############################################
-# Edge distribution baseline
+# Edge distribution
 ############################################
 
 resource "aws_cloudfront_distribution" "this" {
@@ -80,8 +80,8 @@ resource "aws_cloudfront_distribution" "this" {
     connection_timeout          = 10
     response_completion_timeout = 0
 
-    # API Gateway is modeled as a custom HTTPS origin. The stage path, such as
-    # /dev, is supplied through origin_path by the environment root later.
+    # API Gateway is modeled as a custom HTTPS origin. The caller may supply a
+    # stage path, such as /dev, through origin_path.
     custom_origin_config {
       http_port                = 80
       https_port               = 443
@@ -150,8 +150,8 @@ resource "aws_cloudfront_distribution" "this" {
   }
 
   viewer_certificate {
-    # Custom domains and ACM certificates are intentionally deferred. The first
-    # module baseline uses the default CloudFront domain and certificate.
+    # This module uses the default CloudFront domain and certificate. Custom
+    # domains and ACM certificate ownership remain outside its contract.
     cloudfront_default_certificate = true
   }
 

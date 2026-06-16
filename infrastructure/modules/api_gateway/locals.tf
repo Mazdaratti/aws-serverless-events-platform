@@ -14,12 +14,9 @@ locals {
     })
   }
 
-  # Keep stage route settings intentionally narrow in this PR.
-  #
-  # This module hardening step adds only throttling controls here, because
-  # those are the HTTP API route settings the platform currently needs next.
-  # More advanced API Gateway route-setting concerns are intentionally left out
-  # so the reusable module stays aligned with the approved platform scope.
+  # Normalize only the per-route throttling settings owned by this module.
+  # Other API Gateway route-setting concerns remain outside its public
+  # configuration contract.
   route_settings = {
     for route_name, route in var.routes :
     route.route_key => {

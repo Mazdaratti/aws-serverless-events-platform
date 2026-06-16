@@ -1,20 +1,14 @@
-# CloudFront Edge Distribution Baseline
+# CloudFront Edge Delivery Module
 
-This module creates the reusable CloudFront distribution baseline for the
-serverless events platform's edge-delivery layer.
+This module manages the platform's CloudFront edge distribution.
 
-It is intentionally platform-specific. The goal is not to provide a generic
-CloudFront abstraction or a broad CDN factory. Instead, this module defines the
-concrete public edge distribution shape that the private S3 frontend origin,
-API Gateway backend origin, and WAF baseline will compose around.
+It combines a private S3 frontend origin and an API Gateway backend origin
+behind one public endpoint. The module is intentionally platform-shaped rather
+than a general-purpose CloudFront abstraction.
 
-This module is CloudFront-distribution-only in v1.
+## Resources And Behavior
 
----
-
-## What This Module Creates
-
-This module currently creates:
+The module creates:
 
 - one CloudFront Origin Access Control for the S3 frontend origin
 - one CloudFront Function for frontend SPA navigation rewrites
@@ -38,60 +32,42 @@ That distribution is configured with:
 - optional WAF Web ACL association
 - default CloudFront certificate
 
-It also exposes the distribution, OAC, and SPA rewrite function identifiers
-later layers are most likely to need.
+It exposes the distribution, OAC, and SPA rewrite function identifiers required
+by caller-owned integrations.
 
----
+## Module Boundary
 
-## Why This Module Stays CloudFront-Focused
+This module owns:
 
-This step is focused on the reusable edge distribution baseline the platform
-clearly needs after creating the private S3 origin bucket and WAF baseline:
+- the CloudFront distribution
+- the S3 Origin Access Control
+- static frontend and API cache behaviors
+- the `/app` SPA rewrite function and association
+- optional WAF Web ACL association
 
-- one CloudFront distribution
-- private S3 frontend delivery through OAC
-- API Gateway origin forwarding
-- frontend, static asset, and API behavior separation
-- SPA deep-link routing under the locked `/app` namespace
-- optional Web ACL attachment point
+Callers remain responsible for:
 
-The module does not create S3 buckets, S3 bucket policies, WAF Web ACLs, Route
-53 records, ACM certificates, custom domains, logging buckets, frontend assets,
-or deployment automation. Those concerns either already belong to other modules
-or are intentionally deferred to later milestones.
+- the private S3 origin bucket and its bucket policy
+- the API Gateway origin
+- the WAF Web ACL
+- Route 53 records, custom domains, and ACM certificates
+- logging buckets
+- frontend assets, uploads, and cache invalidations
 
-Keeping the module limited to CloudFront distribution behavior makes the design
-easier to understand and keeps `envs/dev` composition-focused.
-
----
-
-## Origin Access Control Direction
+## S3 Origin Access Contract
 
 This module uses CloudFront Origin Access Control for the S3 origin.
-
-That is intentional:
 
 - OAC is the current CloudFront model for private S3 origins
 - the frontend bucket is not a public website bucket
 - CloudFront signs S3 origin requests with SigV4
 - the legacy Origin Access Identity pattern is not used
 
-Important:
+OAC does not grant bucket access by itself. The caller must attach an S3 bucket
+policy that permits the CloudFront service principal to read objects and scopes
+that access to the module's `distribution_arn`.
 
-OAC alone is not enough to grant CloudFront access to the S3 bucket.
-
-The caller must also attach a bucket policy that allows the CloudFront service
-principal to read objects from the bucket, usually scoped with:
-
-- the CloudFront distribution ARN
-- an `AWS:SourceArn` condition
-
-That bucket policy remains outside this module because bucket ownership belongs
-to the caller or environment composition layer.
-
----
-
-## API Gateway Origin Direction
+## API Gateway Origin Contract
 
 The API Gateway origin is modeled as a custom HTTPS origin.
 
@@ -115,36 +91,18 @@ For example:
 This preserves the existing routed backend path contract while hiding the
 stage-qualified execute-api shape from the long-term browser-facing product.
 
----
+## API Route Contract
 
-## Backend Route Shape
-
-The current platform direction intentionally does not introduce `/api/*` in
-this phase.
-
-Instead, CloudFront forwards the existing backend route family:
+CloudFront forwards the platform's backend route family:
 
 - `/events`
 - `/events/*`
 
-This aligns the edge layer with the routes already implemented and validated in
-API Gateway:
+Using both `/events` and `/events/*` ensures that the exact collection path and
+child resource paths are forwarded to API Gateway. The module does not
+introduce an additional `/api/*` prefix.
 
-- `GET /events`
-- `GET /events/mine`
-- `GET /events/{event_id}`
-- `POST /events`
-- `PATCH /events/{event_id}`
-- `POST /events/{event_id}/cancel`
-- `POST /events/{event_id}/rsvp`
-- `GET /events/{event_id}/rsvps`
-
-Using both `/events` and `/events/*` avoids missing the exact list/create path
-while still forwarding child event paths to API Gateway.
-
----
-
-## Frontend SPA Routing Direction
+## Frontend SPA Routing
 
 Frontend application routes are reserved under:
 
@@ -168,9 +126,7 @@ Important:
 - static asset requests under `/app/*` are not rewritten
 - missing static assets still return real S3 or CloudFront errors
 
----
-
-## Cache Behavior Direction
+## Cache Behavior
 
 The module intentionally separates frontend application, static asset, and API
 behavior.
@@ -209,23 +165,18 @@ The no-cache API behavior is deliberate because the backend includes:
 - authorization-sensitive responses
 - RSVP state changes
 
----
-
-## WAF Association Direction
+## WAF Association
 
 The module supports optional WAF attachment through:
 
 - `web_acl_arn`
 
-The module does not create WAF resources. The reusable WAF baseline belongs to
-the separate `waf` module, and environment roots can pass its Web ACL ARN into
-this module when they are ready to attach protection at the CloudFront edge.
-
----
+The module does not create WAF resources. Callers may pass a CloudFront-scoped
+WAF Web ACL ARN from a separately managed resource or module.
 
 ## Inputs
 
-This module keeps its public input surface intentionally small:
+The module accepts:
 
 - `name_prefix`
 - `tags`
@@ -239,14 +190,9 @@ This module keeps its public input surface intentionally small:
 - `enabled`
 - `default_root_object`
 
-This gives environment roots enough control to compose the edge distribution
-without turning the module into a broad CloudFront framework.
-
----
-
 ## Outputs
 
-The module exposes the values later layers are most likely to need:
+The module exposes:
 
 - `distribution_id`
 - `distribution_arn`
@@ -258,8 +204,6 @@ The module exposes the values later layers are most likely to need:
 
 The distribution ARN is especially important for caller-owned S3 bucket policy
 wiring when using OAC.
-
----
 
 ## Example
 
@@ -281,25 +225,6 @@ The example intentionally does not create WAF, Route 53 records, ACM
 certificates, custom domains, frontend assets, logging buckets, or deployment
 automation.
 
----
-
-## Out Of Scope
-
-The following concerns intentionally remain outside this module:
-
-- S3 bucket creation
-- S3 bucket policy ownership
-- WAF Web ACL creation
-- Route 53 DNS records
-- ACM certificates
-- custom domains
-- CloudFront logging buckets
-- frontend application assets
-- frontend deployment automation
-- broad custom error response fallbacks
-
----
-
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -312,11 +237,9 @@ The following concerns intentionally remain outside this module:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.42.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
 
-## Modules
 
-No modules.
 
 ## Resources
 
@@ -334,15 +257,15 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_api_origin_domain_name"></a> [api\_origin\_domain\_name](#input\_api\_origin\_domain\_name) | Domain name of the API Gateway origin, without protocol or stage path. | `string` | n/a | yes |
+| <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Shared environment naming prefix used to derive CloudFront distribution resource names. | `string` | n/a | yes |
+| <a name="input_s3_origin_bucket_regional_domain_name"></a> [s3\_origin\_bucket\_regional\_domain\_name](#input\_s3\_origin\_bucket\_regional\_domain\_name) | Regional domain name of the private S3 bucket used as the frontend asset origin. | `string` | n/a | yes |
+| <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
 | <a name="input_api_origin_id"></a> [api\_origin\_id](#input\_api\_origin\_id) | Stable CloudFront origin ID used for the API Gateway backend origin. | `string` | `"api-gateway-origin"` | no |
 | <a name="input_api_origin_path"></a> [api\_origin\_path](#input\_api\_origin\_path) | Optional API Gateway stage path that CloudFront appends before forwarding requests to the API origin. | `string` | `null` | no |
 | <a name="input_default_root_object"></a> [default\_root\_object](#input\_default\_root\_object) | Default object CloudFront returns for requests to the distribution root. | `string` | `"index.html"` | no |
 | <a name="input_enabled"></a> [enabled](#input\_enabled) | Whether the CloudFront distribution is enabled. | `bool` | `true` | no |
-| <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Shared environment naming prefix used to derive CloudFront distribution resource names. | `string` | n/a | yes |
-| <a name="input_price_class"></a> [price\_class](#input\_price\_class) | CloudFront price class used to keep the first edge-delivery baseline cost-aware. | `string` | `"PriceClass_100"` | no |
-| <a name="input_s3_origin_bucket_regional_domain_name"></a> [s3\_origin\_bucket\_regional\_domain\_name](#input\_s3\_origin\_bucket\_regional\_domain\_name) | Regional domain name of the private S3 bucket used as the frontend asset origin. | `string` | n/a | yes |
+| <a name="input_price_class"></a> [price\_class](#input\_price\_class) | CloudFront price class used to control the distribution's geographic coverage and cost. | `string` | `"PriceClass_100"` | no |
 | <a name="input_s3_origin_id"></a> [s3\_origin\_id](#input\_s3\_origin\_id) | Stable CloudFront origin ID used for the private S3 frontend origin. | `string` | `"s3-frontend-origin"` | no |
-| <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
 | <a name="input_web_acl_arn"></a> [web\_acl\_arn](#input\_web\_acl\_arn) | Optional AWS WAFv2 Web ACL ARN to associate with the CloudFront distribution. | `string` | `null` | no |
 
 ## Outputs

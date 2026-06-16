@@ -1,47 +1,58 @@
 # Architecture Overview
 
-The AWS Serverless Events Platform is a fully managed, cloud-native web application built entirely on AWS serverless services.
+The AWS Serverless Events Platform is a fully managed, cloud-native web
+application built on AWS serverless services.
 
-The architecture follows a **transactional core + event-driven extension model**:
+This document owns the detailed platform architecture, service responsibilities,
+and system boundaries. Product and authorization contracts are documented in
+[platform-behavior.md](platform-behavior.md); operational setup and deployment
+procedures are documented in [project-setup.md](project-setup.md); concrete
+`dev` Terraform composition is documented in the
+[development environment README](../infrastructure/envs/dev/README.md).
 
-- Business-critical API operations execute synchronously and durably through DynamoDB commit
-- Asynchronous services are used for scalability, decoupling, and background processing
+The deployed architecture follows a **transactional core with event-driven
+extensions**:
 
-This approach preserves immediate correctness guarantees while enabling production-grade system evolution.
+- business-critical API operations execute synchronously and commit durably to
+  DynamoDB
+- asynchronous services provide post-commit fanout, buffering, retries, and
+  notification delivery
 
----
+This preserves immediate business outcomes while isolating downstream work from
+the synchronous request path.
 
 ## Edge Layer (Global Entry Point)
 
 User traffic enters the system through:
 
 - **Amazon CloudFront** for global content delivery
-- **AWS WAF** for edge-level protection
 - **AWS Shield Standard** for automatic DDoS mitigation
+- optional **AWS WAF** protection when enabled for the environment
 
-CloudFront serves static frontend assets from:
+CloudFront serves static frontend assets from a private:
 
 - **Amazon S3**
 
-WAF applies:
+When enabled, WAF applies:
 
 - AWS Managed Rule Sets
 - IP-based rate limiting
 
-This design protects the platform at the network edge and reduces load on backend services.
+WAF is disabled by default in `dev` to avoid steady non-production cost.
+CloudFront remains the public browser entry point regardless of the WAF setting.
 
-### Edge Delivery Direction
+### Edge Delivery Model
 
-The intended edge-delivery baseline uses one CloudFront distribution as the
-public entry point for browser traffic.
+The deployed edge layer uses one CloudFront distribution as the public entry
+point for browser traffic.
 
-That distribution is expected to:
+The distribution:
 
-- serve static frontend assets from a private S3 bucket
-- forward backend API requests to API Gateway
-- attach WAF protection at the edge
-- enforce HTTPS-only browser access
-- provide CDN caching for static frontend assets
+- serves static frontend assets from a private S3 bucket
+- forwards backend API requests to API Gateway
+- attaches WAF protection when enabled
+- enforces HTTPS-only browser access
+- provides CDN caching for static frontend assets
 
 This keeps the platform aligned with a production-style edge model:
 
@@ -54,7 +65,7 @@ This keeps the platform aligned with a production-style edge model:
 The platform separates frontend application routes and backend API routes at
 the CloudFront edge layer.
 
-The following namespace split is now locked:
+The deployed namespace split is:
 
 - `/app` and `/app/*`
   - reserved for the frontend application
@@ -118,31 +129,32 @@ This preserves a cleaner production-shaped boundary:
 - CloudFront delivers those artifacts publicly
 - origin access stays controlled at the edge layer
 
-### CloudFront Behavior Direction
+### CloudFront Behavior Model
 
-CloudFront behavior remains intentionally simple while preserving a clean
-frontend/API path split at the edge.
+CloudFront uses separate origin and cache behavior families for frontend and
+API traffic.
 
-The distribution should support:
+The deployed distribution includes:
 
 - one default behavior for static frontend assets from S3
 - S3-facing frontend behaviors for `/app` and `/app/*`
 - API Gateway-facing backend behaviors for `/events` and `/events/*`
 - a CloudFront Function attached only to the S3-facing frontend behaviors for
   SPA deep-link rewrites
-- HTTPS redirect at the edge
-- compression for static frontend assets
-- caching for static frontend assets
-- little or no caching for backend API traffic
-- WAF association on the distribution
+- HTTP-to-HTTPS redirection for every behavior
+- compression for frontend and API responses
+- AWS managed `CachingOptimized` policy for frontend assets
+- AWS managed `CachingDisabled` policy for API traffic
+- AWS managed `AllViewerExceptHostHeader` origin request policy for API
+  forwarding
+- optional WAF association when enabled by the environment
 
-The backend-forwarding behavior should preserve the existing routed backend
-contract instead of redefining backend authorization or business behavior at
-the edge.
+The API behaviors forward the methods and request details required by the
+routed backend without moving authentication, authorization, or business
+decisions into CloudFront.
 
-The browser-visible path split is now locked: frontend application routes live
-under `/app` and `/app/*`, while backend API routes remain under `/events` and
-`/events/*`.
+Frontend application routes remain under `/app` and `/app/*`; backend API
+routes remain under `/events` and `/events/*`.
 
 ### API Gateway Relationship
 
@@ -160,20 +172,18 @@ API Gateway remains responsible for:
 CloudFront changes the public entry path and request-routing layer, but the
 backend authorization model remains unchanged.
 
-### CORS Direction
+### Same-Origin and CORS Model
 
-The reusable API Gateway module supports optional CORS configuration, but the
-platform's preferred browser-integration direction is same-origin access
-through CloudFront.
+Browser traffic uses the same CloudFront origin for frontend assets and API
+requests:
 
-That means the long-term preferred browser path is:
+- `/app` and static assets are served from S3
+- `/events` and `/events/*` are forwarded to API Gateway
 
-- frontend assets delivered through CloudFront
-- backend API requests also entering through CloudFront
-
-Because of that, API Gateway CORS is expected to remain disabled unless a
-specific environment or integration case genuinely requires cross-origin
-browser access.
+The `dev` environment therefore leaves API Gateway CORS disabled with
+`cors_configuration = null`. The reusable API Gateway module still supports
+optional CORS for a future environment or integration that genuinely requires
+cross-origin browser access.
 
 ### Frontend Application Structure
 
@@ -265,7 +275,7 @@ not part of business workflow logic.
 
 The platform's canonical internal user identifier is the Cognito user `sub`.
 
-The platform's raw identity baseline derives from:
+The deployed identity model derives:
 
 - Cognito `sub` for user identity
 - Cognito group membership for admin capability
@@ -279,40 +289,45 @@ This keeps internal identity:
 - immutable
 - independent of username or email changes
 
-### Sign-In Strategy (v1)
+### Sign-In Model
 
 Sign-in is Cognito-managed.
 
-The initial identity baseline uses:
+The deployed User Pool uses:
 
 - username as the primary sign-in attribute
+- case-insensitive usernames
+- self-service registration
 - required email collection
 - Cognito-managed email verification
+- verified email for account recovery
 
-This does not lock the platform into permanent username-only login. Future
-changes such as email-based sign-in can evolve without changing the canonical
-internal identity model.
+The public User Pool Client supports password, SRP, and refresh-token
+authentication without a client secret. Future sign-in changes can preserve the
+canonical internal identity model because application ownership is based on
+Cognito `sub`, not username or email.
 
 ### Admin Model
 
 Administrative capabilities are derived from Cognito group membership.
 
-The initial identity baseline includes one Cognito group:
+The deployed User Pool includes one administrative group:
 
 - `admin`
 
-Lambda functions must not infer admin privileges from request payloads or
-handler-specific custom auth logic.
+API Gateway authorizers project group membership into normalized caller
+context. Business Lambdas must not infer admin privileges from request payloads
+or handler-specific authentication logic.
 
-### Initial Cognito Scope
+### Cognito Scope
 
-The initial Cognito baseline intentionally includes only:
+The deployed identity layer includes:
 
 - one User Pool
 - one public User Pool Client
 - one `admin` group
 
-The following identity features are intentionally deferred:
+It intentionally does not include:
 
 - hosted UI
 - social identity providers
@@ -321,50 +336,52 @@ The following identity features are intentionally deferred:
 - custom domains
 - OAuth scopes and resource servers
 
-This keeps the identity layer minimal while still supporting the platform's
-locked authentication and authorization direction.
+This keeps the identity layer focused on the authentication and authorization
+requirements currently used by the application. Detailed account-lifecycle,
+route-authentication, and authorization behavior is documented in
+[platform-behavior.md](platform-behavior.md).
 
 ---
 
 ## API Layer
 
-**Amazon API Gateway (HTTP API)** routes requests to individual:
+**Amazon API Gateway HTTP API** routes each operation to a dedicated **AWS
+Lambda** workload.
 
-- **AWS Lambda functions**
+This provides:
 
-Each endpoint is implemented as an independent Lambda to provide:
+- fault isolation
+- independent scaling
+- clear workload ownership
+- workload-specific IAM permissions
 
-- Fault isolation
-- Independent scaling
-- Clear ownership boundaries
-- Fine-grained IAM permissions
-
-This keeps the compute layer aligned with the platform's business workflow
-boundaries, such as:
+The deployed route families cover:
 
 - event creation
 - public event listing and lookup
 - creator-scoped event listing
 - creator-owned event management
-- synchronous RSVP business handling
+- RSVP submission and RSVP administration
 
-The routed API intentionally uses a hybrid authorization model:
+The API uses three route-authentication modes:
 
-- public read routes such as broad event listing and single-event lookup remain open
-- ordinary protected routes use the native JWT authorizer path
-- the RSVP route uses a dedicated custom authorizer path to support mixed anonymous and authenticated access on one operation
+- `NONE` for public event listing and lookup
+- `JWT` for authenticated event-management and owner/admin routes
+- `CUSTOM` for mixed anonymous and authenticated RSVP access
 
 ---
 
-## Core Business Write Pattern (RSVP)
+## Synchronous RSVP Write Pattern
 
 RSVP submission is implemented as a **synchronous transactional operation**.
 
-Primary flow:
+Request path:
 
-`Client -> CloudFront -> API Gateway -> Lambda -> DynamoDB transaction`
+```text
+Client -> CloudFront -> API Gateway -> Lambda -> DynamoDB transaction
+```
 
-This guarantees the caller immediately receives the final business outcome:
+The transaction returns the final business outcome to the caller:
 
 - RSVP created
 - RSVP updated
@@ -372,244 +389,149 @@ This guarantees the caller immediately receives the final business outcome:
 - access denied
 - event not found
 
-This pattern aligns with the existing API contract and improves user experience by avoiding eventual-consistency uncertainty in critical workflows.
+SQS and EventBridge are intentionally excluded from this primary write path so
+notification processing cannot delay or redefine the RSVP result.
 
-The RSVP decision itself remains business-driven inside Lambda:
+Business authorization remains inside the RSVP Lambda:
 
 - public events may allow anonymous RSVP
 - protected events require authenticated callers
 - admin events require admin callers
 
-JWT validation remains outside the RSVP business Lambda.
+Token validation remains in the dedicated mixed-mode Lambda authorizer. The
+business handler consumes normalized caller context and owns event access,
+capacity, and RSVP state decisions.
 
-For the mixed-mode RSVP route, token validation is performed in the dedicated
-custom Lambda authorizer, not in the business handler.
+Detailed route, request, response, and authorization contracts are documented
+in [platform-behavior.md](platform-behavior.md).
 
 ---
 
-## Event-Driven Async Processing
+## Event-Driven Notification Architecture
 
 Asynchronous services are used **after durable business state changes**.
 
-Core API outcomes remain synchronous. Notification routing and delivery must
-not decide whether the original API request succeeds or fails.
+Core API outcomes remain synchronous. Notification publication or delivery
+failures do not change the result of an already committed business operation.
 
-The platform uses:
+### Post-Commit Fanout
 
-- **Amazon EventBridge**
-  - post-commit domain event router
-- **Amazon SNS**
-  - admin/platform broadcast notification topic
-- **Amazon SQS**
-  - durable participant-notification work buffers
-- **AWS Lambda**
-  - notification planner and sender workers
-- **Amazon SES**
-  - participant email sender identity, templates, and delivery service
-
-After successful event-management writes, compact domain events are published to
-EventBridge. These events are emitted only after the primary DynamoDB business
-write succeeds.
-
-The v1 event-management domain events are:
+After a successful event-management write, the responsible Lambda publishes one
+compact domain event to EventBridge:
 
 - `event.created`
 - `event.updated`
 - `event.cancelled`
 
-Each successful business change publishes exactly one EventBridge domain event.
-Write Lambdas do not publish separate events for separate notification targets.
-EventBridge owns fanout.
+Write Lambdas do not publish target-specific notification messages.
+EventBridge owns downstream routing and fanout.
 
-The locked notification foundation uses separate admin and participant paths.
+The notification architecture separates admin broadcasts from participant
+email delivery.
 
-Admin notification path:
+### Admin Notification Path
 
-`EventBridge -> SNS admin topic`
+```text
+EventBridge -> SNS admin topic
+```
 
-The direct admin SNS path uses lightweight EventBridge target formatting for
-admin-readable messages. Environment-specific formatting can combine the
-published app-relative `event_detail_path` with the deployed frontend domain to
-produce a browser URL without changing the Lambda domain event payload.
+Admin notifications cover event creation, update, and cancellation. EventBridge
+input transformers produce lightweight admin-readable SNS messages without
+requiring a notification Lambda.
 
-Participant notification path:
+### Participant Notification Path
 
-`EventBridge -> notification-dispatch SQS -> notification-planner Lambda -> notification-email SQS -> notification-sender Lambda -> SES`
+Participant notifications for event updates and cancellations follow this
+pipeline:
 
-SQS is used for participant notification durability and retry isolation:
+| Stage | Component | Responsibility |
+|---|---|---|
+| 1 | EventBridge | Routes committed domain events |
+| 2 | SQS `notification-dispatch` | Buffers event-level planning work |
+| 3 | Lambda `notification-planner` | Expands RSVP records into recipient-level jobs |
+| 4 | SQS `notification-email` | Buffers recipient-level email work |
+| 5 | Lambda `notification-sender` | Resolves the current Cognito email and selects the SES template |
+| 6 | Amazon SES | Delivers the participant email |
 
-- `notification-dispatch`
-  - event-level planning queue for `event.updated` and `event.cancelled`
-- `notification-email`
-  - recipient-level user-facing email work queue between the planner and the
-    sender
+Both workers use partial SQS batch responses so one failed record does not
+force successful records to be retried.
 
-The notification worker layer is intentionally split:
+### Delivery Boundary
 
-- `notification-planner`
-  - consumes event-level participant notification work from
-    `notification-dispatch`
-  - queries RSVP records by event
-  - creates one recipient-level email job per authenticated RSVP user in
-    `notification-email`
-  - includes both attending and not-attending RSVP users
-  - skips anonymous RSVP subjects in v1
-  - uses partial batch responses for SQS retry isolation
-- `notification-sender`
-  - consumes recipient-level email jobs
-  - resolves the current recipient email through Cognito at send time using
-    the canonical Cognito `sub`
-  - builds safe template data for SES-managed participant email templates
-  - sends participant email through SES `SendTemplatedEmail`
+Terraform manages the `dev` SES sender identity and participant templates.
+The environment remains in the SES sandbox and therefore requires verified
+sender and recipient identities.
 
-This keeps EventBridge responsible for fanout, SQS responsible for durable
-participant work buffering, SES templates responsible for reusable user-facing
-email content, and SES delivery responsible for direct participant email.
+Queues remain outside the synchronous RSVP write path. They are used only for
+post-commit notification buffering, retries, and failure isolation.
 
-Development SES strategy:
-
-- participant email delivery uses Amazon SES
-- `dev` wires a Terraform-managed SES email identity and SES templates
-- the development baseline uses a dedicated project inbox as the SES sender identity
-- the dedicated project inbox is the visible participant email `From` address
-- the sender email value comes from untracked `terraform.tfvars`
-- private personal email addresses must not be used as the project sender
-- private personal email addresses must not be hardcoded in committed code,
-  Terraform, or documentation
-- SES email identity verification is completed manually through the verification
-  email sent to the dedicated project inbox
-- Terraform manages participant notification templates for:
-  - `event.updated`
-  - `event.cancelled`
-- SES templates contain the subject, plain-text body, and HTML body
-- `notification-sender` chooses the SES template and provides safe template data
-- sender SES permissions cover the configured sender address, participant
-  templates, and SES identity scope required by sandbox validation
-- SES sandbox assumptions remain explicit for `dev`
-- sandbox validation requires verified recipient email addresses
-- no SES production access request, domain identity, DKIM, SPF, DMARC, or
-  custom MAIL FROM configuration is part of the current architecture baseline
-
-Participant emails are user-facing product emails, not admin/debug messages.
-The planner produces safe recipient-level jobs, and the sender owns final
-presentation through stable templates. EventBridge does not send directly to
-`notification-email`.
-
-Queues are **not used in the primary RSVP write path**, but remain essential
-for decoupled notification processing and failure isolation.
+Detailed recipient selection, message contracts, and worker behavior are
+documented in [platform-behavior.md](platform-behavior.md). Concrete deployed
+wiring, SES configuration, and validation evidence are documented in the
+[development environment README](../infrastructure/envs/dev/README.md).
 
 ---
 
 ## Data Layer
 
-Business data is stored in:
+Amazon DynamoDB stores business data in two canonical tables:
 
-- **Amazon DynamoDB**
+| Table | Primary key | Responsibility |
+|---|---|---|
+| `events` | Partition key: `event_pk` | Event metadata, lifecycle state, visibility, creator ownership, and aggregate RSVP helper counters |
+| `rsvps` | Partition key: `event_pk`; sort key: `subject_sk` | Canonical event membership for authenticated and anonymous RSVP subjects |
 
-The initial data model uses an **initial two-table business data design**:
+Canonical key values use:
 
-### Events table
+- `event_pk = EVENT#<event_id>`
+- `subject_sk = USER#<user_id>` for authenticated RSVP subjects
+- `subject_sk = ANON#<anonymous_token>` for anonymous RSVP subjects
 
-Stores canonical event records including:
+RSVP records are the source of truth for attendance membership. Event-level
+counters support efficient reads but are maintained as derived helper values.
 
-- event metadata
-- visibility flags
-- organizer ownership
-- aggregate RSVP helper counters
+RSVP writes use DynamoDB transactions across both tables to keep membership,
+counters, and capacity enforcement consistent under concurrent requests.
 
-Counters improve read efficiency but are **not the source of truth**.
+The `events` table includes indexes only for established query patterns:
 
-### RSVPs table
+- `public-upcoming-events` for public event discovery
+- `creator-events` for creator-owned event listing
 
-Stores canonical RSVP membership records using:
-
-- event-scoped partition key
-- subject-scoped sort key
-
-This design supports:
-
-- efficient per-event RSVP queries
-- both authenticated and anonymous RSVP subjects
-- transactional capacity enforcement
-
-DynamoDB runs in **on-demand billing mode** for cost efficiency and burst handling.
-
-Global secondary indexes are introduced only for **validated access patterns**, such as:
-
-- public upcoming event discovery
-- creator event listing
-
-Those access patterns intentionally support the current Lambda rollout order:
-
-- broad event discovery
-- creator-owned event listing
-- later transactional RSVP handling
+The tables use on-demand capacity. Environment-specific durability and cost
+choices, including the `dev` point-in-time recovery setting, are documented in
+the [development environment README](../infrastructure/envs/dev/README.md).
+Detailed keys, lifecycle behavior, capacity rules, pagination, and public DTO
+boundaries are documented in
+[platform-behavior.md](platform-behavior.md).
 
 ---
 
-## Observability
+## Observability Layer
 
-System monitoring and tracing use AWS-native services:
+The deployed observability baseline uses AWS-native logs, metrics, alarms,
+dashboards, and traces:
 
-- **Amazon CloudWatch** for service logs and metrics
-- **Amazon CloudWatch Alarms** for native service-metric alert conditions
-- **Amazon CloudWatch Dashboards** for a compact operational view
-- **AWS X-Ray** for Lambda request tracing
+| Signal | Implementation | Coverage |
+|---|---|---|
+| Logs | Amazon CloudWatch Logs | Terraform-managed Lambda log groups and a dedicated API Gateway access-log group |
+| Alarms | Amazon CloudWatch metric alarms | Lambda errors and throttles, API Gateway 5xx responses, SQS backlog and message age, DLQ messages, and EventBridge failed target invocations |
+| Dashboard | Amazon CloudWatch dashboard | Lambda, API Gateway, SQS, and EventBridge service health and performance |
+| Traces | AWS X-Ray | Active tracing for API/business, authorizer, and notification-worker Lambdas |
 
-The observability baseline includes:
+The CloudWatch baseline uses native AWS service metrics. It does not create
+custom application metrics or log metric filters.
 
-- Terraform-managed Lambda log groups with retention
-- API Gateway HTTP API access logs in a dedicated CloudWatch Logs log group
-- Lambda X-Ray active tracing for deployed API/business, authorizer, and
-  notification-worker Lambdas in `dev`
-- minimal X-Ray write permissions on Lambda execution policies
-- CloudWatch metric alarms for:
-  - Lambda errors
-  - Lambda throttles
-  - API Gateway 5xx responses
-  - SQS source queue visible messages
-  - SQS source queue oldest message age
-  - SQS DLQ visible messages
-  - EventBridge failed target invocations
-- one CloudWatch dashboard covering:
-  - Lambda invocations, errors, throttles, and duration p95
-  - API Gateway request count, 4xx, 5xx, and latency
-  - SQS visible messages, DLQ visible messages, and oldest message age
-  - EventBridge invocations and failed invocations
+Alert delivery remains separate from detection. The `dev` alarms have no alarm
+or OK actions, so they expose operational conditions without routing
+notifications to an incident channel.
 
-Alert delivery is not configured in the baseline. CloudWatch alarms are created
-with empty alarm and OK action lists so notification routing remains separate
-from metric coverage.
+API Gateway active tracing is not enabled because the platform uses HTTP API;
+API Gateway X-Ray tracing supports REST APIs. Lambda tracing remains active
+across the deployed workloads.
 
-The baseline uses native AWS service metrics. It does not create CloudWatch log
-metric filters or custom application metrics.
-
-API Gateway active tracing is not enabled because the platform uses API Gateway
-HTTP API, while API Gateway active tracing applies to REST APIs.
-
----
-
-## Architecture Evolution Strategy
-
-The platform is intentionally implemented incrementally.
-
-Infrastructure layers are introduced in a controlled sequence to:
-
-- validate architectural assumptions early
-- reduce refactoring risk
-- maintain clear review boundaries
-- support cost-aware experimentation
-
-Reusable modules are allowed to begin as thin environment-driven building
-blocks while behavior is being proven in real AWS.
-
-Once a layer is validated end to end, its reusable module is tightened,
-documented, example-backed, and CI-validated before the next major platform
-layer is introduced.
-
-Early decisions (such as synchronous RSVP writes and minimal DynamoDB indexing)
-may evolve as real workload characteristics become known.
-
-Business behavior contracts are tracked separately from this architecture
-overview so the system design can stay high-level while endpoint behavior and
-authorization rules continue to evolve in a controlled way.
+Concrete alarm definitions, dashboard coverage, log retention, and validation
+evidence are documented in the
+[development environment README](../infrastructure/envs/dev/README.md).
+Reusable alarm and dashboard behavior is documented in the
+[observability module README](../infrastructure/modules/observability/README.md).

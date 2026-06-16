@@ -38,8 +38,8 @@ locals {
     "/app/*",
   ]
 
-  # The current backend contract deliberately preserves the deployed API route
-  # family directly under /events instead of introducing a new /api/* prefix.
+  # The backend contract preserves the API route family directly under /events
+  # instead of introducing a separate /api/* prefix.
   # CloudFront needs both patterns so exact /events and child paths match the
   # API Gateway origin.
   api_path_patterns = [
@@ -47,8 +47,8 @@ locals {
     "/events/*",
   ]
 
-  # Use AWS managed policies for the first baseline so the module stays small
-  # while still using CloudFront's current policy-based cache behavior model.
+  # Use AWS managed policies so this module does not own custom cache or origin
+  # request policy resources.
   static_cache_policy_name       = "Managed-CachingOptimized"
   api_cache_policy_name          = "Managed-CachingDisabled"
   api_origin_request_policy_name = "Managed-AllViewerExceptHostHeader"

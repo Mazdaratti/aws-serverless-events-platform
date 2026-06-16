@@ -1,5 +1,5 @@
 ############################################
-# Cognito identity baseline outputs
+# Cognito identity outputs
 ############################################
 
 output "user_pool_id" {
@@ -8,26 +8,26 @@ output "user_pool_id" {
 }
 
 output "user_pool_arn" {
-  description = "ARN of the Cognito User Pool used by the platform identity baseline."
+  description = "ARN of the Cognito User Pool used by the platform identity model."
   value       = aws_cognito_user_pool.this.arn
 }
 
 output "user_pool_client_id" {
-  description = "ID of the public Cognito User Pool Client that later API and frontend layers can use."
+  description = "ID of the public Cognito User Pool Client used by API and frontend integrations."
   value       = aws_cognito_user_pool_client.this.id
 }
 
 output "issuer" {
-  description = "JWT issuer URL derived from the Cognito User Pool for later API Gateway JWT validation wiring."
+  description = "JWT issuer URL derived from the Cognito User Pool for token validation."
   value       = local.issuer
 }
 
 output "admin_group_name" {
-  description = "Name of the Cognito group that backs the future is_admin caller-context projection."
+  description = "Name of the Cognito group used to derive the is_admin caller context."
   value       = aws_cognito_user_group.admin.name
 }
 
 output "user_pool_endpoint" {
-  description = "Endpoint of the Cognito User Pool. This is optional but can be useful for later integration and documentation."
+  description = "Endpoint of the Cognito User Pool for identity integrations and operational reference."
   value       = aws_cognito_user_pool.this.endpoint
 }

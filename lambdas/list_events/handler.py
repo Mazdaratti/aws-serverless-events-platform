@@ -362,8 +362,8 @@ def _get_dynamodb_table(table_name: str):
 
 
 def _success_response(*, status_code: int, body: dict[str, Any]) -> dict[str, Any]:
-    # Keep the response shape aligned with the future API Gateway integration
-    # even though the function can already be invoked directly today.
+    # Keep the response shape aligned with API Gateway integration while still
+    # supporting direct invocation in tests.
     return {
         "statusCode": status_code,
         "headers": {"Content-Type": "application/json"},

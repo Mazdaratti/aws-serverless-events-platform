@@ -126,7 +126,7 @@ variable "workloads" {
   description = <<-EOT
     Map of Lambda workload role definitions keyed by logical workload name.
 
-    Supported workload keys in v1:
+    Supported workload keys:
     - create-event
     - get-event
     - list-events

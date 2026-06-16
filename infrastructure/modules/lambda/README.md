@@ -1,16 +1,23 @@
-# Lambda Compute Baseline
+# Lambda Compute Module
 
-This module creates the initial Lambda compute baseline for the serverless events platform.
+This module creates ZIP-based Lambda functions and their CloudWatch Logs log
+groups for the serverless events platform.
 
-It is intentionally platform-specific. The goal is not to provide a generic build system or an over-abstracted Lambda factory. Instead, this module defines the concrete Lambda infrastructure baseline that later environment and API wiring will depend on.
+It is intentionally infrastructure-focused rather than a build system or
+general-purpose Lambda factory. Callers provide prepared ZIP artifacts,
+execution-role ARNs, runtime configuration, and environment variables.
 
-This module is infrastructure-focused in v1.
+Each environment root defines its concrete workloads and composes the resulting
+functions with API Gateway, SQS, EventBridge, IAM, and other platform services.
+Packaging and code deployment are documented in
+[`lambdas/README.md`](../../../lambdas/README.md).
 
 ---
 
 ## What This Module Creates
 
-This module currently creates one or more ZIP-packaged Lambda functions from a workload-keyed `functions` map.
+This module creates one or more ZIP-based Lambda functions from a
+workload-keyed `functions` map.
 
 For each logical function definition, it creates:
 
@@ -26,40 +33,49 @@ It also applies:
 - environment variables
 - explicit CloudWatch Logs retention
 
-This keeps the first Lambda implementation small, reviewable, and aligned with the current rollout order.
+Function names and log-group names are derived from the caller's shared name
+prefix and logical workload keys.
 
 ---
 
-## Why This Module Stays Infrastructure-Focused
+## Module Boundary
 
-This step is focused on the reusable Lambda infrastructure that the platform needs first:
+The module owns:
 
-- Lambda function deployment
-- existing IAM role attachment
-- package-path based ZIP deployment
-- explicit log group ownership
+- Lambda function resources and names
+- runtime, handler, memory, timeout, and tracing configuration
+- execution-role references
+- environment variables
+- explicitly managed log groups and retention
+- function and log-group outputs
 
-The module does not create IAM roles, build ZIP packages, configure API Gateway integrations, add SQS event source mappings, manage EventBridge permissions, or introduce Lambda layers. Those concerns may become relevant later, but they are intentionally outside the scope of this first Lambda layer.
+It does not own:
 
-Keeping the module limited to Lambda infrastructure makes the design easier to understand and preserves the current ownership boundaries:
+- execution roles or workload IAM policies
+- ZIP artifact generation
+- code-only deployments after function creation
+- API Gateway integrations or Lambda permissions
+- SQS event source mappings
+- EventBridge rules, targets, or resource policies
+- Lambda layers, versions, aliases, or CodeDeploy resources
 
-- IAM stays in `modules/iam`
-- packaging stays outside the module
-- `envs/dev` stays thin and composition-focused
+Those responsibilities belong to callers, packaging and deployment tooling, or
+the modules that own the corresponding integrations.
 
 ---
 
-## Why The Module Consumes `package_path`
+## Package Input
 
 This module consumes a ready ZIP artifact through `package_path`.
 
-That is intentional:
+The package is required because AWS Lambda function creation requires code.
+Terraform calculates the initial `source_code_hash` from that artifact.
 
-- Terraform should deploy Lambda artifacts here, not become the long-term build system
-- the module stays usable whether packaging is done locally now or in CI/CD later
-- the interface remains stable even if the packaging workflow evolves
+Packaging remains outside the module so the same artifact-generation path can
+be used by provisioning and code-deployment automation.
 
-The runnable example uses `archive_file` only as a small local convenience to create a ZIP outside the module. That is an example-level choice, not the module's design direction.
+The runnable example uses `archive_file` only to create its example ZIP outside
+the module.
 
 ---
 
@@ -71,8 +87,8 @@ That is intentional:
 
 - retention stays under Terraform control
 - log group ownership is clearer in AWS
-- later validation is easier
-- the deployed shape is more production-like
+- validation does not depend on first invocation
+- callers can apply consistent retention settings
 
 ---
 
@@ -88,9 +104,9 @@ trace segments and telemetry records to X-Ray.
 
 ---
 
-## Current V1 Deployment Shape
+## Function Definition
 
-Each function definition currently supports:
+Each function definition supports:
 
 - `description`
 - `role_arn`
@@ -103,15 +119,8 @@ Each function definition currently supports:
 - `log_retention_in_days`
 - `tracing_mode`
 
-This keeps the module reusable across current and future workloads such as:
-
-- `create-event`
-- `list-events`
-- `rsvp`
-- `notification-planner`
-- `notification-sender`
-
-without turning the module into a speculative catch-all abstraction.
+Logical function keys must be lowercase and hyphenated because they become part
+of function names, log-group names, and output-map keys.
 
 ---
 
@@ -131,11 +140,12 @@ The example shows how to:
 - enable active tracing on the example function
 - inspect the resulting function and log group outputs
 
+Applying the example creates real IAM, Lambda, and CloudWatch Logs resources
+and should be reviewed before use in an AWS account.
+
 ---
 
 ## Lambda Code Ownership Boundary
-
-This module consumes prepared ZIP artifacts through `package_path`.
 
 Terraform still needs the package path and source-code hash for initial Lambda
 function creation. Fresh provisioning must build the expected ZIP artifacts
@@ -149,6 +159,9 @@ After creation, Terraform ignores drift for the package-only fields:
 This keeps Terraform responsible for Lambda infrastructure and configuration
 while allowing deployment automation to update existing function code with
 `aws lambda update-function-code`.
+
+Terraform continues to detect changes to runtime, handler, role, memory,
+timeout, tracing, environment variables, tags, and log-group configuration.
 
 ---
 
@@ -164,11 +177,9 @@ while allowing deployment automation to update existing function code with
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.45.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
 
-## Modules
 
-No modules.
 
 ## Resources
 
@@ -181,7 +192,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_functions"></a> [functions](#input\_functions) | Map of Lambda function definitions keyed by logical workload name.<br/><br/>The module stays infrastructure-focused in v1:<br/>- package\_path points to a ready ZIP artifact<br/>- IAM roles are consumed through role\_arn<br/>- environment variables are passed through as simple key/value pairs | <pre>map(object({<br/>    description           = string<br/>    role_arn              = string<br/>    runtime               = string<br/>    handler               = string<br/>    package_path          = string<br/>    memory_size           = optional(number)<br/>    timeout               = optional(number)<br/>    environment_variables = optional(map(string))<br/>    log_retention_in_days = optional(number)<br/>    tracing_mode          = optional(string, "PassThrough")<br/>  }))</pre> | n/a | yes |
+| <a name="input_functions"></a> [functions](#input\_functions) | Map of Lambda function definitions keyed by logical workload name.<br/><br/>The module remains infrastructure-focused:<br/>- package\_path points to a ready ZIP artifact<br/>- IAM roles are consumed through role\_arn<br/>- environment variables are passed through as simple key/value pairs | <pre>map(object({<br/>    description           = string<br/>    role_arn              = string<br/>    runtime               = string<br/>    handler               = string<br/>    package_path          = string<br/>    memory_size           = optional(number)<br/>    timeout               = optional(number)<br/>    environment_variables = optional(map(string))<br/>    log_retention_in_days = optional(number)<br/>    tracing_mode          = optional(string, "PassThrough")<br/>  }))</pre> | n/a | yes |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Shared environment naming prefix used to derive Lambda function and log group names. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
 

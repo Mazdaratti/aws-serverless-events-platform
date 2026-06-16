@@ -14,15 +14,14 @@
 # - module composition
 #
 # Reusable AWS resource design stays inside modules so envs/dev remains thin
-# and composition-focused as the platform is implemented step by step.
+# and composition-focused.
 
 ############################################
 # DynamoDB business data layer
 ############################################
 
-# This environment wires in the first reusable business data module for the
-# platform. The module owns the DynamoDB table design so envs/dev can stay
-# focused on composition and environment-level context only.
+# The module owns the DynamoDB table design while this root supplies
+# environment-level configuration and integrations.
 module "dynamodb_data_layer" {
   source = "../../modules/dynamodb_data_layer"
 
@@ -33,16 +32,15 @@ module "dynamodb_data_layer" {
 }
 
 ############################################
-# SQS messaging baseline
+# SQS messaging
 ############################################
 
-# This environment wires in the first reusable messaging module for the
-# platform. These queues are intended for durable post-commit participant
-# notification work, while the synchronous RSVP write path remains outside SQS.
+# These queues carry durable post-commit participant notification work, while
+# the synchronous RSVP write path remains outside SQS.
 #
 # The dispatch queue receives event-level planning work from EventBridge. The
-# email queue will later buffer recipient-level user-facing email jobs produced
-# by the planner; EventBridge does not send directly to it.
+# email queue buffers recipient-level email jobs produced by the planner;
+# EventBridge does not send directly to it.
 #
 # The module owns the queue and DLQ design so envs/dev can stay focused on
 # composition and environment-level context only.
@@ -72,11 +70,11 @@ module "sqs" {
 }
 
 ############################################
-# EventBridge async event bus baseline
+# EventBridge asynchronous routing
 ############################################
 
-# This environment wires in the reusable EventBridge module so the platform has
-# a real custom event bus and the first locked notification routing rules.
+# The custom event bus routes domain events to administrative notifications and
+# participant notification planning.
 #
 # The module owns EventBridge bus, rule, and target resources. Concrete target
 # resource policies stay in resource_policies.tf because they bind this event
@@ -181,7 +179,7 @@ module "eventbridge" {
 }
 
 ############################################
-# SNS admin notification topic baseline
+# SNS admin notification topic
 ############################################
 
 # This environment wires in the reusable SNS module for the admin/platform
@@ -198,7 +196,7 @@ module "sns_admin_notifications" {
 }
 
 ############################################
-# SES participant email sender baseline
+# SES participant email sender
 ############################################
 
 # This environment wires in the reusable SES module for the participant
@@ -216,11 +214,11 @@ module "ses_participant_email" {
 }
 
 ############################################
-# Lambda execution IAM baseline
+# Lambda execution IAM
 ############################################
 
-# This environment wires in the reusable Lambda execution IAM module so the
-# next Lambda compute step can bind functions to real least-privilege roles.
+# The IAM module provides workload-specific least-privilege execution roles for
+# the Lambda functions composed by this environment.
 #
 # The module owns trust relationships and workload-specific policy design so
 # envs/dev can stay focused on composition and environment-level context only.
@@ -298,12 +296,11 @@ module "iam" {
 }
 
 ############################################
-# Lambda compute baseline
+# Lambda compute
 ############################################
 
-# This environment wires in the reusable Lambda deployment module for the
-# current real compute workloads. Packaging stays outside Terraform and IAM
-# stays in the dedicated IAM module, so envs/dev remains composition-focused.
+# This environment uses the reusable Lambda module for routed API workloads.
+# Packaging stays outside Terraform and IAM remains in the dedicated IAM module.
 module "lambda" {
   source = "../../modules/lambda"
 
@@ -345,15 +342,11 @@ module "lambda" {
 }
 
 ############################################
-# Cognito identity baseline
+# Cognito identity
 ############################################
 
-# This environment wires in the reusable Cognito module so later API Gateway
-# integration can consume a real managed identity provider instead of direct
-# Lambda-only invocation flows.
-#
-# The module owns the Cognito identity baseline so envs/dev can stay focused on
-# composition and environment-level context only.
+# Cognito provides the managed identity source consumed by API Gateway,
+# frontend authentication, and the mixed-mode RSVP authorizer.
 module "cognito" {
   source = "../../modules/cognito"
 
@@ -382,11 +375,10 @@ resource "aws_cloudwatch_log_group" "api_gateway_access" {
 }
 
 ############################################
-# API Gateway routed backend baseline
+# API Gateway routed backend
 ############################################
 
-# This environment wires in the reusable HTTP API backend module for the
-# current routed platform baseline.
+# This environment composes the routed HTTP API backend.
 #
 # The routed backend now includes:
 # - public routes
@@ -409,13 +401,12 @@ module "api_gateway" {
   jwt_issuer   = module.cognito.issuer
   jwt_audience = [module.cognito.user_pool_client_id]
 
-  # Keep CORS disabled in dev for the current backend-only rollout. The module
-  # supports CORS, but this environment does not enable it until browser-based
-  # frontend traffic becomes part of the wired platform baseline.
+  # Browser API requests are same-origin through CloudFront, so API Gateway
+  # does not need to manage cross-origin browser access.
   cors_configuration = null
 
-  # Enable API Gateway stage access logging explicitly in dev so the routed API
-  # baseline includes first-class request visibility separate from Lambda logs.
+  # API Gateway access logs provide request-level visibility separate from
+  # Lambda execution logs.
   access_log_enabled         = true
   access_log_destination_arn = aws_cloudwatch_log_group.api_gateway_access.arn
   access_log_format = jsonencode({
@@ -508,16 +499,12 @@ module "api_gateway" {
 }
 
 ############################################
-# S3 frontend origin bucket baseline
+# S3 frontend origin bucket
 ############################################
 
-# This environment wires in the reusable frontend-origin bucket module so the
-# later edge-delivery steps can attach CloudFront and WAF to a real private S3
-# origin instead of relying only on the current backend-only testing surface.
-#
-# In dev, the bucket intentionally keeps versioning disabled and allows force
-# destroy so this non-production environment stays easy to reset while the edge
-# layer is still being introduced incrementally.
+# The private bucket stores frontend assets served through CloudFront. In dev,
+# versioning remains disabled and force destroy is enabled so the environment
+# stays easy to reset.
 module "s3_frontend_bucket" {
   source = "../../modules/s3_frontend_bucket"
 
@@ -530,7 +517,7 @@ module "s3_frontend_bucket" {
 }
 
 ############################################
-# WAF edge protection baseline
+# WAF edge protection
 ############################################
 
 # This environment can wire in the reusable CloudFront-scoped WAF module when
@@ -559,13 +546,11 @@ module "waf" {
 }
 
 ############################################
-# CloudFront edge distribution baseline
+# CloudFront edge distribution
 ############################################
 
-# This environment wires in the reusable CloudFront module as the public edge
-# entry-point baseline for the platform.
-#
-# CloudFront now composes the private S3 frontend origin and the routed API
+# CloudFront is the platform's public entry point and composes the private S3
+# frontend origin with the routed API
 # Gateway backend origin. In dev, the CloudFront-scoped WAF Web ACL can be
 # attached when enable_waf is set to true.
 module "cloudfront" {
@@ -576,10 +561,10 @@ module "cloudfront" {
 
   s3_origin_bucket_regional_domain_name = module.s3_frontend_bucket.bucket_regional_domain_name
 
-  # API Gateway exposes a stage-qualified execute-api URL today. CloudFront
-  # receives the origin domain separately from the stage path so browser-facing
+  # CloudFront receives the API origin domain separately from its stage path so
+  # browser-facing
   # requests can keep the existing /events route shape while API Gateway still
-  # receives /dev/events behind the edge layer.
+  # receives the stage-qualified path behind the edge layer.
   api_origin_domain_name = replace(module.api_gateway.api_endpoint, "https://", "")
   api_origin_path        = "/${module.api_gateway.stage_name}"
 
@@ -634,11 +619,11 @@ module "notification_lambdas" {
 }
 
 ############################################
-# CloudWatch observability baseline
+# CloudWatch observability
 ############################################
 
-# This environment wires in the reusable observability module for the current
-# dev runtime surfaces. The module creates native CloudWatch metric alarms and
+# The observability module monitors the dev runtime surfaces through native
+# CloudWatch metric alarms and
 # one compact dashboard, while alert delivery remains intentionally disabled.
 module "observability" {
   source = "../../modules/observability"

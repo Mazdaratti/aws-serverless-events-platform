@@ -1,16 +1,26 @@
-# Lambda Execution IAM Baseline
+# Lambda Execution IAM Module
 
-This module creates the initial Lambda execution IAM baseline for the serverless events platform.
+This module creates workload-specific Lambda execution roles and
+customer-managed policies for the serverless events platform.
 
-It is intentionally platform-specific. The goal is not to provide a generic IAM framework or arbitrary policy factory. Instead, this module defines the concrete workload execution roles and least-privilege policy baseline that later Lambda and environment wiring will depend on.
+It is intentionally platform-specific rather than an arbitrary IAM policy
+factory. Supported workload keys map to fixed access profiles so callers cannot
+inject unrestricted policy documents.
 
-This module is Lambda-execution-only in v1.
+Each environment root supplies the concrete resource ARNs used by the policies
+and decides which supported workload roles to create.
 
 ---
 
 ## What This Module Creates
 
-This module currently creates one IAM role and one customer-managed IAM policy per supported workload:
+For each declared supported workload, the module creates:
+
+- one Lambda execution role
+- one customer-managed workload policy
+- one attachment between the role and policy
+
+Supported workload keys are:
 
 - `create-event`
 - `get-event`
@@ -24,15 +34,17 @@ This module currently creates one IAM role and one customer-managed IAM policy p
 - `notification-planner`
 - `notification-sender`
 
-Each role uses the Lambda service trust relationship, and each role receives its own workload-specific least-privilege policy.
+Each role trusts only the Lambda service principal and receives its own
+workload-specific least-privilege policy.
 
-This keeps the first IAM implementation small, reviewable, and aligned with the current architecture and workload boundaries.
+The workload keys and matching access profiles are an explicit part of the
+module contract.
 
 ---
 
-## Why This Module Stays Lambda-Focused
+## Module Boundary
 
-This step is focused on the workload execution IAM that the platform clearly needs next:
+The module owns:
 
 - Lambda execution roles
 - Lambda trust relationships
@@ -44,12 +56,17 @@ This step is focused on the workload execution IAM that the platform clearly nee
 - optional X-Ray write permissions
 - optional EventBridge `PutEvents` permissions for event-management write workloads
 
-The module does not create EventBridge roles, EventBridge rules, EventBridge
-targets, API Gateway roles, Cognito roles, Lambda functions, or arbitrary
-caller-defined JSON policy documents. Those concerns may become relevant later,
-but they are intentionally outside this IAM layer.
+It does not own:
 
-Keeping the module limited to Lambda execution IAM makes the design easier to understand and avoids forcing `envs/dev` to describe IAM internals later.
+- Lambda functions or event-source mappings
+- EventBridge rules, targets, or service roles
+- API Gateway or Cognito resources
+- target resource policies
+- deployment-role permissions
+- arbitrary caller-defined IAM statements
+
+Those responsibilities belong to callers and the modules that own the relevant
+resources.
 
 ---
 
@@ -61,10 +78,10 @@ That is intentional:
 
 - clearer least-privilege boundaries
 - easier AWS inspection and validation
-- easier future Lambda wiring
+- direct role-to-workload mapping
 - less risk of permission growth across unrelated workloads
 
-The current workload set is aligned to the repository's architecture and placeholder direction:
+The supported workload set is:
 
 - `create-event`
 - `get-event`
@@ -86,7 +103,7 @@ The current workload set is aligned to the repository's architecture and placeho
 
 This role is intended for the Lambda that creates new event records.
 
-It currently receives:
+It receives:
 
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
@@ -100,7 +117,7 @@ Only this event-management write role receives publish access when the optional 
 This role is intended for the Lambda that reads a single canonical event
 record by public identifier.
 
-It currently receives:
+It receives:
 
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
@@ -116,21 +133,20 @@ known record directly through:
 
 This role is intended for the Lambda that reads event listings.
 
-It currently receives:
+It receives:
 
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
 - temporary DynamoDB `Scan` access for the `events` table
 
-`Scan` is currently included only as a temporary contract accommodation for the
-public broad listing path. The long-term design direction remains validated
-query access patterns and GSIs.
+`Scan` is included for the broad public listing access profile. Query-oriented
+profiles remain separately scoped to their required indexes.
 
 ### `list-my-events`
 
 This role is intended for the Lambda that reads creator-scoped event listings.
 
-It currently receives:
+It receives:
 
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
@@ -141,7 +157,7 @@ It currently receives:
 This role is intended for the Lambda that performs partial updates against a
 single canonical event record.
 
-It currently receives:
+It receives:
 
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
@@ -150,13 +166,13 @@ It currently receives:
 
 Only event-management write roles receive publish access when the optional EventBridge publish bus ARN is provided.
 
-This role intentionally stays narrower than a generic write role because the
-current `update-event` contract only needs:
+This role stays narrower than a generic write role because its access profile
+needs:
 
 - a primary-key read to load the current event
 - a conditional in-place update of that same event item
 
-It does not currently need:
+It does not receive:
 
 - `Scan`
 - `Query`
@@ -169,30 +185,27 @@ It does not currently need:
 This role is intended for the dedicated mixed-mode Lambda authorizer that
 supports anonymous and authenticated RSVP access on the same route.
 
-It currently receives:
+It receives:
 
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
 
-This role intentionally stays logs-only.
-
-It does not currently need:
+This role intentionally stays logs-only and does not receive:
 
 - DynamoDB access
 - SQS access
 - Cognito read permissions
 - EventBridge access
 
-The authorizer validates Cognito-issued JWTs from the presented bearer token
-using token claims plus Cognito verification material. It does not call Cognito
-read APIs as part of this v1 IAM shape.
+The authorizer access profile intentionally does not include Cognito API calls;
+token validation uses the presented claims and Cognito verification material.
 
 ### `cancel-event`
 
 This role is intended for the Lambda that performs the soft-delete lifecycle
 transition for a single canonical event record.
 
-It currently receives:
+It receives:
 
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
@@ -201,14 +214,13 @@ It currently receives:
 
 Only event-management write roles receive publish access when the optional EventBridge publish bus ARN is provided.
 
-This role intentionally stays narrow because the current `cancel-event`
-contract only needs:
+This role stays narrow because its access profile needs:
 
 - a primary-key read to load the current event
 - a conditional in-place update that sets `status = CANCELLED`
 - removal of the public discovery helper attributes from that same event item
 
-It does not currently need:
+It does not receive:
 
 - `Scan`
 - `Query`
@@ -218,9 +230,9 @@ It does not currently need:
 
 ### `rsvp`
 
-This role is the most important IAM role in this step because it supports the synchronous transactional RSVP flow.
+This role supports the transactional RSVP write flow.
 
-It currently receives:
+It receives:
 
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
@@ -229,7 +241,7 @@ It currently receives:
 
 This role intentionally does not receive SQS permissions.
 
-That boundary matters because the locked architecture keeps RSVP in the synchronous transactional core:
+That boundary keeps RSVP inside the synchronous transactional core:
 
 `Client -> API Gateway -> Lambda -> DynamoDB transaction`
 
@@ -240,7 +252,7 @@ Asynchronous processing begins only after the durable state change.
 This role is intended for the Lambda that reads one event's RSVP list for the
 event creator or an admin.
 
-It currently receives:
+It receives:
 
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
@@ -249,9 +261,8 @@ It currently receives:
 
 This role stays read-only on purpose.
 
-The handler flow first reads the canonical event item to apply existence and
-authorization rules, then queries one event-scoped RSVP page. It does not
-currently need:
+The access profile supports reading the canonical event item before querying an
+event-scoped RSVP page. It does not include:
 
 - `PutItem`
 - `UpdateItem`
@@ -264,7 +275,7 @@ currently need:
 This role is intended for the Lambda that translates one event-level
 participant notification message into recipient-level email jobs.
 
-It currently receives:
+It receives:
 
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
@@ -284,7 +295,7 @@ It intentionally does not receive:
 This role is intended for the Lambda that consumes recipient-level email
 jobs and resolves the current recipient email address from Cognito at send time.
 
-It currently receives:
+It receives:
 
 - CloudWatch Logs write permissions
 - optional X-Ray write permissions
@@ -320,7 +331,7 @@ It intentionally does not receive:
 
 ## Key Design Decisions
 
-### Lambda trust only in v1
+### Lambda trust only
 
 This module creates Lambda execution roles only.
 
@@ -328,7 +339,7 @@ Every role trusts:
 
 - `lambda.amazonaws.com`
 
-No other service principals are supported in this step.
+No other service principals are supported by the module.
 
 ### Policies are customer-managed and workload-specific
 
@@ -337,7 +348,7 @@ Each workload receives its own customer-managed policy.
 That is intentional:
 
 - clearer AWS console inspection
-- easier validation evidence later
+- direct inspection and validation
 - cleaner least-privilege boundaries
 - no monolithic shared policy growth
 
@@ -353,8 +364,8 @@ When `eventbridge_publish_event_bus_arn` is set, this module grants
 Read workloads, RSVP workloads, authorizers, and notification workers do not
 receive EventBridge publish access.
 
-This keeps post-commit domain event publishing tied to the write workloads that
-can actually create the locked v1 event-management domain events.
+This keeps domain-event publishing tied to the write workloads represented by
+those access profiles.
 
 ### The module consumes only exact resource ARNs
 
@@ -372,20 +383,21 @@ The input surface stays intentionally small:
 - `eventbridge_publish_event_bus_arn`
 - `workloads`
 
-This keeps the module aligned with the thin-environment rule and avoids premature generic IAM abstraction.
+This keeps the module explicit and prevents callers from widening policies
+through arbitrary IAM inputs.
 
 ---
 
 ## Outputs
 
-The module exposes only the role identifiers later layers are likely to need:
+The module exposes:
 
 - `role_names`
 - `role_arns`
 
 Both outputs are keyed by logical workload name.
 
-This gives later environment and Lambda wiring the role identities they need without over-exposing unrelated implementation details.
+Callers use these identifiers when attaching the roles to Lambda functions.
 
 ---
 
@@ -403,10 +415,13 @@ The example shows how to:
 - provide an SES sender identity ARN and SES template ARNs for scoped sender
   permissions
 - create a minimal custom EventBridge bus for scoped publish permissions
-- call the module with all currently supported workload roles, including the
+- call the module with all supported workload roles, including the
   logs-only `rsvp-authorizer` workload and split notification planner/sender
   roles
 - inspect the resulting role names and ARNs
+
+Applying the example creates real IAM, DynamoDB, SQS, Cognito, SES, and
+EventBridge resources and should be reviewed before use in an AWS account.
 
 ---
 
@@ -422,11 +437,9 @@ The example shows how to:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.45.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
 
-## Modules
 
-No modules.
 
 ## Resources
 
@@ -446,7 +459,6 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_cognito_user_pool_arn"></a> [cognito\_user\_pool\_arn](#input\_cognito\_user\_pool\_arn) | ARN of the Cognito User Pool used by the notification sender to resolve recipient email addresses by canonical user ID. | `string` | n/a | yes |
-| <a name="input_eventbridge_publish_event_bus_arn"></a> [eventbridge\_publish\_event\_bus\_arn](#input\_eventbridge\_publish\_event\_bus\_arn) | ARN of the EventBridge event bus write workloads may publish domain events to. When null, no EventBridge publish permissions are granted. | `string` | `null` | no |
 | <a name="input_events_table_arn"></a> [events\_table\_arn](#input\_events\_table\_arn) | ARN of the DynamoDB events table used by workload-specific IAM policies. | `string` | n/a | yes |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Shared environment naming prefix used to derive IAM role and policy names. | `string` | n/a | yes |
 | <a name="input_notification_dispatch_queue_arn"></a> [notification\_dispatch\_queue\_arn](#input\_notification\_dispatch\_queue\_arn) | ARN of the notification-dispatch SQS queue consumed by the notification planner. | `string` | n/a | yes |
@@ -455,7 +467,8 @@ No modules.
 | <a name="input_ses_sender_identity_arn"></a> [ses\_sender\_identity\_arn](#input\_ses\_sender\_identity\_arn) | ARN of the SES sender identity used by the notification sender to send participant email through SES templates. | `string` | n/a | yes |
 | <a name="input_ses_template_arns"></a> [ses\_template\_arns](#input\_ses\_template\_arns) | Map of SES participant notification template ARNs used by the notification sender. | `map(string)` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Baseline tags passed from the environment root and extended with resource-specific Name tags inside the module. | `map(string)` | n/a | yes |
-| <a name="input_workloads"></a> [workloads](#input\_workloads) | Map of Lambda workload role definitions keyed by logical workload name.<br/><br/>Supported workload keys in v1:<br/>- create-event<br/>- get-event<br/>- list-events<br/>- list-my-events<br/>- update-event<br/>- cancel-event<br/>- rsvp-authorizer<br/>- rsvp<br/>- get-event-rsvps<br/>- notification-planner<br/>- notification-sender | <pre>map(object({<br/>    access_profile = string<br/>    enable_logs    = optional(bool)<br/>    enable_xray    = optional(bool)<br/>  }))</pre> | n/a | yes |
+| <a name="input_workloads"></a> [workloads](#input\_workloads) | Map of Lambda workload role definitions keyed by logical workload name.<br/><br/>Supported workload keys:<br/>- create-event<br/>- get-event<br/>- list-events<br/>- list-my-events<br/>- update-event<br/>- cancel-event<br/>- rsvp-authorizer<br/>- rsvp<br/>- get-event-rsvps<br/>- notification-planner<br/>- notification-sender | <pre>map(object({<br/>    access_profile = string<br/>    enable_logs    = optional(bool)<br/>    enable_xray    = optional(bool)<br/>  }))</pre> | n/a | yes |
+| <a name="input_eventbridge_publish_event_bus_arn"></a> [eventbridge\_publish\_event\_bus\_arn](#input\_eventbridge\_publish\_event\_bus\_arn) | ARN of the EventBridge event bus write workloads may publish domain events to. When null, no EventBridge publish permissions are granted. | `string` | `null` | no |
 
 ## Outputs
 

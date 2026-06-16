@@ -9,7 +9,7 @@ What this script packages:
 
 Why this script exists:
 - Lambda deployments in this repo use ZIP artifacts
-- we want the packaging step to behave the same locally and later in CI/CD
+- we want the packaging step to behave the same locally and in CI/CD
 - we want the ZIP contents to be deterministic so repeated packaging does not
   produce noisy differences when the inputs have not changed
 

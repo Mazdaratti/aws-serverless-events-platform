@@ -1,17 +1,20 @@
-# SQS Messaging Baseline
+# SQS Queue Module
 
-This module creates the initial SQS messaging baseline for the serverless events platform.
+This module creates standard SQS queues with optional dedicated dead-letter
+queues for the serverless events platform.
 
-This module is intentionally platform-specific, not a generic queue factory.
-It defines the concrete queue infrastructure baseline that later IAM, Lambda, EventBridge, and environment wiring will depend on.
+It is intentionally focused on queue infrastructure rather than application
+routing or consumer behavior.
 
-This module manages queue infrastructure only.
+Each environment root documents its concrete queues, producers, consumers, and
+event-source mappings. The platform-wide messaging model is documented in the
+[architecture guide](../../../docs/architecture.md).
 
 ---
 
 ## What This Module Creates
 
-This module currently creates one or more standard SQS queues from a `queues` map.
+This module creates one or more standard SQS queues from a `queues` map.
 
 For each logical queue definition, it can create:
 
@@ -20,65 +23,65 @@ For each logical queue definition, it can create:
 - a redrive policy on the source queue when a DLQ is enabled
 - a redrive allow policy on the DLQ
 
-This keeps the first messaging-layer implementation small, reviewable, and aligned with the current architecture decisions.
+The caller controls each queue's visibility timeout, message retention,
+long-polling wait time, and redrive threshold.
 
 ---
 
-## Why This Module Stays Queue-Focused
+## Module Boundary
 
-This step is focused on the reusable messaging primitives that the platform needs first:
+The module owns:
 
-- standard SQS queues
+- standard queue creation and configuration
 - optional dedicated DLQs
-- source-to-DLQ retry wiring
+- source-queue redrive policies
+- DLQ redrive allow policies
+- queue and DLQ names, ARNs, URLs, and tags
 
-The module does not create Lambda event source mappings, IAM permissions, SNS subscriptions, EventBridge rules, or workload-specific message contracts. Those concerns become relevant later, but they are intentionally outside the scope of this first SQS layer.
+It does not own:
 
-Keeping the module limited to queue infrastructure makes the design easier to understand and avoids pretending that downstream consumer behavior is already finalized.
+- Lambda event source mappings
+- IAM permissions or queue resource policies
+- EventBridge targets
+- SNS subscriptions
+- message schemas or consumer behavior
+- CloudWatch alarms and dashboards
+
+Those responsibilities belong to callers, workload code, IAM, or observability.
 
 ---
 
-## Queue Responsibilities
+## Queue Behavior
 
 ### Primary queues
 
-Primary queues hold the asynchronous work that later platform components may consume.
-
-In v1, these queues are intended for:
-
-- asynchronous side effects after durable business writes
-- repair or reconciliation-style jobs
-- future retryable background workflows
-
-They are not part of the primary synchronous RSVP acceptance path.
+Primary queues buffer asynchronous work for consumers defined by the composing
+root. The module does not prescribe producers, consumers, message schemas, or
+event-source mappings.
 
 ### Dead-letter queues
 
-Dedicated DLQs isolate failed messages per workload.
+Dedicated DLQs isolate failed messages per logical queue.
 
-If a queue enables `create_dlq`, the module creates a dedicated DLQ for that queue and attaches the corresponding redrive and redrive-allow policies. This keeps failure handling explicit and avoids mixing unrelated failed messages into one shared queue.
+If a queue enables `create_dlq`, the module creates a dedicated DLQ and attaches
+the corresponding redrive and redrive-allow policies. This keeps failure
+handling explicit and avoids mixing unrelated failed messages into one shared
+queue.
 
 ---
 
 ## Key Design Decisions
 
-### SQS remains outside the primary RSVP write path
+### Standard queues only
 
-This module is aligned with the locked architecture decision that the primary RSVP write path remains synchronous through durable DynamoDB commit.
-
-The important boundary in this step is that SQS is reserved for asynchronous side effects and background work after durable state changes, not for the core RSVP acceptance path.
-
-### Standard queues only in v1
-
-This first implementation supports standard queues only.
+The module supports standard queues only.
 
 That is intentional:
 
-- the roadmap currently needs an initial asynchronous messaging baseline, not ordering-specific behavior
-- standard queues are enough for downstream side effects and repair-style work
-- adding FIFO support now would increase module complexity before a real workload requires it
-
-FIFO, deduplication, and ordering-specific behavior can be added later if a validated use case appears.
+- the module's supported use cases require retry and buffering rather than
+  ordering guarantees
+- the module does not expose unused FIFO or deduplication configuration
+- callers that require FIFO semantics need a separate, explicit module contract
 
 ### Dedicated DLQs are per queue
 
@@ -87,7 +90,7 @@ If a queue enables DLQ support, it receives its own dedicated DLQ.
 That is intentional:
 
 - easier debugging
-- better future alarms and metrics
+- workload-specific alarms and metrics
 - cleaner operational isolation
 - no mixing of unrelated failed messages
 
@@ -115,7 +118,8 @@ This module keeps its public input surface intentionally small:
 - `tags`
 - `queues`
 
-This keeps naming and tagging aligned with the environment root while avoiding a premature over-generic abstraction.
+This keeps naming and tagging aligned with the composing root without turning
+the module into an unrestricted queue factory.
 
 ---
 
@@ -133,7 +137,9 @@ For queues that create dedicated DLQs, it also exposes:
 - `dlq_arns`
 - `dlq_urls`
 
-This gives later IAM, Lambda, and environment wiring the queue identifiers they need without over-exposing unrelated implementation details.
+Callers can use these identifiers for IAM policies, resource policies,
+producers, consumers, event-source mappings, and observability without requiring
+the module to own those integrations.
 
 ---
 
@@ -148,11 +154,12 @@ The example shows how to:
 - build the shared `name_prefix`
 - define the baseline tag map
 - call the module with the minimal input surface
-- exercise both supported v1 code paths:
+- exercise both supported queue paths:
   - a queue with a DLQ
   - a queue without a DLQ
 
-The example is safe to run with local state and does not require environment wiring.
+Applying the example creates real SQS resources and should be reviewed before
+use in an AWS account.
 
 ---
 

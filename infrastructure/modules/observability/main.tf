@@ -3,7 +3,7 @@
 ############################################
 
 # The module builds one normalized alarm map in locals.tf and creates all
-# baseline alarms through this single resource. That keeps service-specific
+# metric alarms through this single resource. That keeps service-specific
 # metric details close to the local definitions while keeping resource creation
 # easy to review.
 resource "aws_cloudwatch_metric_alarm" "metric" {

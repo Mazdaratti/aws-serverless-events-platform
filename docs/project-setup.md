@@ -33,13 +33,10 @@ separate operational lanes.
 
 ## Setup Sequence
 
-Use this order when setting up the project from a fresh clone. The sequence
-assumes a `dev` environment and an AWS account where the local AWS CLI identity
-is allowed to create the bootstrap resources.
+Use this sequence for a `dev` environment and an AWS account where the local
+AWS CLI identity can create the bootstrap resources.
 
-Provisioning steps create or update the platform. Deployment steps after
-provisioning are operational paths for application artifacts and code-only
-changes.
+### Required Initial Setup
 
 1. Clone the repository.
 2. Install the required local tools listed in
@@ -85,35 +82,44 @@ changes.
     ```powershell
     gh workflow run provisioning-apply.yml --ref main -f confirm_apply=apply-dev
     ```
-12. After provisioning succeeds, optionally run the manual Lambda deployment
-    dry-run workflow from `main` to preview code-only Lambda updates:
+12. Deploy the frontend required for the usable platform:
     ```powershell
-    gh workflow run lambda-deploy-dry-run.yml --ref main
-    ```
-13. When code-only Lambda changes are ready to deploy, run the manual Lambda
-    deployment apply workflow from `main`:
-    ```powershell
-    gh workflow run lambda-deploy-apply.yml --ref main -f confirm_deploy=deploy-lambdas-dev
-    ```
-14. Deploy or preview frontend artifacts with one of the implemented frontend
-    paths:
-    ```powershell
-    python scripts/deploy_frontend.py --dry-run
-    python scripts/deploy_frontend.py --apply
     gh workflow run frontend-deploy-dry-run.yml --ref main
     gh workflow run frontend-deploy-apply.yml --ref main -f confirm_deploy=deploy-dev
     ```
-15. Validate the CloudFront frontend and `/events` API routes.
+13. Validate the frontend, deep-link routing, and `/events` API separation using
+    the
+    [frontend post-deployment checklist](../frontend/README.md#post-deployment-validation).
 
-    Check the app through the CloudFront domain printed by the deployment
-    helper or available from Terraform outputs:
-    - `/app`
-    - `/app/events`
-    - `/app/my-events`
-    - `/events`
+The provisioning workflow packages the Lambda artifacts required for initial
+function creation. A separate Lambda code deployment is therefore not required
+during initial setup.
 
-    Frontend routes under `/app` should return the SPA. API routes under
-    `/events` should return API responses, not frontend HTML.
+### Ongoing Infrastructure and Application Updates
+
+Use the provisioning workflows for infrastructure changes:
+
+```powershell
+gh workflow run provisioning-dry-run.yml --ref main
+gh workflow run provisioning-apply.yml --ref main -f confirm_apply=apply-dev
+```
+
+Use the Lambda deployment workflows for code-only Lambda updates:
+
+```powershell
+gh workflow run lambda-deploy-dry-run.yml --ref main
+gh workflow run lambda-deploy-apply.yml --ref main -f confirm_deploy=deploy-lambdas-dev
+```
+
+Use the frontend deployment workflows for frontend updates:
+
+```powershell
+gh workflow run frontend-deploy-dry-run.yml --ref main
+gh workflow run frontend-deploy-apply.yml --ref main -f confirm_deploy=deploy-dev
+```
+
+Equivalent local helper and Terraform alternatives are documented in
+[Local Operations](#local-operations).
 
 ---
 
@@ -163,164 +169,103 @@ repository secrets, and `TF_VAR_*` environment variables. The local
 ## GitHub Actions Workflows
 
 GitHub Actions uses the OIDC role created by `infrastructure/bootstrap/dev`.
-The current OIDC trust is branch-scoped to `main`, so these workflows use
-repository variables and do not use a GitHub Environment.
+The repository has two workflow categories:
 
-Before running GitHub Actions workflows, complete the repository variable and
-secret sync described in [GitHub Actions Input Sync](#github-actions-input-sync).
+- `.github/workflows/ci.yml` runs on pull requests and pushes to `main`, and
+  also supports manual dispatch.
+- AWS smoke, provisioning, Lambda deployment, and frontend deployment workflows
+  are manual-only workflows triggered with `workflow_dispatch`.
+
+The operational workflows documented below:
+
+- require `refs/heads/main`
+- use repository variables rather than a GitHub Environment
+- assume the branch-scoped AWS role through OIDC
+- generate `infrastructure/envs/dev/backend.tf`
+- initialize and validate the remote-backed Terraform root
+
+Complete [GitHub Actions Input Sync](#github-actions-input-sync) before running
+these operational workflows.
 
 ### AWS OIDC Smoke Workflow
 
-Workflow file:
-
-- `.github/workflows/aws-oidc-smoke.yml`
-
-Run it from `main` with:
+File: `.github/workflows/aws-oidc-smoke.yml`
 
 ```powershell
 gh workflow run aws-oidc-smoke.yml --ref main
 ```
 
-This workflow validates:
+Validates OIDC role assumption, S3 backend bucket and prefix access, and
+Terraform initialization and validation. It does not plan, apply, package, or
+deploy application artifacts.
 
-- GitHub Actions can request an OIDC token
-- AWS accepts the token for the branch-scoped role
-- the assumed role can access the configured S3 remote state bucket and backend
-  key prefix
-- Terraform can initialize against the generated S3 backend settings
-- Terraform can validate `infrastructure/envs/dev`
+### Provisioning Workflows
 
-It does not run `terraform plan`, run `terraform apply`, package Lambda
-artifacts, deploy Lambda code, or deploy frontend assets.
-
-### Provisioning Dry Run Workflow
-
-Workflow file:
+Files:
 
 - `.github/workflows/provisioning-dry-run.yml`
-
-Run it from `main` with:
+- `.github/workflows/provisioning-apply.yml`
 
 ```powershell
 gh workflow run provisioning-dry-run.yml --ref main
-```
-
-This validation-only provisioning dry run uses synced GitHub variables and
-secrets, generates the dev backend configuration, packages Lambda ZIP artifacts,
-and runs:
-
-- `terraform init`
-- `terraform validate`
-- `terraform plan`
-
-It does not apply infrastructure, deploy Lambda code, or deploy frontend assets.
-
-### Provisioning Apply Workflow
-
-Workflow file:
-
-- `.github/workflows/provisioning-apply.yml`
-
-Run it from `main` with the required confirmation input:
-
-```powershell
 gh workflow run provisioning-apply.yml --ref main -f confirm_apply=apply-dev
 ```
 
-This workflow is the GitHub Actions path for initial `dev` environment
-provisioning after bootstrap and input sync are complete, and for later
-infrastructure changes. It uses synced GitHub variables and secrets, generates
-the dev backend configuration, packages Lambda ZIP artifacts, and runs:
+Both workflows consume the synced dev Terraform inputs and package Lambda ZIP
+artifacts before planning.
 
-- `terraform init`
-- `terraform validate`
-- `terraform plan -out=tfplan`
-- `terraform apply tfplan`
+- Dry run: runs `terraform plan` without applying.
+- Apply: requires `confirm_apply=apply-dev`, saves the plan, and applies that
+  exact plan.
 
-It requires explicit confirmation and applies only the saved Terraform plan. It
-does not deploy Lambda code through `aws lambda update-function-code` or deploy
-frontend assets.
+Provisioning does not call `aws lambda update-function-code` or deploy frontend
+assets.
 
-### Lambda Deployment Dry Run Workflow
+### Lambda Deployment Workflows
 
-Workflow file:
+Files:
 
 - `.github/workflows/lambda-deploy-dry-run.yml`
-
-Run it from `main` with:
+- `.github/workflows/lambda-deploy-apply.yml`
 
 ```powershell
 gh workflow run lambda-deploy-dry-run.yml --ref main
-```
-
-This workflow validates the Lambda code deployment preview lane. It uses GitHub
-OIDC, generates the dev backend configuration from repository variables,
-initializes and validates the remote Terraform backend, checks the required
-Lambda deployment outputs, packages artifacts, previews Lambda code updates,
-and then runs:
-
-```powershell
-python scripts/deploy_lambdas.py --dry-run
-```
-
-It does not run `terraform plan`, run `terraform apply`, call
-`aws lambda update-function-code`, or deploy frontend assets.
-
-### Lambda Deployment Apply Workflow
-
-Workflow file:
-
-- `.github/workflows/lambda-deploy-apply.yml`
-
-Run it from `main` with the required confirmation input:
-
-```powershell
 gh workflow run lambda-deploy-apply.yml --ref main -f confirm_deploy=deploy-lambdas-dev
 ```
 
-This workflow is the GitHub Actions path for code-only Lambda deployment. It
-uses GitHub OIDC, generates the dev backend configuration from repository
-variables, initializes and validates the remote Terraform backend, checks the
-required Lambda deployment outputs, packages artifacts, and then runs:
+Both workflows validate the `aws_region` and `lambda_function_names` Terraform
+outputs and delegate packaging and deployment behavior to
+`scripts/deploy_lambdas.py`.
 
-```powershell
-python scripts/deploy_lambdas.py --apply
-```
+- Dry run: previews workload-to-function code updates without AWS mutation.
+- Apply: requires `confirm_deploy=deploy-lambdas-dev` and updates existing
+  function code with `aws lambda update-function-code --no-publish`.
 
-The helper updates existing Lambda function code with
-`aws lambda update-function-code --no-publish`. The workflow does not call that
-AWS CLI command directly.
-
-It does not run `terraform plan`, run `terraform apply`, deploy frontend
-assets, publish Lambda versions, manage aliases, or use CodeDeploy.
+Neither workflow runs Terraform plan/apply, deploys frontend assets, publishes
+Lambda versions, manages aliases, or uses CodeDeploy.
 
 ### Frontend Deployment Workflows
 
-Workflow files:
+Files:
 
 - `.github/workflows/frontend-deploy-dry-run.yml`
 - `.github/workflows/frontend-deploy-apply.yml`
 
-Run the dry-run workflow from `main` with:
-
 ```powershell
 gh workflow run frontend-deploy-dry-run.yml --ref main
-```
-
-Run the apply workflow from `main` with the required confirmation input:
-
-```powershell
 gh workflow run frontend-deploy-apply.yml --ref main -f confirm_deploy=deploy-dev
 ```
 
-These workflows use GitHub OIDC, generate the dev backend configuration from
-repository variables, initialize the remote Terraform backend, check required
-frontend deployment outputs, and then run the frontend deployment helper.
+Both workflows validate the required frontend Terraform outputs and delegate
+build and deployment behavior to `scripts/deploy_frontend.py`.
 
-The dry-run workflow builds and previews deployment only. The apply workflow
-uploads frontend assets and creates the CloudFront invalidation. Neither
-workflow runs Terraform provisioning, packages Lambda artifacts, or deploys
-Lambda code.
+- Dry run: validates and builds the frontend, then previews the S3 sync.
+- Apply: requires `confirm_deploy=deploy-dev`, uploads the assets, and creates a
+  CloudFront invalidation.
+
+Neither workflow provisions infrastructure, packages Lambda artifacts, or
+deploys Lambda code. Detailed frontend workflow behavior is documented in
+[frontend/README.md](../frontend/README.md#github-actions-workflows).
 
 ---
 
@@ -328,65 +273,52 @@ Lambda code.
 
 ### Lambda Packaging
 
-Provisioning workflows and Lambda code deployment workflows use the same
-packaging path:
+Build the complete Lambda artifact set from the repository root:
 
 ```powershell
 python scripts/package_lambdas.py
 ```
 
-The helper packages all deployed Lambda workloads into:
-
-- `artifacts/lambda/<function-key>.zip`
-
-It also rebuilds the Lambda-compatible RSVP authorizer vendor tree by default.
+Artifacts are written to `artifacts/lambda/<function-key>.zip`. Packaging
+behavior, workload-specific rules, and the RSVP authorizer vendor build are
+documented in [lambdas/README.md](../lambdas/README.md).
 
 ### Lambda Code Deployment Helper
 
-The local Lambda code deployment helper is:
+`scripts/deploy_lambdas.py` packages the deployed workloads, reads the
+remote-backed Terraform outputs, validates the workload-to-function mapping,
+and previews or applies code-only Lambda updates.
 
-- `scripts/deploy_lambdas.py`
-
-Before using the helper, make sure the dev Terraform state is current and
-includes the Lambda deployment outputs:
+It requires these Terraform outputs:
 
 - `aws_region`
 - `lambda_function_names`
 
-Run a safe dry-run first from the repository root:
+Preview a deployment from the repository root:
 
 ```powershell
 python scripts/deploy_lambdas.py --dry-run
 ```
 
-Dry-run mode packages all deployed Lambda workloads, reads
-`terraform output -json`, validates the workload-to-function mapping, validates
-expected ZIP artifacts, and prints the planned
-`aws lambda update-function-code` commands.
-
-For a real local Lambda code deployment, run:
+Apply the code update:
 
 ```powershell
 python scripts/deploy_lambdas.py --apply
 ```
 
-Apply mode uses the same packaging and validation path, then updates existing
-Lambda function code with `aws lambda update-function-code`.
-
-For GitHub Actions, use the manual Lambda deployment apply workflow documented
-in [GitHub Actions Workflows](#github-actions-workflows).
+Dry-run prints the planned `aws lambda update-function-code` commands without
+AWS mutation. Apply mode updates existing function code after running the same
+packaging and validation path.
 
 The helper does not run `terraform plan`, run `terraform apply`, publish Lambda
 versions, manage aliases, use CodeDeploy, or deploy frontend assets.
 
+Use the corresponding manual workflows documented in
+[Lambda Deployment Workflows](#lambda-deployment-workflows) for GitHub Actions.
+
 ### Frontend Operations
 
-Detailed frontend setup, validation, runtime rules, deployment helper behavior,
-and post-deployment checks are documented in:
-
-- `frontend/README.md`
-
-Common local validation commands from `frontend/`:
+Run local validation from `frontend/`:
 
 ```powershell
 npm ci
@@ -396,12 +328,19 @@ npm run test
 npm run test:e2e
 ```
 
-Common frontend deployment commands from the repository root:
+Run frontend deployment previews or updates from the repository root:
 
 ```powershell
 python scripts/deploy_frontend.py --dry-run
 python scripts/deploy_frontend.py --apply
 ```
+
+Detailed frontend setup, runtime rules, helper behavior, and post-deployment
+checks are documented in [frontend/README.md](../frontend/README.md).
+
+Use the corresponding manual workflows documented in
+[Frontend Deployment Workflows](#frontend-deployment-workflows) for GitHub
+Actions.
 
 ### Local Terraform Provisioning Alternative
 
@@ -412,167 +351,84 @@ workflow, not an additional required setup step.
 From the repository root:
 
 ```powershell
+python scripts/package_lambdas.py
+$planPath = Join-Path $env:TEMP "aws-serverless-events-platform-dev.tfplan"
+
 terraform -chdir=infrastructure/envs/dev init
 terraform -chdir=infrastructure/envs/dev validate -no-color
-terraform -chdir=infrastructure/envs/dev plan -out=tfplan
-terraform -chdir=infrastructure/envs/dev apply tfplan
+terraform -chdir=infrastructure/envs/dev plan -out="$planPath"
+terraform -chdir=infrastructure/envs/dev apply "$planPath"
+Remove-Item -LiteralPath $planPath
 terraform -chdir=infrastructure/envs/dev plan
 ```
 
-The final plan should report no changes after a successful apply.
+Lambda artifacts must exist before Terraform plans fresh function creation. The
+saved plan is kept outside the repository and removed after apply. The final
+plan should report no changes.
 
 ---
 
 ## Deployment Boundaries
 
-### Terraform Provisioning vs Lambda Code Deployment
+Provisioning and application deployment are separate operational lanes:
 
-Lambda infrastructure ownership is separate from Lambda code deployment, while
-Lambda artifact generation remains available to both automation lanes.
+| Lane | Owns | Does not own |
+|---|---|---|
+| Terraform provisioning | Infrastructure, Lambda configuration, IAM, environment variables, service wiring, and initial Lambda ZIP inputs | Code-only Lambda releases or frontend asset deployment |
+| Lambda code deployment | ZIP packaging, workload-to-function mapping, and existing function-code updates | Terraform plan/apply, infrastructure configuration, versions, aliases, or CodeDeploy |
+| Frontend deployment | Frontend build, S3 asset upload, and CloudFront invalidation | Terraform provisioning, Lambda packaging, or Lambda code deployment |
 
-- Terraform continues to own Lambda infrastructure, configuration, and service
-  wiring.
-- Terraform provisioning builds Lambda ZIP artifacts before Terraform
-  plan/apply so Terraform can create Lambda functions when needed.
-- After Lambda functions exist, Terraform ignores Lambda package-field drift
-  while continuing to detect infrastructure and configuration drift.
-- Lambda code deployment automation builds Lambda ZIP artifacts, maps workloads
-  to existing function names from Terraform outputs, and updates code through
-  `aws lambda update-function-code`.
-- Lambda code deployment workflows may read Terraform outputs, but they must
-  not run `terraform apply`.
+Lambda packaging is shared by provisioning and code deployment. Provisioning
+uses the artifacts to create functions when needed; code deployment updates
+existing functions with `aws lambda update-function-code`.
 
-Config drift such as environment variables, timeout, memory, tracing, IAM,
-event source mappings, and API Gateway wiring must remain visible to Terraform.
+After function creation, Terraform ignores drift in the Lambda package fields
+while continuing to detect configuration and infrastructure drift. Lambda and
+frontend deployment workflows may read Terraform outputs, but they must not run
+`terraform apply`.
 
-### Frontend Deployment Boundary
+Detailed ownership rules are documented in:
 
-Frontend deployment uploads static assets to S3 and creates a CloudFront
-invalidation in apply mode.
-
-Frontend deployment does not:
-
-- run Terraform provisioning
-- package Lambda artifacts
-- deploy Lambda code
-
-Detailed frontend operations are documented in:
-
-- `frontend/README.md`
+- [Lambda module code ownership](../infrastructure/modules/lambda/README.md#lambda-code-ownership-boundary)
+- [Lambda packaging](../lambdas/README.md)
+- [Frontend deployment model](../frontend/README.md#deployment-model)
 
 ---
 
 ## Current Tooling Baseline
 
-The project workflow expects these tools to be available:
+| Tool | Project use |
+|---|---|
+| Python 3.13 | Lambda runtime compatibility, repository helpers, packaging, and handler tests |
+| Docker | Lambda-compatible dependency build for the mixed-mode RSVP authorizer |
+| Terraform | Bootstrap, infrastructure provisioning, validation, and output access |
+| `tflint` | Terraform linting for modules, examples, and `infrastructure/envs/dev` |
+| `terraform-docs` | Generated Terraform README reference sections after interface changes |
+| AWS CLI | Local frontend deployment previews/uploads and Lambda code updates |
+| GitHub CLI | Repository input synchronization and manual workflow execution |
+| Node.js and npm | Frontend dependency installation, validation, testing, and builds |
 
-- Python
-- Docker
-- Terraform
-- `tflint`
-- `terraform-docs`
-- AWS CLI
-- GitHub CLI
-- Node.js
-- npm
+Docker is required only when rebuilding the RSVP authorizer vendor tree; it is
+not required for ordinary Lambda ZIP packaging or Terraform validation. See
+[lambdas/README.md](../lambdas/README.md#lambda-compatible-vendor-build).
 
-Tool usage summary:
+The AWS CLI must be configured for the target AWS account before using local
+deployment helpers. GitHub Actions obtains temporary AWS credentials through
+OIDC instead.
 
-- Python: Lambda runtime alignment, helper scripts, and handler tests
-- Docker: Lambda-compatible RSVP authorizer vendor rebuild
-- Terraform: bootstrap, provisioning, validation, and outputs
-- `tflint`: Terraform linting
-- `terraform-docs`: generated Terraform README sections
-- AWS CLI: local frontend artifact deployment and Lambda code updates
-- GitHub CLI: repository input sync and manual workflow runs
-- Node.js and npm: frontend validation and builds under `frontend/`
+### Local Python Test Environment
 
-## Python
-
-- use Python `3.13` for deployed Lambda runtime compatibility
-- local helper scripts in `scripts/` are also Python-based where practical
-- local Python virtual environments such as `.venv` are recommended for tests,
-  helper scripts, and local dependency installs
-
-Python-based local workflows include Lambda packaging, RSVP authorizer vendor
-builds, repository helper scripts, and focused handler tests.
-
-Local test execution now uses the shared pytest bootstrap under:
-
-- `tests/conftest.py`
-
-That bootstrap aligns local import-path behavior with CI so Lambda handlers can
-be tested locally using the same `shared/...` import layout expected by the
-packaged deployment artifacts.
-
-Install the local Lambda test dependencies into the repository virtual
-environment before running handler tests locally:
+Use a local virtual environment such as `.venv` for helper and test
+dependencies. Install the Lambda test dependencies with:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install pytest boto3
 ```
 
-`boto3` also installs `botocore`, which the tests use for AWS SDK exception
-shapes and mocked client behavior. These dependencies are for local unit tests
-and helper scripts; they do not require AWS credentials for mocked handler
-tests.
+`tests/conftest.py` aligns local imports with the `shared/...` package layout
+used by deployed artifacts. Mocked handler tests do not require AWS
+credentials. Installing `boto3` also installs the `botocore` exception types
+used by the tests.
 
-## Docker
-
-Docker is currently required for the mixed-mode RSVP authorizer packaging flow:
-
-- the authorizer depends on native libraries such as `cryptography` and `cffi`
-- local importability is not the same as Lambda-runtime compatibility
-- the repository now uses a Docker-based rebuild step to generate a
-  Lambda-compatible vendor tree for:
-  - `lambdas/rsvp_authorizer/vendor/`
-
-Docker is not currently required for ordinary Lambda packaging or Terraform
-validation. It is specifically required for the RSVP authorizer vendor rebuild
-flow.
-
-## Terraform
-
-Terraform is the source of truth for infrastructure in this repository. Local
-Terraform usage includes:
-
-- `fmt`
-- `init`
-- `validate`
-- `plan`
-- targeted environment/module verification during implementation
-
-## `tflint`
-
-`tflint` is part of the expected Terraform validation workflow for:
-
-- modules
-- examples
-- `infrastructure/envs/dev`
-
-## `terraform-docs`
-
-`terraform-docs` is part of the expected documentation maintenance workflow
-for:
-
-- Terraform modules
-- `infrastructure/envs/dev`
-
-It is used to refresh generated input/output/reference sections in README files
-after interface changes.
-
-## AWS CLI
-
-The AWS CLI is required for local deployment helpers. It must be configured for
-the same AWS account and dev permissions used by the platform.
-
-The frontend helper uses AWS CLI commands for:
-
-- previewing frontend artifact changes in dry-run mode
-- syncing `frontend/dist/` to the private frontend S3 bucket in apply mode
-- creating a CloudFront cache invalidation after a real frontend upload
-
-The Lambda deployment helper uses AWS CLI commands for:
-
-- updating existing Lambda function code with `aws lambda update-function-code`
-  only when run with `--apply`
+Detailed frontend tooling is documented in
+[frontend/README.md](../frontend/README.md).

@@ -3,8 +3,7 @@
 Rebuild the RSVP authorizer vendor tree in a Lambda-compatible Docker container.
 
 This script keeps the Docker invocation portable and repo-relative so the same
-workflow can be reused locally and later in CI without shell-specific path
-quoting.
+workflow can be reused locally and in CI without shell-specific path quoting.
 """
 
 from __future__ import annotations

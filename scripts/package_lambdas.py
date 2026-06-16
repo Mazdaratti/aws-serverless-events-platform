@@ -4,7 +4,7 @@ Package every deployed Lambda workload expected by the dev Terraform root.
 
 This helper orchestrates the existing single-workload packager. It does not
 call AWS, read Terraform outputs, or deploy code. Its job is only to create the
-ZIP artifacts that Terraform provisioning and later Lambda code deployment
+ZIP artifacts that Terraform provisioning and Lambda code deployment
 automation both need.
 """
 

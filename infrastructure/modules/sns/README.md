@@ -1,70 +1,74 @@
-# SNS Admin Notification Topic Baseline
+# SNS Admin Notification Module
 
-This module creates the reusable SNS topic baseline for platform/admin
+This module creates an SNS topic for platform and administrative
 notifications in the serverless events platform.
 
-It is intentionally platform-specific. The goal is not to provide a generic SNS
-factory or broad notification abstraction. Instead, this module defines the
-concrete SNS topic shape that later EventBridge routing, environment wiring,
-and admin/dev email subscription configuration will compose around.
+It is intentionally platform-specific rather than a generic SNS factory. The
+module owns one broadcast topic and optional email subscription resources.
 
-This module manages SNS topic and optional email subscription infrastructure
-only.
+Each environment root defines its concrete topic configuration, subscribers,
+publishers, and resource policies. The platform-wide notification model is
+documented in the [architecture guide](../../../docs/architecture.md).
 
 ---
 
 ## What This Module Creates
 
-This module currently creates:
+This module creates:
 
 - one SNS topic
 - zero or more email subscriptions for that topic
 
-It also exposes the core outputs later platform layers need, including:
+It exposes:
 
 - topic name
 - topic ARN
 - topic ID
 - email subscription ARNs
 
-This keeps the first SNS implementation small, reviewable, and aligned with the
-locked admin notification routing contract.
+The caller supplies shared naming, tags, an optional explicit topic name, and
+the set of email endpoints.
 
 ---
 
-## Why This Module Stays SNS-Focused
+## Module Boundary
 
-This step is focused on the reusable SNS topic baseline the platform clearly
-needs next:
+The module owns:
 
-- admin/platform broadcast topic creation
+- SNS topic creation and tagging
 - optional email subscription resources
-- stable topic identifiers for later EventBridge routing
+- topic and subscription outputs
 
-The module does not create EventBridge rules, EventBridge targets, SNS topic
-policies, SQS queues, Lambda publishing permissions, Lambda environment
-variables, Lambda code, SES resources, or environment wiring. Those resources
-either belong to their own modules or to the environment composition layer that
-owns the concrete routing relationship.
+It does not own:
 
-Keeping this module limited to SNS resource logic makes the design easier to
-understand while preserving thin `envs/dev` composition later.
+- EventBridge rules or targets
+- SNS topic policies
+- SQS queues or subscriptions
+- Lambda IAM permissions or environment variables
+- message formatting or publisher behavior
+- SES participant-email resources
+- CloudWatch alarms and dashboards
+
+Those responsibilities belong to callers, workload code, IAM, SES, or
+observability.
 
 ---
 
-## Admin Notification Direction
+## Notification Contract
 
-The platform's locked async notification direction uses SNS for simple
-platform/admin broadcast notifications.
+The topic provides a broadcast surface for platform and administrative
+notifications.
 
-The intended admin path is:
+Callers determine:
 
-`Write Lambda -> DynamoDB commit -> EventBridge -> SNS admin topic`
+- which services may publish
+- which EventBridge rules or workloads act as publishers
+- which email endpoints are subscribed
+- how messages are formatted
+- which topic policy grants publishing access
 
-This module creates the SNS topic side of that path. It does not create
-EventBridge routing or grant EventBridge permission to publish to the topic.
-Those concerns depend on the concrete EventBridge rule ARN and are added in a
-later wiring step.
+The module creates the topic and optional subscriptions without coupling them
+to a particular publisher or routing topology.
 
 ---
 
@@ -77,22 +81,21 @@ recipient. A subscription does not receive messages until the recipient confirms
 it.
 
 Do not hardcode personal email addresses in reusable module code or examples.
-Environment wiring can pass admin or developer email endpoints through
-environment-specific configuration when that step is implemented.
+Callers should pass email endpoints through environment-specific, uncommitted
+configuration.
 
 ---
 
 ## Topic Policy Boundary
 
-This module intentionally does not create an SNS topic policy for EventBridge.
+This module intentionally does not create a topic policy.
 
-That policy should be scoped to the concrete EventBridge rule ARN that is
-allowed to publish to the topic. The rule ARN is not known inside this standalone
-SNS module baseline, so adding the policy here would either be too broad or
-force unrelated routing inputs into the SNS module.
+Publishing access should be scoped to the concrete source resource and AWS
+account where supported. Those values are not known inside this standalone
+module.
 
-The later environment wiring should add a narrowly scoped topic policy when it
-connects EventBridge routing to this topic.
+The target owner or composing root should create the narrowly scoped topic
+policy when connecting a publisher to the topic.
 
 ---
 
@@ -103,8 +106,10 @@ This module includes a runnable example:
 - `examples/basic_usage`
 
 The example shows how to create the SNS topic without email subscriptions. That
-keeps the example safe to plan and apply because it does not send subscription
-confirmation emails.
+avoids sending subscription confirmation emails.
+
+Applying the example creates a real SNS topic and should be reviewed before use
+in an AWS account.
 
 ---
 

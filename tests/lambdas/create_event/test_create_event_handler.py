@@ -121,8 +121,8 @@ def test_lambda_handler_returns_created_response_for_direct_payload(
 
 
 def test_lambda_handler_accepts_body_wrapped_json(monkeypatch, mock_table, mock_eventbridge_publish):
-    # This mirrors the future API Gateway shape where the Lambda receives a
-    # JSON string under "body" instead of a plain top-level payload.
+    # This mirrors the API Gateway shape where the Lambda receives a JSON
+    # string under "body" instead of a plain top-level payload.
     monkeypatch.setattr(handler.uuid, "uuid4", lambda: "aaaaaaaa-1234-1234-1234-aaaaaaaaaaaa")
     monkeypatch.setattr(handler, "_utc_now_iso8601", lambda: "2026-03-31T12:00:00Z")
 

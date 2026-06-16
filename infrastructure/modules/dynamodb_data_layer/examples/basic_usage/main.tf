@@ -33,7 +33,7 @@ locals {
 # This example demonstrates the smallest realistic way to call the module.
 #
 # It intentionally uses the default on-demand billing mode and point-in-time
-# recovery settings so the example stays close to the planned dev baseline.
+# recovery settings so the example stays close to the dev environment shape.
 module "dynamodb_data_layer" {
   source = "../../"
 

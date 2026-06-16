@@ -91,8 +91,8 @@ def test_lambda_handler_returns_public_event_dtos_for_default_all_mode(mock_tabl
 
 
 def test_lambda_handler_accepts_query_string_parameters_for_all_mode(mock_table):
-    # This mirrors the future API Gateway request shape where listing inputs
-    # arrive as query-string values instead of top-level direct-invoke fields.
+    # This mirrors the API Gateway request shape where listing inputs arrive as
+    # query-string values instead of top-level direct-invoke fields.
     mock_table.scan.return_value = {"Items": []}
 
     response = handler.lambda_handler(

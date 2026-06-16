@@ -77,8 +77,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
 
 def _extract_payload(event: dict[str, Any]) -> dict[str, Any]:
-    # Support both direct Lambda invocation and the future API Gateway event
-    # shape where the request body is delivered separately.
+    # Support both direct Lambda invocation and the API Gateway event shape
+    # where the request body is delivered separately.
     if "body" not in event:
         if isinstance(event, dict):
             return event
@@ -298,8 +298,8 @@ def _coerce_bool(value: Any, field_name: str) -> bool:
 
 
 def _success_response(*, status_code: int, body: dict[str, Any]) -> dict[str, Any]:
-    # Keep the response shape aligned with the future API Gateway integration
-    # even though the function can already be invoked directly today.
+    # Keep the response shape aligned with API Gateway integration while still
+    # supporting direct invocation in tests.
     return {
         "statusCode": status_code,
         "headers": {"Content-Type": "application/json"},

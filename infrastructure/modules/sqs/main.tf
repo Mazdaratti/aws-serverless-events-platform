@@ -57,9 +57,8 @@ resource "aws_sqs_queue" "primary_without_dlq" {
 # Dedicated dead-letter queues
 ############################################
 
-# In v1, a queue-level DLQ reuses the same timing settings as its source queue.
-# That keeps the module interface small while still making the DLQ behavior
-# explicit and production-like.
+# A queue-level DLQ reuses the same timing settings as its source queue. That
+# keeps the module interface small while making the DLQ behavior explicit.
 resource "aws_sqs_queue" "dlq" {
   for_each = local.queues_with_dlq
 
